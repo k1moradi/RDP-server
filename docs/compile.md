@@ -1,3 +1,16 @@
+## R10 macOS bounded first-MCS transport integration (2026-10-31)
+
+The existing `rdp-server-macos-host-control` target now owns exactly one
+`McsSessionLifecycle` after genuine R2 preparation. Reuse the existing
+transport/MCS static libraries, accepted SSL/BIO and one native readiness
+poll; add no target, worker, reader, dependency or separate build root.
+The existing macOS runtime CTest executable adds one first-MCS
+non-authorizing owner test. Connector-side configure/compile/CTest:
+**NOT RUN**. Execute the canonical one-build-root Debug build, focused
+`ctest -R '^(runtime[.]macos-host-control-first-mcs-without-native-issuer-dormancy|security[.]macos-protected-credssp-transport-completion-receipt-retirement)$'`
+and full CTest on the exact publication SHA. No performance benchmark or
+physical desktop/client evidence has been collected.
+
 ## R5 private evidence pin regression (2026-10-31)
 
 Existing Python3/CTest registers the offline behavior

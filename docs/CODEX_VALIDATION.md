@@ -1,3 +1,23 @@
+## R10 first macOS HostControl R2/R3 integration (2026-10-31)
+
+Authored from `1d95156ea4fd1d1c5a20f4e3754570b44d504299` and reconciled
+onto `b0bd3a213cf6163afbd36ae64cc515966d0cdab1`. The production
+serialized accepted-client loop can now retain one R3 owner, invoke R2's
+protected R1 transport admission only after real native preparation, read one
+bounded first MCS TPKT from the original SSL, issue R3 positive Connect-Initial
+only through R2, and send Connect-Response with exact R1 accepted-byte and
+R3 reply/slice receipts. R2 is destroyed before R3, proof, SSL/BIO/socket on
+all terminal paths. No Erect, Share, capture, input or clipboard is enabled.
+
+New production-backed offline R10 CTest keeps queued first-MCS dormant with
+injected non-authorizing owner evidence. Separate R2 real-TLS synthetic
+positive/partial receipt regression already exists but is NOT product-valid
+native Admission. Local compile/focused/full CTest and sanitizers **NOT RUN**;
+hosted exact-publication-SHA **PENDING**. First runtime positive Admission /
+Connect-Response boundary **INTEGRATED BUT NOT EXECUTED**; next gate is exact
+SHA macOS compile/full CTest and genuine native owner evidence before physical
+acceptance. No manual candidate nominated.
+
 ## R3 protected macOS MCS partial-response continuation and second Attach (2026-10-31)
 
 Authoring parent `b0bd3a213cf6163afbd36ae64cc515966d0cdab1`. An ordinary offline production-linked test

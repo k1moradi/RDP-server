@@ -32,6 +32,11 @@ namespace rdp_server::server::security
 class MacConsoleAdmissionBroker;
 }
 
+namespace rdp_server::server::transport
+{
+class McsSessionLifecycle;
+}
+
 namespace rdp_server::server::runtime
 {
 
@@ -125,6 +130,18 @@ private:
     void retireAcceptedClient() noexcept;
     [[nodiscard]] RuntimeHostResult advanceAcceptedClientPreAdmissionOnce() noexcept;
 
+    // One serialized accepted-client admission path. These stages are not
+    // credentials or native authorization and cannot be set by the GUI.
+    enum class AcceptedClientAdmissionStage : std::uint8_t
+    {
+        None,
+        CredentialsVerified,
+        Prepared,
+        TransportAdmitted,
+        Admitted,
+        ConnectResponseDelivered,
+    };
+
     const std::thread::id ownerThread_;
     rdp_server::server::security::MacConsoleOsEvidenceSource defaultOwnerEvidence_{};
     // R2 borrows this native reader, which outlives every accepted-client broker.
@@ -162,12 +179,16 @@ private:
     std::uint64_t activeClientId_{0U};
     std::string activeClientPeer_{};
     bool clientDisconnected_{false};
-    // R2 borrows the exact proof/R1 connection, native evidence and consent.
-    // Destruction: prepared broker -> proof/framer -> R1 SSL/BIO/socket.
+    // R2 borrows the original proof, R1 SSL/BIO/socket, native evidence and
+    // owner-consent authority, and enrolls exactly this one R3 session.
+    // Explicit retirement order: R2 broker -> R3 -> proof/framer -> R1.
     std::unique_ptr<rdp_server::server::transport::OwnedPreauthTcpConnection> activeConnection_{};
     std::unique_ptr<MacRuntimeCredSspState> activeCredSsp_{};
+    std::unique_ptr<rdp_server::server::transport::McsSessionLifecycle> activeMcsSession_{};
     std::unique_ptr<rdp_server::server::security::MacConsoleAdmissionBroker>
         activeAdmissionBroker_{};
+    AcceptedClientAdmissionStage activeAdmissionStage_{
+        AcceptedClientAdmissionStage::None};
     std::optional<rdp_server::server::security::OwnerSharingAuthorizationEpoch>
         activeConsentEpoch_{};
     std::uint64_t activeListenerGeneration_{};

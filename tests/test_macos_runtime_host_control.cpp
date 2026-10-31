@@ -909,6 +909,7 @@ enum class CompletedCredSspRetirement : std::uint8_t
     ConsentEpochReplacement,
     SessionReplacement,
     ExplicitClientDisconnect,
+    NoNativeIssuerAfterQueuedMcs,
 };
 
 class PortableBootstrapEvidence final : public ConsoleOsEvidenceSource
@@ -1386,6 +1387,28 @@ void testStopRevokeRetirement()
 
     switch (retirement)
     {
+    case CompletedCredSspRetirement::NoNativeIssuerAfterQueuedMcs:
+    {
+        // Exercise the new R10 admission dispatcher repeatedly after final
+        // CredSSP and complete queued MCS. A synthetic evidence source cannot
+        // construct the native R2 issuer or produce Connect-Response bytes.
+        for (std::size_t index = 0U; index < 32U; ++index)
+        {
+            assert(control.serviceOnce().succeeded());
+            assert(assertCompletedCredSspDormantStatus(control.status()));
+        }
+        assert(control.stopSharing().succeeded());
+        const auto retired = control.status();
+        assert(!retired.listenerAvailable);
+        assert(retired.activeClients.empty());
+        assert(retired.acceptedClientPreauthDiagnostics.protocolStage ==
+               RuntimeAcceptedClientProtocolStage::PreAdmission);
+        assert(!retired.acceptedClientPreauthDiagnostics.mcsSessionAdvanced);
+        assert(!retired.nativeDesktopReady);
+        assert(!retired.graphicsReady);
+        assert(retired.clipboardState == RuntimeClipboardState::Unavailable);
+        break;
+    }
     case CompletedCredSspRetirement::ExplicitClientDisconnect:
     {
         // Unlike Stop, this retires the exact accepted R1/R2 connection
@@ -1506,6 +1529,13 @@ void testStopRevokeRetirement()
     assert(gate.authInfoSent.load(std::memory_order_acquire));
     assert(gate.firstMcsQueued.load(std::memory_order_acquire));
     return true;
+}
+
+[[nodiscard]] bool testMacFirstMcsWithoutNativeIssuerRemainsDormant()
+{
+    return runCompletedCredSspRetirementScenario(
+        CompletedCredSspRetirement::NoNativeIssuerAfterQueuedMcs,
+        34530U, 0xa1U);
 }
 
 [[nodiscard]] bool testMacCompletedCredSspExplicitClientRetirement()
@@ -1828,6 +1858,11 @@ int main(int argc, char** argv)
     else if (selected == "macos-host-control-accepted-pre-admission-dormancy")
     {
         if (!testMacAcceptedClientPreAdmissionDormancy())
+            return 77;
+    }
+    else if (selected == "macos-host-control-first-mcs-without-native-issuer-dormancy")
+    {
+        if (!testMacFirstMcsWithoutNativeIssuerRemainsDormant())
             return 77;
     }
     else if (selected == "macos-host-control-verified-proof-explicit-client-retirement-denials")

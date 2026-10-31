@@ -1,3 +1,18 @@
+## R10 production HostControl MCS-denial and protected receipts (2026-10-31)
+
+Register `runtime.macos-host-control-first-mcs-without-native-issuer-dormancy`
+in the existing macOS HostControl CTest executable. A production R1/HYBRID/
+direct-NTLM CredSSP transcript with a queued Microsoft first MCS is rescheduled
+for 32 owner ticks using the injected non-authorizing evidence source; it must
+remain PreAdmission, never write Connect-Response, activate R3/Share/graphics/
+native/clipboard or survive Stop. Existing no-native-authority tests remain.
+The separate production R1/R2/R3
+`security.macos-protected-credssp-transport-completion-receipt-retirement`
+already covers zero/partial/late protected receipts with synthetic native
+observations; its success cannot certify physical macOS owner Admission.
+Local macOS compile/CTest **NOT RUN**, exact-publication-SHA CI **PENDING**.
+No native TCC/desktop/client run is authorized.
+
 ## R8 macOS Clipboard scope after production R1 TLS (2026-10-31)
 
 `security.macos-transport-admitted-clipboard-permission-denials`

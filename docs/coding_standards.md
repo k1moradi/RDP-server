@@ -1,3 +1,18 @@
+## R10 original-owner macOS first-MCS admission and exact receipt (2026-10-31)
+
+After final standalone CredSSP, only the real default macOS owner/native
+evidence source may construct an R2 broker; an injected synthetic source must
+remain CredentialsVerified with buffered MCS unread. The serialized HostControl
+owns exactly one R3 lifecycle after R2 Prepared and retires R2 before R3, the
+proof and R1 SSL/BIO/socket. R2 alone completes transport Admission. Only after
+TransportAdmitted may the original R1 TLS read a bounded (8192-byte maximum)
+TPKT, header first and then exactly the declared remaining bytes. MCS semantics
+and every Connect-Response suffix/receipt remain R3/R2-owned, and a single R1
+SSL writer reports only actually accepted bytes. Pending WANT is not acceptance;
+partial progress advances only the exact R3 reply/slice. A changed consent,
+native evidence, proof, TLS certificate, listener or accepted connection closes
+R2/R3/R1; this does not grant Erect, Share or native attachment.
+
 ## R2 macOS same-owner duplicate preparation retirement (2026-10-31)
 
 The original R2 admission broker accepts preparation exactly once from Ready.

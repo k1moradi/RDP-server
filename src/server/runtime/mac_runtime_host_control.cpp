@@ -4,6 +4,7 @@
 #include "server/security/mac_console_admission.h"
 #include "server/security/standalone_credssp.h"
 #include "server/security/credssp_tsrequest.h"
+#include "server/transport/mcs_channel_connection.h"
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <SystemConfiguration/SystemConfiguration.h>
@@ -217,6 +218,14 @@ struct MacRuntimeCredSspState final
         authenticatedProof{};
     bool replyPending{};
     bool bindingReplyPending{};
+    // Exact first MCS TPKT framing after R2 transport admission only.
+    // This is bounded byte storage, not a second MCS/session state machine.
+    std::array<std::uint8_t,
+        rdp_server::server::transport::kMaximumInitialMcsTpktBytes>
+        firstMcsTpkt{};
+    std::size_t firstMcsBytes{};
+    std::size_t firstMcsExpectedBytes{};
+    bool connectResponseWriteNeedsRead{};
 
     [[nodiscard]] bool prepareChallenge() noexcept
     {
@@ -250,9 +259,12 @@ struct MacRuntimeCredSspState final
 
 void MacRuntimeHostControl::retireAcceptedClient() noexcept
 {
-    // The prepared-only R2 broker borrows the proof and exact R1 connection.
-    // Release it before proof/framer, SSL/BIO, and the accepted socket.
+    // R2 can synchronously close its enrolled R3 and R1 on revocation.
+    // Destroy all borrowed relationships before the proof/SSL/BIO/socket.
     activeAdmissionBroker_.reset();
+    if (activeMcsSession_ != nullptr)
+        activeMcsSession_->close();
+    activeMcsSession_.reset();
     activeCredSsp_.reset();
     if (activeConnection_ != nullptr)
     {
@@ -263,6 +275,7 @@ void MacRuntimeHostControl::retireAcceptedClient() noexcept
     activeConsentEpoch_.reset();
     activeListenerGeneration_ = 0U;
     activeCredentialsVerified_ = false;
+    activeAdmissionStage_ = AcceptedClientAdmissionStage::None;
     if (acceptedClientDiagnostics_.available)
     {
         acceptedClientDiagnostics_.preauthStage =
@@ -303,21 +316,193 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
         return deny(RuntimeHostError::HostSessionStale);
     }
 
-    // A completed standalone CredSSP transcript is only R2 proof, NOT native
-    // admission. Until R2/R3 publish the protected positive API, do not read
-    // even a buffered first-MCS byte, call completeCredSspAdmission(), or
-    // attach RuntimePlatformNativeDesktop. The deadline/Stop still apply.
+    // CredSSP is not native Admission. The production broker alone can
+    // complete R1 and privately enroll R3 against fresh native/consent proof.
+    // A synthetic owner source never creates a broker, so queued first-MCS
+    // bytes remain unread throughout its authenticated lifetime.
     if (activeCredentialsVerified_)
     {
-        if (!activeCredSsp_->authenticatedProof.revalidatesAuthenticatedSession() ||
-            (activeAdmissionBroker_ != nullptr &&
-             !activeAdmissionBroker_->revalidate(security::kConsoleViewPermission)))
-        {
+        const auto rejectAdmission = [this]() noexcept -> RuntimeHostResult {
             retireAcceptedClient();
             stage_ = RuntimeHostStage::ListenerAvailable;
             return deny(RuntimeHostError::AuthenticationRejected);
+        };
+        if (!activeCredSsp_->authenticatedProof.revalidatesAuthenticatedSession() ||
+            (activeAdmissionBroker_ != nullptr &&
+             !activeAdmissionBroker_->revalidate(security::kConsoleViewPermission)))
+            return rejectAdmission();
+
+        if (activeAdmissionStage_ == AcceptedClientAdmissionStage::CredentialsVerified)
+            return {RuntimeHostError::None, true};
+        if (activeAdmissionBroker_ == nullptr)
+            return rejectAdmission();
+
+        if (activeAdmissionStage_ == AcceptedClientAdmissionStage::Prepared)
+        {
+            // Construct R3 before R2 borrows it; R2 will terminally close
+            // this exact owner and R1 if its protected completion loses proof.
+            activeMcsSession_ =
+                std::make_unique<transport::McsSessionLifecycle>();
+            if (!activeAdmissionBroker_->authorizeR1CredSspAdmission(
+                    *activeMcsSession_) ||
+                activeConnection_->stage() != PreauthStage::AwaitMcsConnectInitial ||
+                !activeAdmissionBroker_->revalidate(security::kConsoleViewPermission))
+                return rejectAdmission();
+            activeAdmissionStage_ = AcceptedClientAdmissionStage::TransportAdmitted;
+            acceptedClientDiagnostics_.preauthStage =
+                RuntimeAcceptedClientPreauthStage::AwaitMcsConnectInitial;
+            acceptedClientDiagnostics_.authenticationStage =
+                RuntimeAcceptedClientAuthenticationStage::Admission;
+            acceptedClientDiagnostics_.protocolStage =
+                RuntimeAcceptedClientProtocolStage::NativeAdmissionVerified;
+            return {RuntimeHostError::None, false};
         }
-        return {RuntimeHostError::None, true};
+
+        const bool readingFirstMcs =
+            activeAdmissionStage_ == AcceptedClientAdmissionStage::TransportAdmitted;
+        const bool writingConnectResponse =
+            activeAdmissionStage_ == AcceptedClientAdmissionStage::Admitted;
+        if (!readingFirstMcs && !writingConnectResponse)
+        {
+            // Later Erect/Attach/Share are separate protected increments.
+            return activeAdmissionStage_ ==
+                           AcceptedClientAdmissionStage::ConnectResponseDelivered
+                ? RuntimeHostResult{RuntimeHostError::None, true}
+                : rejectAdmission();
+        }
+
+        auto& connection = *activeConnection_;
+        auto& credSsp = *activeCredSsp_;
+        auto& session = *activeMcsSession_;
+        if (!connection.active() ||
+            connection.stage() != PreauthStage::AwaitMcsConnectInitial ||
+            session.phase() == transport::McsSessionPhase::Closed)
+            return rejectAdmission();
+
+        // Existing R1 SSL/BIO owns every application read/write. A WANT_READ
+        // during a pending write must poll Read; new writes start on Write.
+        const Interest interest = readingFirstMcs
+            ? connection.ioInterest()
+            : (credSsp.connectResponseWriteNeedsRead
+                ? Interest::Read : Interest::Write);
+        if (interest != Interest::Read && interest != Interest::Write)
+            return rejectAdmission();
+        bool ready = readingFirstMcs && interest == Interest::Read &&
+                     connection.tlsApplicationReadReady();
+        if (!ready)
+        {
+            const std::uintptr_t socket = connection.nativeSocket();
+            if (socket > static_cast<std::uintptr_t>(
+                             (std::numeric_limits<int>::max)()))
+                return rejectAdmission();
+            pollfd descriptor{};
+            descriptor.fd = static_cast<int>(socket);
+            descriptor.events = interest == Interest::Read ? POLLIN : POLLOUT;
+            const int count = ::poll(&descriptor, 1U, 0);
+            if (count < 0 && errno == EINTR)
+                return {RuntimeHostError::None, true};
+            if (count < 0 || (descriptor.revents & (POLLNVAL | POLLERR)) != 0)
+                return rejectAdmission();
+            if (count == 0 ||
+                (descriptor.revents & (descriptor.events | POLLHUP)) == 0)
+                return {RuntimeHostError::None, true};
+        }
+
+        if (!activeAdmissionBroker_->revalidate(security::kConsoleViewPermission))
+            return rejectAdmission();
+        if (readingFirstMcs)
+        {
+            // Read only the 4-byte RFC1006 header, then exactly its bounded
+            // declared packet length. Never pull following encrypted PDUs.
+            const std::size_t target = credSsp.firstMcsExpectedBytes == 0U
+                ? 4U : credSsp.firstMcsExpectedBytes;
+            if (credSsp.firstMcsBytes >= target ||
+                target > credSsp.firstMcsTpkt.size())
+                return rejectAdmission();
+            const std::size_t remaining = target - credSsp.firstMcsBytes;
+            const auto intake = connection.readTlsApplicationData(
+                std::span(credSsp.firstMcsTpkt)
+                    .subspan(credSsp.firstMcsBytes, remaining));
+            using TlsOutcome = transport::TlsApplicationIoOutcome;
+            if (intake.outcome == TlsOutcome::NeedRead ||
+                intake.outcome == TlsOutcome::NeedWrite)
+                return {RuntimeHostError::None, true};
+            if (intake.outcome != TlsOutcome::Progress ||
+                intake.bytes == 0U || intake.bytes > remaining ||
+                !activeAdmissionBroker_->revalidate(
+                    security::kConsoleViewPermission))
+                return rejectAdmission();
+            credSsp.firstMcsBytes += intake.bytes;
+            if (credSsp.firstMcsExpectedBytes == 0U &&
+                credSsp.firstMcsBytes == 4U)
+            {
+                if (credSsp.firstMcsTpkt[0] != 3U ||
+                    credSsp.firstMcsTpkt[1] != 0U)
+                    return rejectAdmission();
+                credSsp.firstMcsExpectedBytes =
+                    (static_cast<std::size_t>(credSsp.firstMcsTpkt[2]) << 8U) |
+                    static_cast<std::size_t>(credSsp.firstMcsTpkt[3]);
+                if (credSsp.firstMcsExpectedBytes < 7U ||
+                    credSsp.firstMcsExpectedBytes > credSsp.firstMcsTpkt.size())
+                    return rejectAdmission();
+            }
+            if (credSsp.firstMcsExpectedBytes == 0U ||
+                credSsp.firstMcsBytes < credSsp.firstMcsExpectedBytes)
+                return {RuntimeHostError::None, false};
+            const auto admitted = activeAdmissionBroker_->authorizeR3McsConnectInitial(
+                session, std::span(credSsp.firstMcsTpkt)
+                             .first(credSsp.firstMcsExpectedBytes));
+            if (admitted != transport::McsSessionIntake::AdmittedConnectInitial ||
+                !activeAdmissionBroker_->revalidate(
+                    security::kConsoleViewPermission))
+                return rejectAdmission();
+            // R3 copied all semantic state; never retain the borrowed TPKT.
+            credSsp.firstMcsBytes = 0U;
+            credSsp.firstMcsExpectedBytes = 0U;
+            activeAdmissionStage_ = AcceptedClientAdmissionStage::Admitted;
+            acceptedClientDiagnostics_.authenticationStage =
+                RuntimeAcceptedClientAuthenticationStage::Mcs;
+            acceptedClientDiagnostics_.protocolStage =
+                RuntimeAcceptedClientProtocolStage::McsConnectInitialReceived;
+            acceptedClientDiagnostics_.mcsSessionAdvanced = true;
+            return {RuntimeHostError::None, false};
+        }
+
+        const auto pending =
+            activeAdmissionBroker_->authorizeR3ConnectResponseWrite(session);
+        if (!pending || !*pending)
+            return rejectAdmission();
+        const auto sent = connection.writeTlsApplicationData(pending->bytes);
+        using TlsOutcome = transport::TlsApplicationIoOutcome;
+        if (sent.outcome == TlsOutcome::NeedRead ||
+            sent.outcome == TlsOutcome::NeedWrite)
+        {
+            credSsp.connectResponseWriteNeedsRead =
+                sent.outcome == TlsOutcome::NeedRead;
+            return {RuntimeHostError::None, true};
+        }
+        if (sent.outcome != TlsOutcome::Progress || sent.bytes == 0U ||
+            sent.bytes > pending->bytes.size() ||
+            !activeAdmissionBroker_->revalidate(security::kConsoleViewPermission))
+            return rejectAdmission();
+        credSsp.connectResponseWriteNeedsRead = false;
+        const auto receipt =
+            activeAdmissionBroker_->completeR3ConnectResponseWrite(
+                session, pending->replySequence, pending->writeSliceSequence,
+                sent.bytes);
+        if (receipt == transport::McsConnectResponseWriteOutcome::Rejected ||
+            !activeAdmissionBroker_->revalidate(security::kConsoleViewPermission))
+            return rejectAdmission();
+        if (receipt == transport::McsConnectResponseWriteOutcome::Delivered)
+        {
+            if (session.phase() != transport::McsSessionPhase::AwaitErectDomain)
+                return rejectAdmission();
+            activeAdmissionStage_ =
+                AcceptedClientAdmissionStage::ConnectResponseDelivered;
+            acceptedClientDiagnostics_.protocolStage =
+                RuntimeAcceptedClientProtocolStage::McsConnectResponseSent;
+        }
+        return {RuntimeHostError::None, false};
     }
 
     auto fail = [this]() noexcept -> RuntimeHostResult {
@@ -634,14 +819,18 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
                         security::kConsoleViewPermission, *activeConsentEpoch_))
                     return fail();
                 activeAdmissionBroker_ = std::move(preparedBroker);
+                activeAdmissionStage_ = AcceptedClientAdmissionStage::Prepared;
             }
         }
+        if (activeAdmissionBroker_ == nullptr)
+            activeAdmissionStage_ = AcceptedClientAdmissionStage::CredentialsVerified;
         activeCredentialsVerified_ = true;
         acceptedClientDiagnostics_.credSspTransition =
             RuntimeAcceptedClientCredSspTransition::CredentialsVerified;
         acceptedClientDiagnostics_.authenticationStage =
             RuntimeAcceptedClientAuthenticationStage::Authenticated;
-        // Prepared R2 is not native Admission; leave first MCS unread.
+        // Prepared R2 is not native Admission. The next serialized tick may
+        // invoke only the broker's protected R1 transport completion.
         return {RuntimeHostError::None, false};
     }
     case FrameStatus::Rejected:
@@ -1549,6 +1738,7 @@ RuntimeHostResult MacRuntimeHostControl::serviceOnce() noexcept
         activeListenerGeneration_ = listener_.generation();
         activeConsentEpoch_ = *consentEpoch;
         activeCredentialsVerified_ = false;
+        activeAdmissionStage_ = AcceptedClientAdmissionStage::None;
         activeCredSsp_ = std::move(credentialState);
         activeConnection_ = std::make_unique<
             rdp_server::server::transport::OwnedPreauthTcpConnection>(

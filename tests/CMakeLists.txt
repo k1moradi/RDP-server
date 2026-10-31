@@ -1133,6 +1133,19 @@ if(TARGET rdp-server-macos-host-control)
             SKIP_RETURN_CODE 77
             TIMEOUT 45)
 
+    # Completed CredSSP and queued first-MCS are not native Admission in the
+    # injected-owner offline fixture; keep production R10 fail-closed.
+    add_test(
+        NAME runtime.macos-host-control-first-mcs-without-native-issuer-dormancy
+        COMMAND test_macos_runtime_host_control
+            macos-host-control-first-mcs-without-native-issuer-dormancy)
+    set_tests_properties(
+        runtime.macos-host-control-first-mcs-without-native-issuer-dormancy
+        PROPERTIES
+            LABELS "runtime;security;transport;tls;credssp;admission;protocol;macos;native-environment;offline"
+            SKIP_RETURN_CODE 77
+            TIMEOUT 45)
+
     # R10 distinct exact-client retirement after completed production CredSSP.
     add_test(
         NAME runtime.macos-host-control-verified-proof-explicit-client-retirement-denials

@@ -1,3 +1,24 @@
+## R2 macOS nested protected visitor denial — 2026-10-30
+
+- Independent follow-up after R2 published
+  `fd0a141b8355cdd7b3f46573fc100ce2d4b7b500`: retain its
+  original-grant snapshot and newer-grant preservation semantics.
+- Add a scoped owner-thread reentrancy fence over the real
+  `MacNativeDesktopAuthorization::visit` native evidence and consumer
+  callback. A nested call cannot invoke a second protected consumer;
+  current outer grant continues, while revoke/rebind still causes original
+  visit denial without erasing an independent replacement.
+- Dedicated ordinary
+  `security.native-authorization-macos-standalone-nested-visitor-denials`
+  CTest reuses the established offline R2 fixture and shared registry.
+- Source/registration structure: **PASS by inspection**.
+  Local canonical build/full CTest, ASan/UBSan and benchmark: **NOT RUN**
+  (approved local checkout unavailable); hosted exact-publication-SHA
+  qualification: **PENDING**. Physical client/native admission: **NOT RUN /
+  unauthorized**. Agent 3 macOS private R3 positive gate: **NOT PRESENT**
+  in inspected `main`; R10 accepted-client/native composition remains
+  **BLOCKED**. Next: same-SHA CI and R2/R3 interface coordination.
+
 ## R8 terminal FileContents callback reentrancy authoring (2026-10-30)
 
 - Parent SHA: `871c2d34ff5d40344b262483a02c96613cf9c10a`. Audit of current macOS/Windows finishComplete()

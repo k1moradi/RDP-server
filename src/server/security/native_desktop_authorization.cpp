@@ -627,6 +627,22 @@ bool MacNativeDesktopAuthorization::visit(
     {
         return false;
     }
+    // Native evidence readers and protected consumers can synchronously call
+    // back into the R2 owner. Deny nested positive visits without mutating the
+    // original or a newer independent authorization generation.
+    if (visitInProgress_)
+        return false;
+    struct VisitScope final
+    {
+        bool &inProgress;
+        explicit VisitScope(bool &value) noexcept : inProgress(value)
+        {
+            inProgress = true;
+        }
+        ~VisitScope() noexcept { inProgress = false; }
+    };
+    const VisitScope activeVisit{visitInProgress_};
+
     if (!revalidatesCurrentGrant() ||
         expectedAuthorizationGeneration != activeAuthorizationGeneration_)
     {

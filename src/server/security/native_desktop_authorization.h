@@ -362,6 +362,8 @@ private:
     mutable std::uint64_t authenticationGeneration_{};
     mutable std::uint64_t activeAuthorizationGeneration_{};
     std::uint64_t nextAuthorizationGeneration_{};
+    // Serialized R2 owner thread only. Never nest protected visitor callbacks.
+    mutable bool visitInProgress_{};
 };
 
 } // namespace rdp_server::server::security

@@ -63,6 +63,18 @@ NOT RUN**. No physical test, listener or OS permission was exercised.
 then exact-SHA CI/R9 and separately authorized owner-native acceptance.
 Benchmark **NOT RUN**.
 
+**Complementary R2 nested-visit fence (2026-10-30):** The existing
+original-generation/snapshot fix now guards against recursive protected
+`MacNativeDesktopAuthorization::visit` calls during native evidence or
+consumer callbacks. A nested visitor cannot dispatch, while an unchanged
+outer grant remains usable and a reentrant independently rebound new grant
+retains the previously documented preservation policy. Dedicated ordinary
+`security.native-authorization-macos-standalone-nested-visitor-denials`
+CTest is registered. Source review **PASS by inspection**; local build/CTest,
+sanitizers and physical testing **NOT RUN**; exact-publication hosted CI
+**PENDING**. R3 macOS private first-MCS and subsequent transition gates remain
+**BLOCKED** on Agent 3's interface; do not add R10 scalar admission.
+
 ## R7 callback-retirement exact-SHA qualification and current dependency audit (2026-10-30)
 
 **Qualified R7 implementation:** `34e508105d7f7f9f503d3d29475949269dd370cf`.

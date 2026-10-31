@@ -597,6 +597,56 @@ void testMacStandaloneReentrantGenerationDenials()
     }
 }
 
+struct MacNestedAuthorizationAttempt final
+{
+    MacNativeDesktopAuthorization *authorization{};
+    std::uint64_t originalGeneration{};
+    bool outerCalled{};
+    bool nestedCalled{};
+    bool nestedAccepted{};
+};
+
+[[nodiscard]] bool markNestedMacAuthorization(
+    const MacNativeDesktopAuthorizationView & /* authorization */,
+    void *context) noexcept
+{
+    auto &attempt = *static_cast<MacNestedAuthorizationAttempt *>(context);
+    attempt.nestedCalled = true;
+    return true;
+}
+
+[[nodiscard]] bool attemptNestedMacAuthorization(
+    const MacNativeDesktopAuthorizationView &authorization,
+    void *context) noexcept
+{
+    auto &attempt = *static_cast<MacNestedAuthorizationAttempt *>(context);
+    attempt.outerCalled = true;
+    assert(authorization.authorizationGeneration() ==
+           attempt.originalGeneration);
+    attempt.nestedAccepted = attempt.authorization->visit(
+        attempt.originalGeneration, kConsoleViewPermission,
+        &markNestedMacAuthorization, &attempt);
+    return true;
+}
+
+void testMacStandaloneNestedVisitorDenials()
+{
+    // Both calls use the real R2 owner; only the outer borrowed view is
+    // authorized. This is not a synthetic native OS or R3 admission lease.
+    StandaloneMacFixture fixture;
+    const auto generation = fixture.bind();
+    MacNestedAuthorizationAttempt attempt{&fixture.authorization, generation};
+    assert(fixture.authorization.visit(
+        generation, kConsoleViewPermission,
+        &attemptNestedMacAuthorization, &attempt));
+    assert(attempt.outerCalled);
+    assert(!attempt.nestedCalled);
+    assert(!attempt.nestedAccepted);
+    assert(fixture.authorization.authorizationGeneration() == generation);
+    assert(fixture.authorization.visit(
+        generation, kConsoleViewPermission, &acceptStandaloneMac, nullptr));
+}
+
 } // namespace
 
 int main(int argumentCount, char **arguments)
@@ -617,6 +667,11 @@ int main(int argumentCount, char **arguments)
     if (testCase == "macos-standalone-reentrant-generation-denials")
     {
         testMacStandaloneReentrantGenerationDenials();
+        return 0;
+    }
+    if (testCase == "macos-standalone-nested-visitor-denials")
+    {
+        testMacStandaloneNestedVisitorDenials();
         return 0;
     }
     return 2;

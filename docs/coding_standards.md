@@ -53,6 +53,16 @@ integration: an Agent-3-reviewed private R3 gate and a concrete R10 owner for
 the accepted connection, independently verified native session/lock evidence
 and terminal revocation are still required.
 
+A nested `MacNativeDesktopAuthorization::visit` is denied before another
+native evidence reader or protected consumer can run. The owner-thread
+reentrancy guard spans initial native evidence revalidation, the callback and
+final grant-generation/consent revalidation; its stack-scoped retirement must
+occur on every return. A reentrant `revoke()/bindAuthenticatedSession()` from
+the callback remains allowed to produce a separate, higher generation, and
+the earlier visit denies without revoking that newer grant. Nested-visit denial
+alone must not revoke a still-current outer grant. No R3 private entry or
+positive macOS OS admission is introduced.
+
 ## R1 OpenSSL typed-stack macro qualification (2026-10-30)
 
 OpenSSL's typed STACK_OF accessors such as `sk_GENERAL_NAME_num`,

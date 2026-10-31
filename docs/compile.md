@@ -1,3 +1,13 @@
+## R2 macOS nested visitor denial build scope (2026-10-30)
+
+One owner-thread Boolean + stack-scoped RAII guard in the existing portable
+`rdp-server-native-desktop-authorization` library, one offline mode in the
+existing `test_native_desktop_standalone_authorization` executable and one
+ordinary CTest registration. No new target, dependency, native framework,
+linking or build root. Canonical local configure/build/CTest/sanitizers are
+**NOT RUN** without the approved checkout; exact-SHA hosted qualification
+**PENDING**, no live macOS desktop or benchmark.
+
 ## R8 terminalization callback regression build contract (2026-10-30)
 
 The two native file-destination implementations and their existing

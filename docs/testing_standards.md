@@ -62,6 +62,15 @@ valid new grant. It must run under ordinary Linux/macOS/Windows CTest, without
 physical OS admission, host TCC, credentials, listener or R3 positive lease.
 This is a security-negative gate only, not production macOS RDP acceptance.
 
+The separate cross-platform
+`security.native-authorization-macos-standalone-nested-visitor-denials`
+CTest reuses that same production R2 owner and synthetic fixture. It enters a
+valid grant's synchronous visitor, attempts a recursive protected visit and
+requires the inner callback never to run; a still-current outer visit and
+subsequent sequential visit remain valid. This prevents nested semantic
+dispatch without prohibiting the existing independent replacement-grant test.
+No real macOS OS admission, TLS socket, R3, TCC, capture or input is exercised.
+
 ## R1 OpenSSL 4.1 typed-stack compile regression (2026-10-30)
 
 The existing production-backed

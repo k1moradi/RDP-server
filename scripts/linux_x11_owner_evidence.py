@@ -21,7 +21,7 @@ STAGE_ORDER = (
     "graphics_ready", "first_frame", "matching_ack",
 )
 ADDITIONAL_STAGES = ("keyboard_dispatch", "mouse_dispatch", "randr_replacement")
-RECONNECT_STAGES = ("native_admission", "share", "graphics_ready", "first_frame", "matching_ack")
+RECONNECT_STAGES = ("credentials_verified", "native_admission", "share", "graphics_ready", "first_frame", "matching_ack")
 RETIREMENT_KINDS = frozenset({"stop", "lock", "logout", "switch_user"})
 MAXIMUM_MANIFEST_BYTES = 256 * 1024
 
@@ -191,13 +191,16 @@ def validate(record):
 
     reconnect = require_fields(record["reconnect"], (
         "observed", "owner_grant_recorded", "consent_generation", "linux_session_generation",
-        "r2_admission_generation", "native_capture_generation", "stages",
+        "r2_admission_generation", "native_capture_generation", "seat", "stages",
         "first_frame_capture_generation", "ack_capture_generation", "posts_after_revocation",
     ), "reconnect")
     for name in ("observed", "owner_grant_recorded"):
         require_bool(reconnect[name], f"reconnect.{name}")
     for name in ("consent_generation", "linux_session_generation", "r2_admission_generation", "native_capture_generation"):
         require_generation(reconnect[name], f"reconnect.{name}", nullable=True)
+    reconnect_seat = require_fields(reconnect["seat"], seat.keys(), "reconnect.seat")
+    for name, value in reconnect_seat.items():
+        require_bool(value, f"reconnect.seat.{name}", nullable=True)
     require_stages(reconnect["stages"], RECONNECT_STAGES, "reconnect.stages")
     for name, stage in (("first_frame_capture_generation", "first_frame"), ("ack_capture_generation", "matching_ack")):
         require_generation(reconnect[name], f"reconnect.{name}", nullable=True)
@@ -212,6 +215,9 @@ def validate(record):
         raise EvidenceError("reconnect posted input after revocation")
     for prerequisite, dependent in zip(RECONNECT_STAGES, RECONNECT_STAGES[1:]):
         require_pass(reconnect["stages"], prerequisite, dependent)
+
+    if reconnect["stages"]["native_admission"] == "PASS" and any(value is not True for value in reconnect_seat.values()):
+        raise EvidenceError("reconnect native Admission requires fresh unlocked owner seat evidence")
 
     if reconnect["observed"]:
         if not retirements or stages["native_admission"] != "PASS":
@@ -230,7 +236,8 @@ def validate(record):
             raise EvidenceError("reconnect reused retired capture generation")
         if any(event["kind"] in ("logout", "switch_user") for event in retirements) and reconnect["linux_session_generation"] == generations["linux_session"]:
             raise EvidenceError("session-changing reconnect reused old Linux session")
-    elif (reconnect["owner_grant_recorded"] or
+    elif (any(value is not None for value in reconnect_seat.values()) or
+          reconnect["owner_grant_recorded"] or
           any(reconnect[name] is not None for name in (
               "consent_generation", "linux_session_generation", "r2_admission_generation", "native_capture_generation", "first_frame_capture_generation", "ack_capture_generation")) or
           any(stage != "NOT_OBSERVED" for stage in reconnect["stages"].values())):

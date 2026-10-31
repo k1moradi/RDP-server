@@ -1,3 +1,23 @@
+## R6 A/B client-event provenance and Type-3 source anti-splice gate (2026-10-31)
+
+The paired `rdp-server.windows-client-ab-pair.v3` evidence validator must
+reject a claimed positive client Type-2 receipt without a bounded
+client-origin stage event, a claimed server Type 3 from a different
+connection/attempt, or a client Type 3 observation tied to another attempt.
+It binds original application/version, selected credential source,
+target identity, endpoint, certificate fingerprint, server SHA, client
+attempt ID, server connection ID and independent observation window. A
+source-event SHA-256 is a private lookup digest, not verification of the
+client event; no producer is authorized to fabricate source facts. The
+v2 R5 macOS collection manifest remains unchanged. A new behavior-named
+offline `interop.windows-client-ab-stage-provenance-splice-denials` CTest
+executes the existing Python fixture without network/client/credential
+operations. Real Windows App/mstsc reception or Type-3 creation remains
+NOT RUN without separately approved physical/client instrumentation;
+a server-local Type-2 send/FIN proves neither event. Do not change TLS,
+certificate trust, client policy or native desktop activation to make
+offline source claims pass.
+
 ## R5 complete-frame ACK/reconnect evidence denial (2026-10-31)
 
 Separate offline CTest

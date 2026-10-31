@@ -1,8 +1,98 @@
+## R6 current closed-schema paired client-source evidence v3 (2026-10-31)
+
+The R5 private macOS collection manifest stays
+`rdp-server.macos-windows-app-owner-evidence.v2`. The **separate paired
+supplement** is now `rdp-server.windows-client-ab-pair.v3` and its redacted
+output is `rdp-server.windows-client-ab-redacted.v3`. V2 paired supplements
+are deliberately rejected; no silent conversion or loosening of required
+fields. The existing R6 A/B consent and collection procedure below remains
+unchanged. Neither format can authorize R2/native Admission.
+
+**Exact private A/B supplement schema.** Root has only `schema`, `macos`
+and `windows`. Both rows retain all v2 mandatory fields; v3 additionally
+requires `attempt_id_exact`, `target_identity_exact`,
+`client_stage_evidence` and `server_type3_evidence`. Each row's
+`source_binding` must contain **exactly** `server_sha`,
+`server_certificate_sha256`, `destination_exact`,
+`service_endpoint_exact`, `attempt_time_utc`, `connection_id`,
+`terminal_time_utc`, `observation_window_start_utc`,
+`observation_window_end_utc`, `attempt_id_exact`,
+`client_application_exact`, `client_version_exact`,
+`target_identity_exact`, and `credential_source_choice`.
+The client identity is `Windows App` with exact
+`<version>+<build>` for macOS and `mstsc.exe` with its exact file version
+for Windows. Row A's credential-source choice must equal the R5 manifest's
+explicitly selected saved-credential source; row B's must equal the
+deliberate explicit-entry source. Both target identities must be the same
+literal negotiated target, not merely similar destination IP text, and both
+owner-assigned attempt IDs must be different. Root or nested extra keys fail.
+
+`client_stage_evidence` has **exactly four** keys:
+`type2_received`, `type2_accepted_by_credssp`, `type3_generated`,
+`type3_delivered`. Each `NOT_OBSERVED` stage requires a JSON null
+evidence value. Each claimed `PASS` or `FAIL` requires a same-attempt
+**client-origin** event with exactly `source_kind`
+(`client-provider-event` or `owner-approved-client-diagnostic`),
+`source_record_sha256` (64 hexadecimal characters),
+`client_application_exact`, `client_version_exact`,
+`attempt_id_exact`, `connection_id`, and `event_time_utc`.
+The timestamp must fall within that source's bounded observation window.
+The record digest refers to a private original client event; the validator
+checks the digest's shape and correlation, **not** its truth or signature.
+A locally committed Type 2, server FIN, generic error or server-side byte
+count is not a client-origin event. If no client event actually establishes
+decryption/Type-2 parsing, leave that stage `NOT_OBSERVED`.
+
+`server_type3_evidence` must be null unless the matching server stage
+matrix says `type3_received=PASS`. A positive Type 3 requires exactly
+`source_record_sha256`, `attempt_id_exact`, `connection_id` and
+`event_time_utc` from that original server record, bound to the same
+server-side observation window. A Type 3 seen on another connection can
+never close an earlier FIN-only attempt even if the two have the same IP,
+server SHA, Type-2 bytes, and approximate timestamps.
+
+**First discriminating client-side evidence:** distinguish (1) reception
+and decryption of server TLS application data, (2) decoded CredSSP
+`TSRequest` and Type 2 acceptance or provider rejection, (3) SSPI/NTLM
+Type 3 construction, and (4) actual client TLS-record submission. Do not
+infer any step from the next, from a peer FIN, or from the hosted memory-BIO
+oracle. The v3 four-stage client map covers Type-2 receipt, Type-2
+acceptance, Type-3 construction and local delivery; preserve any separate
+TLS decryption or attempted-submission observation privately with
+same-attempt source provenance and do not add unapproved fields to this
+closed schema. Cross-client/server clock order remains
+`ORDER_UNDETERMINED`.
+
+**Eligibility and safe diagnostics:** the controlled pair is still **NOT
+RUN / unauthorized** until an R9 manually approved exact-SHA candidate
+and distinct owner consent. Keep the same server SHA, numeric endpoint,
+selected TLS certificate/fingerprint, literal CredSSP target identity,
+configured Username and independently entered Session Password. On macOS
+Windows App explicitly select/re-enter a newly created saved credential
+for this attempt and inspect only the application's documented optional
+Core/UI logging when separately authorized. On Windows 11 mstsc explicitly
+prompt/re-enter and verify the selected identity; never assume that
+`/prompt` proves the credential source. Do not remove cached credentials,
+change certificate trust/Group Policy/Schannel, start a packet monitor,
+activate ETW/packet capture or enable native desktop. An owner-approved
+read-only client-provider observation is useful only when the underlying
+event actually exists; no client implementation or version can be
+inferred from the server's FIN.
+
+**Offline gate:** `interop.windows-client-ab-stage-provenance-splice-denials`
+covers server-local Type-2-as-client receipt, Type 3 from a different server
+connection, a Type 3 client event from a different attempt, target/version/
+credential mismatches, fabricated events on unobserved stages and events
+outside the original window. The existing
+`interop.windows-client-ab-evidence-contradiction-denials` continues all
+earlier closed-schema checks. This work does not run a client or attest that
+a submitted evidence record is genuine.
+
 ## R6 executable paired Windows App vs mstsc evidence contract (2026-10-30)
 
 The existing R5 private macOS schema-v2 manifest remains row A's primary
 collector record. The paired supplement is now closed schema
-`rdp-server.windows-client-ab-pair.v2`; it is evidence correlation only,
+`rdp-server.windows-client-ab-pair.v3`; it is evidence correlation only,
 never a client launcher, credential verifier or R2 native-Admission authority.
 
 Each row records the exact nonsecret service endpoint in addition to the
@@ -41,7 +131,7 @@ Run only on locally controlled private inputs after the R9 candidate and
 separate owner authorization:
 
     python3 scripts/macos_windows_app_owner_evidence.py validate private-macos-v2.json
-    python3 scripts/windows_client_ab_evidence.py private-macos-v2.json private-ab-pair-v2.json > redacted-ab.json
+    python3 scripts/windows_client_ab_evidence.py private-macos-v2.json private-ab-pair-v3.json > redacted-ab.json
 
 The paired validator invokes the full R5 macOS validator, rejects unapproved
 fields and cross-attempt/source contradictions, and emits only allowlisted

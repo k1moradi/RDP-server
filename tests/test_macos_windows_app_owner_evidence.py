@@ -430,15 +430,18 @@ class OwnerEvidenceTests(unittest.TestCase):
             "type3_delivered": "NOT_OBSERVED",
         }
         service_endpoint = "192.0.2.10:3389"
+        target_identity = "TERMSRV/RDP-SERVER"
         windows_attempt = "2026-10-27T12:32:00+00:00"
         windows_terminal = "2026-10-27T12:32:07+00:00"
         return {
-            "schema": "rdp-server.windows-client-ab-pair.v2",
+            "schema": "rdp-server.windows-client-ab-pair.v3",
             "macos": {
                 "server_tls_configuration_profile": "same-server-default-tls",
                 "service_endpoint_exact": service_endpoint,
                 "credential_source_claim": "explicit-saved-selected",
                 "deliberately_reentered": True,
+                "target_identity_exact": target_identity,
+                "attempt_id_exact": "attempt-macos",
                 "source_binding": {
                     "server_sha": manifest["server_sha"],
                     "server_certificate_sha256": manifest["server_certificate_sha256"],
@@ -449,8 +452,15 @@ class OwnerEvidenceTests(unittest.TestCase):
                     "terminal_time_utc": manifest["linux_correlation"]["terminal_time_utc"],
                     "observation_window_start_utc": manifest["attempt_time_utc"],
                     "observation_window_end_utc": manifest["linux_correlation"]["terminal_time_utc"],
+                    "attempt_id_exact": "attempt-macos",
+                    "client_application_exact": "Windows App",
+                    "client_version_exact": "11.4.4+3132",
+                    "target_identity_exact": target_identity,
+                    "credential_source_choice": "explicit-saved-selected",
                 },
                 "client_security_stages": client_unobserved.copy(),
+                "client_stage_evidence": dict.fromkeys(client_unobserved),
+                "server_type3_evidence": None,
                 "server_transport_observation": {
                     "peer_fin_observed": True,
                     "tls_alert_observed": False,
@@ -467,6 +477,8 @@ class OwnerEvidenceTests(unittest.TestCase):
                 "windows_11_build": "22631.4317",
                 "mstsc_file_version": "10.0.22621.1",
                 "attempt_time_utc": windows_attempt,
+                "target_identity_exact": target_identity,
+                "attempt_id_exact": "attempt-windows",
                 "credential": {
                     "source": "explicitly-entered",
                     "deliberately_reentered": True,
@@ -497,8 +509,15 @@ class OwnerEvidenceTests(unittest.TestCase):
                     "terminal_time_utc": windows_terminal,
                     "observation_window_start_utc": windows_attempt,
                     "observation_window_end_utc": windows_terminal,
+                    "attempt_id_exact": "attempt-windows",
+                    "client_application_exact": "mstsc.exe",
+                    "client_version_exact": "10.0.22621.1",
+                    "target_identity_exact": target_identity,
+                    "credential_source_choice": "explicitly-entered",
                 },
                 "client_security_stages": client_unobserved.copy(),
+                "client_stage_evidence": dict.fromkeys(client_unobserved),
+                "server_type3_evidence": None,
                 "server_stage_matrix": manifest["server_stage_matrix"].copy(),
                 "server_transport_observation": {
                     "peer_fin_observed": True,
@@ -507,6 +526,29 @@ class OwnerEvidenceTests(unittest.TestCase):
                 },
                 "native_admission": "NOT_REACHED",
             },
+        }
+
+    @staticmethod
+    def _client_event(pair, platform):
+        binding = pair[platform]["source_binding"]
+        return {
+            "source_kind": "owner-approved-client-diagnostic",
+            "source_record_sha256": "f" * 64,
+            "client_application_exact": binding["client_application_exact"],
+            "client_version_exact": binding["client_version_exact"],
+            "attempt_id_exact": binding["attempt_id_exact"],
+            "connection_id": binding["connection_id"],
+            "event_time_utc": binding["attempt_time_utc"],
+        }
+
+    @staticmethod
+    def _server_type3_event(pair, platform):
+        binding = pair[platform]["source_binding"]
+        return {
+            "source_record_sha256": "e" * 64,
+            "attempt_id_exact": binding["attempt_id_exact"],
+            "connection_id": binding["connection_id"],
+            "event_time_utc": binding["attempt_time_utc"],
         }
 
     def test_paired_valid_redacts_credentials_and_attempt_ids(self):
@@ -532,6 +574,10 @@ class OwnerEvidenceTests(unittest.TestCase):
             "type2_accepted_by_credssp": "PASS",
             "type3_generated": "PASS",
             "type3_delivered": "PASS",
+        }
+        pair["windows"]["client_stage_evidence"] = {
+            stage: self._client_event(pair, "windows")
+            for stage in ab_evidence.CLIENT_SECURITY_STAGES
         }
         summary = ab_evidence.validate_pair(manifest, pair)
         self.assertEqual(summary["evidence_status"], "PASS")
@@ -654,9 +700,78 @@ class OwnerEvidenceTests(unittest.TestCase):
         pair = self._paired_record(manifest)
         pair["windows"]["server_stage_matrix"].update(
             type3_received="PASS", post_type2_client_bytes=64)
+        pair["windows"]["server_type3_evidence"] = self._server_type3_event(
+            pair, "windows")
         summary = ab_evidence.validate_pair(manifest, pair)
         self.assertEqual(summary["evidence_status"], "PASS")
         self.assertEqual(summary["comparison"], "WINDOWS_ONLY_TYPE3_RECEIVED")
+
+    def test_paired_provenance_local_type2_commit_cannot_substitute_client_event(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        # A server-local write is not a client-side receipt/decrypt observation.
+        pair["windows"]["client_security_stages"]["type2_received"] = "PASS"
+        failures = ab_evidence.validate_pair(manifest, pair)["evidence_failures"]
+        self.assertIn("WINDOWS_CLIENT_TYPE2_RECEIVED_PROVENANCE_MISSING", failures)
+
+    def test_paired_provenance_type3_source_from_neighboring_attempt_is_denied(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        pair["windows"]["server_stage_matrix"].update(
+            post_type2_client_bytes=128, type3_received="PASS")
+        pair["windows"]["server_type3_evidence"] = self._server_type3_event(
+            pair, "windows")
+        pair["windows"]["server_type3_evidence"]["connection_id"] = "previous-connection"
+        failures = ab_evidence.validate_pair(manifest, pair)["evidence_failures"]
+        self.assertIn("WINDOWS_TYPE3_SOURCE_CONNECTION_MISMATCH", failures)
+
+    def test_paired_provenance_client_type3_from_neighboring_attempt_is_denied(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        for stage in ab_evidence.CLIENT_SECURITY_STAGES:
+            pair["windows"]["client_security_stages"][stage] = "PASS"
+            pair["windows"]["client_stage_evidence"][stage] = self._client_event(
+                pair, "windows")
+        pair["windows"]["client_stage_evidence"]["type3_generated"][
+            "attempt_id_exact"] = "previous-attempt"
+        failures = ab_evidence.validate_pair(manifest, pair)["evidence_failures"]
+        self.assertIn("WINDOWS_CLIENT_TYPE3_GENERATED_ATTEMPT_MISMATCH", failures)
+
+    def test_paired_provenance_target_version_and_credential_mix_is_denied(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        pair["windows"]["target_identity_exact"] = "TERMSRV/other-host"
+        pair["windows"]["source_binding"]["client_version_exact"] = "other-version"
+        pair["windows"]["source_binding"]["credential_source_choice"] = "saved"
+        failures = ab_evidence.validate_pair(manifest, pair)["evidence_failures"]
+        for failure in (
+            "AB_TARGET_IDENTITY_MISMATCH",
+            "WINDOWS_SOURCE_TARGET_IDENTITY_MISMATCH",
+            "WINDOWS_SOURCE_CLIENT_VERSION_MISMATCH",
+            "WINDOWS_SOURCE_CREDENTIAL_SOURCE_MISMATCH",
+        ):
+            self.assertIn(failure, failures)
+
+    def test_paired_provenance_unobserved_stage_cannot_carry_false_receipt(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        pair["macos"]["client_stage_evidence"]["type2_received"] = self._client_event(
+            pair, "macos")
+        failures = ab_evidence.validate_pair(manifest, pair)["evidence_failures"]
+        self.assertIn("MACOS_CLIENT_TYPE2_RECEIVED_UNOBSERVED_EVENT_CONTRADICTION",
+                      failures)
+
+    def test_paired_provenance_client_event_outside_attempt_is_denied(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        pair["windows"]["client_security_stages"]["type2_received"] = "PASS"
+        pair["windows"]["client_stage_evidence"]["type2_received"] = self._client_event(
+            pair, "windows")
+        pair["windows"]["client_stage_evidence"]["type2_received"][
+            "event_time_utc"] = "2026-10-27T15:00:00+00:00"
+        failures = ab_evidence.validate_pair(manifest, pair)["evidence_failures"]
+        self.assertIn("WINDOWS_CLIENT_TYPE2_RECEIVED_EVENT_OUTSIDE_ATTEMPT",
+                      failures)
 
     def test_paired_unapproved_private_secret_field_denied(self):
         manifest = evidence.build_manifest(self.options)

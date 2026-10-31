@@ -1399,6 +1399,16 @@ add_test(NAME interop.windows-client-ab-evidence-contradiction-denials
 set_tests_properties(interop.windows-client-ab-evidence-contradiction-denials PROPERTIES
     LABELS "windows;macos;interop;offline;security;evidence" TIMEOUT 15)
 
+# R6 stage-level client/server provenance fence: a committed Type 2 is not
+# client receipt, and Type 3 from another attempt cannot satisfy this pair.
+add_test(NAME interop.windows-client-ab-stage-provenance-splice-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_windows_app_owner_evidence.py"
+        --script "${PROJECT_SOURCE_DIR}/scripts/macos_windows_app_owner_evidence.py"
+        -k paired_provenance_)
+set_tests_properties(interop.windows-client-ab-stage-provenance-splice-denials PROPERTIES
+    LABELS "interop;offline;security;evidence" TIMEOUT 15)
+
 # R5 owner-private Linux/X11 evidence validation is offline only. No listener,
 # XTEST/XCB, credentials, native R2 lease or physical desktop is opened.
 add_test(NAME linux.x11-owner-private-evidence-validation-denials

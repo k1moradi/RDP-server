@@ -1,3 +1,75 @@
+## R6 exact-head Microsoft interoperability and paired provenance audit (2026-10-31)
+
+**Inspected source head:** `1d95156ea4fd1d1c5a20f4e3754570b44d504299`.
+**Independent GitHub job evidence:** [Actions run 41193667805](https://github.com/k1moradi/RDP-server/actions/runs/41193667805),
+Windows MSVC protocol job `124515689345` emitted
+`interop-matrix-final=COMPLETE_PASS source-sha=1d95156ea4fd1d1c5a20f4e3754570b44d504299`.
+This supersedes reuse of the 2026-10-30 ancestor `c88dc60f...`
+artifact `13029796352` as current-head evidence. Exact-head artifact
+`r9-microsoft-interop-1d95156ea4fd1d1c5a20f4e3754570b44d504299`,
+ID `13039773537`, digest
+`sha256:649888fa8d80bfb3e04ec7e76b3c4737642a3e4a3285cfbbb17e39516619ed9d`,
+matches the job's source SHA by artifact-listing metadata and its
+executable matrix log. This is hosted SSPI/production memory-BIO evidence,
+**not physical Windows App**.
+
+The original production Type 2 produces Type 3 in native Microsoft CredSSP
+fixed-name, `TERMSRV/IP` and bare-IP target rows, and in both TLS 1.2
+and TLS 1.3 controls. The positive TLS 1.3 full-exchange transcript
+reports `type3-observed=yes type3-verified=yes pubkeyauth=yes`,
+`server-binding-committed=yes`, `authinfo=yes`,
+`credentials-verified=yes`, `production-authinfo-failure=none`,
+`production-authinfo-empty-fields=none`, `delegation-requested=yes`,
+`delegation-returned=no`, `native-admission=no`. The recorded final
+TLS 1.3 delegated authInfo output is 98 bytes. Deliberate wrong-password
+and empty-password client-side controls still produce Type 3 in the hosted
+process-isolated matrix; default hosted credentials are deliberately
+NOT RUN by policy. Bad server public-key binding is rejected with
+`SEC_E_INVALID_TOKEN (0x80090308)` before authInfo. Independent
+missing-`MsvAvNbComputerName` and missing-`MsvAvNbDomainName`
+Type-2 AV controls are each consumed and denied with that same code
+without Type 3. The Type-2 test oracle is distinct from real client
+certificate trust, credential selection, UI or admission.
+
+**Owner-provided distinct physical record:** TLS 1.3, Direct NTLM Type 1,
+126-byte Type 2 *locally committed*, zero server-observed post-Type-2
+TLS application bytes/Type 3/TSRequest/TLS alert/close_notify, peer FIN
+about **10.009 ms** after Type-2 commit. Certificate fingerprint differs
+from at least one earlier attempt. The new record has no supplied exact
+server SHA, original client version, certificate fingerprint string or
+client-side receipt, so it is **UNBOUND / NOT A VALIDATED A/B ROW**.
+No result establishes peer Type-2 reception, CredSSP acceptance, Type-3
+creation, credential failure or client-alert cause. Host SSPI
+`CredentialsVerified` is not evidence for a physical Windows App attempt.
+
+**Source finding:** the prior closed paired schema v2 compared
+server/credential/certificate/window metadata but allowed client-stage
+PASS without an original client event and a Type-3 server-stage claim
+without a dedicated source receipt. The explicit paired schema v3
+requires same-attempt client-event source details for every positive
+client stage and a matching server Type-3 source record, plus app/version,
+target identity, credential choice and unique owner attempt IDs. The R5
+macOS manifest stays v2. Offline six new contradiction subcases and a
+dedicated behavior CTest are authored; connector-local Python/CTest/full
+build/sanitizers **NOT RUN**. New publication-SHA hosted CI **PENDING**.
+The schema checks self-consistency; it cannot authenticate log contents.
+
+**Native R6 read-only review:** the production activation literal
+`kWindowsNativeDesktopPositiveActivationApproved` remains false.
+Windows interactive WTS/LSA token evidence checks session, SID, LUID,
+logon time/type and active console. The owned DXGI path checks current
+generation on capture/map and retires mapped child before parent;
+`retireWindowsNativeConsumersOnSessionChange` invalidates session
+authority before held SendInput state, and input never posts release
+events after revocation. Existing `windows.capture-session-change-callback-revocation`
+and `windows.sendinput-authority-retirement-no-native-post` CTests
+already exercise the critical negative boundaries. No independent
+positive SSPI SID/native lease or new Windows desktop activation is
+authorized or claimed. Agent 1 should retain committed-vs-peer-received
+transport semantics; Agent 9 must require same-SHA green producers and
+manually approved owner candidate before any physical A/B. No new
+client monitor, policy change or physical test performed.
+
 ## R5 real frame ACK, original listener and reconnect pinning (2026-10-31)
 
 **Post-publication correction:** The initial independent-pin comparison referred

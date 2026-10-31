@@ -17,8 +17,8 @@ import sys
 
 import macos_windows_app_owner_evidence as macos
 
-SCHEMA = "rdp-server.windows-client-ab-pair.v2"
-SUMMARY_SCHEMA = "rdp-server.windows-client-ab-redacted.v2"
+SCHEMA = "rdp-server.windows-client-ab-pair.v3"
+SUMMARY_SCHEMA = "rdp-server.windows-client-ab-redacted.v3"
 STAGES = (
     "tls_established", "type1_received", "type2_fully_committed",
     "type3_received", "pubkeyauth_reached", "authinfo_reached",
@@ -34,8 +34,20 @@ SOURCE_BINDING_FIELDS = {
     "server_sha", "server_certificate_sha256", "destination_exact",
     "service_endpoint_exact", "attempt_time_utc", "connection_id",
     "terminal_time_utc", "observation_window_start_utc",
-    "observation_window_end_utc",
+    "observation_window_end_utc", "attempt_id_exact",
+    "client_application_exact", "client_version_exact",
+    "target_identity_exact", "credential_source_choice",
 }
+CLIENT_EVENT_FIELDS = {
+    "source_kind", "source_record_sha256", "client_application_exact",
+    "client_version_exact", "attempt_id_exact", "connection_id",
+    "event_time_utc",
+}
+SERVER_TYPE3_FIELDS = {
+    "source_record_sha256", "attempt_id_exact", "connection_id",
+    "event_time_utc",
+}
+CLIENT_EVENT_SOURCES = {"client-provider-event", "owner-approved-client-diagnostic"}
 ERROR_CATEGORIES = {
     "credential", "trust", "negotiation", "cancellation", "transport",
     "unknown", "not-observed",
@@ -148,6 +160,11 @@ def _source_binding_failures(binding: object, expected: dict, prefix: str) -> li
         ("destination_exact", "DESTINATION"),
         ("service_endpoint_exact", "SERVICE_ENDPOINT"),
         ("connection_id", "CONNECTION"),
+        ("attempt_id_exact", "ATTEMPT_ID"),
+        ("client_application_exact", "CLIENT_APPLICATION"),
+        ("client_version_exact", "CLIENT_VERSION"),
+        ("target_identity_exact", "TARGET_IDENTITY"),
+        ("credential_source_choice", "CREDENTIAL_SOURCE"),
     ):
         try:
             observed = _text(binding[field], f"{prefix} source {field}", 256)
@@ -177,6 +194,97 @@ def _source_binding_failures(binding: object, expected: dict, prefix: str) -> li
     except ValueError:
         failures.append(f"{prefix}_SOURCE_TIME_INVALID")
     return failures
+
+
+def _client_event_failures(stages: object, evidence: object, binding: object,
+                           prefix: str) -> list[str]:
+    """A positive client stage needs a same-attempt client-origin receipt.
+
+    A digest and owner correlation are not a cryptographic attestation of the
+    underlying event. The original client log must be checked independently.
+    """
+    if not isinstance(stages, dict) or not isinstance(evidence, dict) or (
+            set(evidence) != set(CLIENT_SECURITY_STAGES)):
+        return [f"{prefix}_CLIENT_EVENT_PROVENANCE_INCOMPLETE"]
+    if not isinstance(binding, dict):
+        return [f"{prefix}_CLIENT_EVENT_BINDING_MISSING"]
+
+    failures: list[str] = []
+    for stage in CLIENT_SECURITY_STAGES:
+        state = stages.get(stage)
+        event = evidence[stage]
+        label = f"{prefix}_CLIENT_{stage.upper()}"
+        if state == "NOT_OBSERVED":
+            if event is not None:
+                failures.append(f"{label}_UNOBSERVED_EVENT_CONTRADICTION")
+            continue
+        if state not in {"PASS", "FAIL"}:
+            continue
+        if not isinstance(event, dict) or set(event) != CLIENT_EVENT_FIELDS:
+            failures.append(f"{label}_PROVENANCE_MISSING")
+            continue
+        if event["source_kind"] not in CLIENT_EVENT_SOURCES:
+            failures.append(f"{label}_SOURCE_UNSUPPORTED")
+        if not isinstance(event["source_record_sha256"], str) or not SHA256.fullmatch(
+                event["source_record_sha256"]):
+            failures.append(f"{label}_SOURCE_DIGEST_INVALID")
+        for field, code in (
+            ("client_application_exact", "APPLICATION"),
+            ("client_version_exact", "VERSION"),
+            ("attempt_id_exact", "ATTEMPT"),
+            ("connection_id", "CONNECTION"),
+        ):
+            try:
+                if _text(event[field], f"{label} {field}", 256) != _text(
+                        binding.get(field), f"{label} original {field}", 256):
+                    failures.append(f"{label}_{code}_MISMATCH")
+            except ValueError:
+                failures.append(f"{label}_{code}_INVALID")
+        try:
+            event_time = _utc(event["event_time_utc"], f"{label} event")
+            start = _utc(binding.get("observation_window_start_utc"), f"{label} start")
+            end = _utc(binding.get("observation_window_end_utc"), f"{label} end")
+            if not start <= event_time <= end:
+                failures.append(f"{label}_EVENT_OUTSIDE_ATTEMPT")
+        except ValueError:
+            failures.append(f"{label}_EVENT_TIME_INVALID")
+    return failures
+
+
+def _server_type3_failures(stage: object, evidence: object, binding: object,
+                           prefix: str) -> list[str]:
+    """Server Type 3 must be pinned to its originating attempt, not a neighbor."""
+    type3 = stage.get("type3_received") if isinstance(stage, dict) else None
+    if type3 != "PASS":
+        return [f"{prefix}_TYPE3_SOURCE_UNEXPECTED"] if evidence is not None else []
+    if not isinstance(evidence, dict) or set(evidence) != SERVER_TYPE3_FIELDS:
+        return [f"{prefix}_TYPE3_SOURCE_MISSING"]
+    if not isinstance(binding, dict):
+        return [f"{prefix}_TYPE3_SOURCE_BINDING_MISSING"]
+    failures: list[str] = []
+    if not isinstance(evidence["source_record_sha256"], str) or not SHA256.fullmatch(
+            evidence["source_record_sha256"]):
+        failures.append(f"{prefix}_TYPE3_SOURCE_DIGEST_INVALID")
+    for field, code in (
+        ("attempt_id_exact", "ATTEMPT"),
+        ("connection_id", "CONNECTION"),
+    ):
+        try:
+            if _text(evidence[field], f"{prefix} Type 3 {field}", 256) != _text(
+                    binding.get(field), f"{prefix} original {field}", 256):
+                failures.append(f"{prefix}_TYPE3_SOURCE_{code}_MISMATCH")
+        except ValueError:
+            failures.append(f"{prefix}_TYPE3_SOURCE_{code}_INVALID")
+    try:
+        timestamp = _utc(evidence["event_time_utc"], f"{prefix} Type 3 event")
+        start = _utc(binding.get("observation_window_start_utc"), f"{prefix} start")
+        end = _utc(binding.get("observation_window_end_utc"), f"{prefix} end")
+        if not start <= timestamp <= end:
+            failures.append(f"{prefix}_TYPE3_SOURCE_WINDOW_MISMATCH")
+    except ValueError:
+        failures.append(f"{prefix}_TYPE3_SOURCE_TIME_INVALID")
+    return failures
+
 
 def _first_error_failures(first_error: object) -> list[str]:
     if not isinstance(first_error, dict):
@@ -219,8 +327,9 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
     macos_row = _fields(pair["macos"], {
         "server_tls_configuration_profile", "service_endpoint_exact",
         "credential_source_claim", "deliberately_reentered", "source_binding",
-        "client_security_stages", "server_transport_observation",
-        "native_admission",
+        "client_security_stages", "client_stage_evidence",
+        "server_type3_evidence", "target_identity_exact", "attempt_id_exact",
+        "server_transport_observation", "native_admission",
     }, "macOS supplement")
     windows = _fields(pair["windows"], {
         "server_sha", "server_certificate_sha256", "destination_exact",
@@ -228,8 +337,9 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         "windows_11_build", "mstsc_file_version", "attempt_time_utc",
         "credential", "certificate_warning", "first_client_error",
         "client_visible_result", "linux_correlation", "source_binding",
-        "client_security_stages", "server_stage_matrix",
-        "server_transport_observation", "native_admission",
+        "client_security_stages", "client_stage_evidence",
+        "server_type3_evidence", "target_identity_exact", "attempt_id_exact",
+        "server_stage_matrix", "server_transport_observation", "native_admission",
     }, "Windows row")
     credential = _fields(windows["credential"], {
         "source", "deliberately_reentered", "saved_credential_use",
@@ -245,6 +355,15 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         failures.append("SERVER_PROFILE_INVALID")
     if macos_row["server_tls_configuration_profile"] != windows["server_tls_configuration_profile"]:
         failures.append("AB_SERVER_PROFILE_MISMATCH")
+    try:
+        if _text(macos_row["target_identity_exact"], "macOS target identity", 256) != _text(
+                windows["target_identity_exact"], "Windows target identity", 256):
+            failures.append("AB_TARGET_IDENTITY_MISMATCH")
+        if _text(macos_row["attempt_id_exact"], "macOS attempt ID", 256) == _text(
+                windows["attempt_id_exact"], "Windows attempt ID", 256):
+            failures.append("AB_ATTEMPT_ID_REUSED")
+    except ValueError:
+        failures.append("AB_TARGET_OR_ATTEMPT_INVALID")
     try:
         macos_endpoint = _text(
             macos_row["service_endpoint_exact"], "macOS service endpoint", 256)
@@ -302,6 +421,14 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
             "attempt_time_utc": macos_manifest.get("attempt_time_utc"),
             "connection_id": macos_correlation.get("connection_id"),
             "terminal_time_utc": macos_correlation.get("terminal_time_utc"),
+            "attempt_id_exact": macos_row["attempt_id_exact"],
+            "client_application_exact": "Windows App",
+            "client_version_exact": (
+                f"{macos_manifest.get('windows_app', {}).get('version', '')}+"
+                f"{macos_manifest.get('windows_app', {}).get('build', '')}"
+            ),
+            "target_identity_exact": macos_row["target_identity_exact"],
+            "credential_source_choice": macos_row["credential_source_claim"],
         },
         "MACOS",
     ))
@@ -315,6 +442,11 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
             "attempt_time_utc": windows["attempt_time_utc"],
             "connection_id": correlation["connection_id"],
             "terminal_time_utc": correlation["terminal_time_utc"],
+            "attempt_id_exact": windows["attempt_id_exact"],
+            "client_application_exact": "mstsc.exe",
+            "client_version_exact": windows["mstsc_file_version"],
+            "target_identity_exact": windows["target_identity_exact"],
+            "credential_source_choice": credential["source"],
         },
         "WINDOWS",
     ))
@@ -322,6 +454,18 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         macos_row["client_security_stages"], "MACOS"))
     failures.extend(_client_stage_failures(
         windows["client_security_stages"], "WINDOWS"))
+    failures.extend(_client_event_failures(
+        macos_row["client_security_stages"], macos_row["client_stage_evidence"],
+        macos_row["source_binding"], "MACOS"))
+    failures.extend(_client_event_failures(
+        windows["client_security_stages"], windows["client_stage_evidence"],
+        windows["source_binding"], "WINDOWS"))
+    failures.extend(_server_type3_failures(
+        macos_manifest.get("server_stage_matrix"),
+        macos_row["server_type3_evidence"], macos_row["source_binding"], "MACOS"))
+    failures.extend(_server_type3_failures(
+        windows["server_stage_matrix"],
+        windows["server_type3_evidence"], windows["source_binding"], "WINDOWS"))
 
     windows_stage = windows["server_stage_matrix"]
     failures.extend(_stage_failures(

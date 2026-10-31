@@ -1,3 +1,17 @@
+## R6 read-only paired evidence v3 build and CTest scope (2026-10-31)
+
+Python-standard-library-only `scripts/windows_client_ab_evidence.py` and the
+existing `tests/test_macos_windows_app_owner_evidence.py` fixture gain a
+stage-specific client/server provenance denial. No new binary, package,
+network listener, certificate/credential source or build directory. The
+existing `tests/CMakeLists.txt` Python interpreter registers ordinary
+`interop.windows-client-ab-stage-provenance-splice-denials` alongside the
+unmodified earlier broad paired test. In the owner's single
+`~/rdp-server/build/` root run
+`ctest --test-dir build -C Debug -R '^interop[.]windows-client-ab-(evidence-contradiction|stage-provenance-splice)-denials$' --output-on-failure`,
+then full Debug CTest. Connector-only local execution NOT RUN; exact-head
+hosted CI and manual R9 candidate remain independent qualification gates.
+
 ## R5 offline frame/ACK evidence build boundary (2026-10-31)
 
 New Python-only CTest

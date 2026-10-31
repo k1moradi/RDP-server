@@ -1,3 +1,52 @@
+## R6 current Microsoft client source-provenance qualification (2026-10-31)
+
+**R6 2026-10-31 exact-head follow-up (source inspected
+`1d95156ea4fd1d1c5a20f4e3754570b44d504299`):** Current-head MSVC
+job `124515689345` in [Actions 41193667805](https://github.com/k1moradi/RDP-server/actions/runs/41193667805)
+independently reports `interop-matrix-final=COMPLETE_PASS` on that exact
+SHA (artifact `13039773537`), including fixed/IP target, TLS 1.2/1.3,
+nonempty delegated production authInfo, `CredentialsVerified`, invalid
+server-binding denial and both required-AV Type-2 controls. This is
+hosted SSPI only, `native-admission=no`; it does not reproduce physical
+macOS Windows App or certify a live client. New owner record:
+**10.009 ms** Type-2-local-commit-to-peer-FIN, zero server-observed
+post-Type-2 TLS bytes, no Type 3/alert/close_notify, and a certificate
+fingerprint differing from an older attempt. Its original client
+application/version, exact SHA/fingerprint and client receipt are not
+supplied; no credential/certificate/Type-2 cause is established.
+
+**Concrete missing offline anti-splice boundary:** paired v2 allowed a
+positive client Type-2/Type-3 stage without source-event evidence and
+server Type-3 PASS without its own same-connection receipt. The
+explicitly versioned paired **v3** supplement now requires a client-origin
+source digest, exact attempt ID/app/version and in-window observation
+for every claimed positive client stage, plus original server Type-3
+receipt with same connection and attempt, literal target identity,
+credential source, SHA/endpoint/fingerprint and interval. The R5 macOS
+manifest remains v2. Six targeted offline contradiction fixtures and
+dedicated CTest
+`interop.windows-client-ab-stage-provenance-splice-denials`
+deny server-commit-as-client-receipt, foreign Type-3 observations and
+unmatched source fields. These are **offline authorship only**:
+canonical local Python/full CTest **NOT RUN**; publication-SHA hosted
+CI **PENDING**. Source fields establish correlation/consistency, not
+client event authenticity.
+
+**R6/R1/R9 next gate:** Agent 1 must preserve local-commit versus
+client-receipt semantics and avoid inferring an alert from FIN; Agent 9
+must nominate a literal green same-SHA build and obtain explicit manual
+`r9_credssp_owner_candidate=true` PASS before separate owner approval
+for A/B. R6 then records one unchanged server endpoint, certificate,
+target and standalone Username/independent Session Password across
+macOS Windows App and Windows 11 mstsc, with original client-side
+receipt/decrypt, CredSSP parse/Type-2 outcome, Type-3 construction and
+TLS submission evidence where genuinely observable. Otherwise each
+client stage is `NOT_OBSERVED`. No diagnostic capture, certificate
+trust/Group Policy or credential mutation, server wire patch, physical
+desktop test or Windows native positive activation has been performed.
+Existing WTS/DXGI/SendInput post-revocation CTests are retained and
+`kWindowsNativeDesktopPositiveActivationApproved` remains false.
+
 ## R10 P0 canonical roadmap repair and protected first-MCS integration (2026-10-31)
 
 The previous R10 artifact mistakenly treated GitHub's over-1-MiB Contents

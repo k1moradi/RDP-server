@@ -30,6 +30,7 @@ def admitted_attempt(evidence):
         "seat": {"graphical": True, "seat0": True, "unlocked": True, "current_session": True, "process_uid_matches_owner": True},
         "generations": {"linux_session": 20, "r2_admission": 30, "native_capture": 40},
         "stages": {name: "PASS" for name in evidence.STAGE_ORDER + evidence.ADDITIONAL_STAGES},
+        "frame": {"first_frame_capture_generation": 40, "ack_capture_generation": 40},
         "input": {"keyboard_posts": 1, "mouse_posts": 2, "posts_after_revocation": 0},
         "randr": {"replacement_capture_generation": 41},
         "retirements": [{"kind": "stop", "r2_retired": True, "capture_retired": True,
@@ -38,6 +39,7 @@ def admitted_attempt(evidence):
                       "linux_session_generation": 20, "r2_admission_generation": 31,
                       "native_capture_generation": 42,
                       "stages": {name: "PASS" for name in evidence.RECONNECT_STAGES},
+                      "first_frame_capture_generation": 42, "ack_capture_generation": 42,
                       "posts_after_revocation": 0},
     }
 
@@ -78,6 +80,12 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
     def test_ack_without_frame(self):
         self.reject(lambda record: record["stages"].update(first_frame="NOT_OBSERVED"))
         self.reject(lambda record: record["reconnect"]["stages"].update(first_frame="FAIL"))
+
+    def test_exact_first_frame_and_matching_ack_generations(self):
+        self.reject(lambda record: record["frame"].update(first_frame_capture_generation=41))
+        self.reject(lambda record: record["frame"].update(ack_capture_generation=41))
+        self.reject(lambda record: record["reconnect"].update(first_frame_capture_generation=40))
+        self.reject(lambda record: record["reconnect"].update(ack_capture_generation=41))
 
     def test_input_post_after_revocation(self):
         self.reject(lambda record: record["input"].update(posts_after_revocation=1))
@@ -125,6 +133,7 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
         record["seat"] = {name: None for name in record["seat"]}
         record["generations"] = {name: None for name in record["generations"]}
         record["stages"] = {name: "NOT_OBSERVED" for name in record["stages"]}
+        record["frame"] = {name: None for name in record["frame"]}
         record["input"] = {name: 0 for name in record["input"]}
         record["randr"] = {"replacement_capture_generation": None}
         record["retirements"] = []
@@ -132,6 +141,7 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
                                "consent_generation": None, "linux_session_generation": None,
                                "r2_admission_generation": None, "native_capture_generation": None,
                                "stages": {name: "NOT_OBSERVED" for name in self.evidence.RECONNECT_STAGES},
+                               "first_frame_capture_generation": None, "ack_capture_generation": None,
                                "posts_after_revocation": 0}
         public = self.evidence.validate(record)
         self.assertEqual(public["stages"]["native_admission"], "NOT_OBSERVED")

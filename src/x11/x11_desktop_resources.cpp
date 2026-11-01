@@ -624,7 +624,8 @@ X11DesktopResources::processEvents(std::size_t eventBudget,
 
     const PixelSize observedGeometry = display_.sourceGeometry();
     // Even unchanged root width/height may hide replaced CRTCs or outputs.
-    // Commit a fresh XShm/input generation before routing queued events.
+    // Commit a fresh XShm/capture generation while retaining the same XTEST
+    // input owner and updating only its pointer bounds.
     if (observedRandrChange || observedGeometry != resourceGeometry_)
     {
         if (!rebuildGeometryBoundResources(observedGeometry))
@@ -693,9 +694,9 @@ void
 X11DesktopResources::cancelGeometryBoundResources(
     InputRetirementMode inputRetirementMode) noexcept
 {
-    // Input always retires first. Graceful/RandR retirement may release held
-    // state while authority is current; authorization loss must never emit a
-    // cleanup XTEST request.
+    // Input retires first only on complete owner cancellation. A healthy
+    // graceful disconnect may release held state; RandR preserves input and
+    // never enters this helper. Authorization loss emits no cleanup XTEST.
     if (input_)
     {
         if (inputRetirementMode == InputRetirementMode::SuppressNativeInput)

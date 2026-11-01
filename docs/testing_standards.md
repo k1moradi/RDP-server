@@ -1,3 +1,21 @@
+## R5 RandR source-only no-cleanup XTEST contract (2026-10-31)
+
+The ordinary `x11.input-native-failure-terminal-retirement-no-xtest`
+source CTest previously required a call to `cancelGeometryBoundResources()`
+that production intentionally removed from RandR to prevent native key/button
+cleanup during an authorization-revocation race. Keep the whole-owner fatal
+failure, explicit authority-loss suppressing teardown and single graceful
+disconnect checks. Inspect only `rebuildGeometryBoundResources()` for
+geometry-only XShm/Damage/pointer teardown, unchanged original input owner,
+`updateBounds(geometry)`, new capture generation, and absence of owner
+input reconstruction, graceful XTEST release or geometry cancellation.
+The separate ephemeral-Xvfb `x11.input-randr-bounds-update-held-state-no-cleanup`
+tests actual held-state continuity; a textual source guard is not live/native
+proof. Parent `c43d883367ab9dd1e54a56994e7f44fce0806940` Ubuntu full CTest FAIL specifically on the stale
+literal; macOS/Windows protocol and R9 sanitizer PASS. Fix verified by
+source inspection only; owner-local CTest NOT RUN and corrective hosted CI
+PENDING.
+
 ## R10 protected Channel Join/Client Info production-linked regression (2026-10-31)
 
 Register ordinary

@@ -1,3 +1,31 @@
+## R5 RandR no-XTEST source guard reconciliation (2026-10-31)
+
+Exact parent `c43d883367ab9dd1e54a56994e7f44fce0806940` Actions `41252273117` ran Ubuntu full CTest
+with one failure:
+`x11.input-native-failure-terminal-retirement-no-xtest` required the literal
+`cancelGeometryBoundResources();`, removed by Agent 5's intentional
+`07509cc1` repair. That old call disconnected the XTEST controller and could
+post cleanup key/button releases across an R2 native-consent change occurring
+inside RandR callback service. The actual production resize retains the
+original input owner and updates bounds; fatal error, geometry failure and
+authorization-loss paths still use suppressing `cancelNativeResources()`.
+macOS and Windows protocol, R9 security sanitizer, and the new protected
+Channel Join/Client Info tests passed on this parent. The failing CMake check
+was stale rather than evidence of a native XTEST release.
+
+The existing behavior-named source-only CTest now **requires** geometry
+children retirement, `input_->updateBounds(geometry)` and a new capture
+generation within the bounded RandR rebuild; it **forbids** input owner
+reset/reconstruction, graceful input disconnect/release and the old geometry
+cancellation inside that rebuild. Existing whole-owner fatal/consent-loss and
+single graceful-disconnect XTEST checks remain unchanged. Correct misleading
+RandR comments in X11 source/header; no executable production behavior,
+dependency, public API, sanitizer inventory, permission or protocol changes.
+Connector-local build/CTest **NOT RUN**; corrective publication-SHA CI
+**PENDING**. Next R10 macOS functional dependency after Client Info:
+PersonalDesktop licensing, then Demand/Confirm Active/Share. Real physical
+native X11/macOS admission, client/input/capture remain unauthorized/NOT RUN.
+
 ## R10 protected Channel Join/Confirm and Client Info integration — P0 authored (2026-10-31)
 
 **Authoring parent:** `8075abac48a6d5d0ca0bf582b61d96413a8dfe70`. Agent 3's immediately preceding review

@@ -170,8 +170,9 @@ public:
 
     /**
      * Route one bounded batch of XCB events to the owned cursor/damage
-     * adapters. RandR geometry changes rebuild XShm/Damage/input against the
-     * new bounds before any later queued event is serviced. Rebuild failure
+     * adapters. RandR geometry changes rebuild XShm/Damage and update the
+     * retained input owner's pointer bounds before later queued events.
+     * Rebuild failure
      * revokes the complete native owner rather than exposing a partial mix.
      */
     [[nodiscard]] ConnectionStatus processEvents(

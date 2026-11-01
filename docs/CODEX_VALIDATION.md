@@ -1,3 +1,26 @@
+## R5 Ubuntu stale RandR source contract correction (2026-10-31)
+
+Reviewed current head `c43d883367ab9dd1e54a56994e7f44fce0806940`, Actions `41252273117`.
+The Ubuntu full suite reached 1058 registered tests and failed only
+`x11.input-native-failure-terminal-retirement-no-xtest` because its
+source-only CMake script required the removed literal
+`cancelGeometryBoundResources();`. This was made obsolete by R5's
+`07509cc1` repair: a same-owner RandR geometry update must preserve the
+original XTEST controller and held state, not gracefully disconnect it.
+Fatal/authorization-loss still invokes suppressing whole-owner teardown,
+and only healthy explicit disconnect may emit held releases. macOS/Windows
+protocol and R9 security-protocol sanitizers PASS at this parent.
+
+Updated the existing source CTest to enforce the replacement invariant
+inside the bounded RandR rebuild body: geometry-only child cancellation,
+retained input controller + `updateBounds`, fresh capture generation,
+no input reset/recreation/disconnect/cleanup and no obsolete geometry
+cancellation. Existing zero-cleanup terminal path and single graceful
+disconnect checks remain. Corrected two outdated production comments;
+no runtime code, CTest count, native operation or platform permission
+changed. Connector-local full Debug/Release CTest **NOT RUN**; exact
+corrective publication-SHA hosted CI **PENDING**.
+
 ## R7 active-display QColorSpace provenance and native attachment contract (2026-10-31)
 
 Reviewed parent `f468fef6bb8fe16dcf6dd9af479b60ebbd9a322f` against the

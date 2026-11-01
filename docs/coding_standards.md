@@ -1,3 +1,14 @@
+## R10 native authorization borrow retirement ordering (2026-10-31)
+
+On serialized accepted-client loss, close the original R2 broker/R3
+routing first, then retire native desktop authorization while its verified
+CredSSP proof, owner authority and accepted R1 connection are alive.
+Only afterward destroy the R3 lifecycle, authenticated proof and
+SSL/BIO/socket. Centralize this order in `retireAcceptedClient()` so every
+reject, allocation failure, disconnect, Stop and authority change shares
+the same ordering. This does not authorize native attachment before
+genuine Share/GraphicsReady.
+
 ## R10 macOS Channel Join/Client Info owner composition (2026-10-31)
 
 After the complete Attach Confirm receipt, R10 may consume Channel Join TPKTs

@@ -1,3 +1,25 @@
+## R9/R10 macOS native-proof retirement ordering (2026-10-31)
+
+Review parent `f4a8bf46d49cb74335138871c29683daa8c84a4b` after protected Channel Join/Client Info and
+independent post-Join macOS Clipboard denial. The macOS runtime's
+`retireAcceptedClient()` previously reset its R2 broker/R3 session and
+destroyed the authenticated CredSSP proof before callers invoked native
+desktop retirement. Future native authorization borrows that exact proof:
+positive attachment must never leave a dangling native borrow.
+
+Keep R2/R3 closing first; retire native desktop state inside the one
+accepted-client retirement function while the proof and R1 connection
+still exist, then destroy R3, proof and R1. Ordinary fail-closed,
+disconnect, allocation-failure and Stop paths share that ordering.
+The dedicated offline CTest
+`runtime.macos-native-proof-retired-before-credential-destruction`
+pins the cleanup sequence and does not activate native macOS or alter
+protocol/permission/output. Source review PASS. Connector-local build/full
+CTest/sanitizers NOT RUN; exact-SHA hosted CI PENDING. Next protocol
+dependency: PersonalDesktop licensing then Demand/Confirm Active/Share.
+Physical macOS/Windows App, native input/capture/Clipboard NOT RUN /
+unauthorized.
+
 ## R6 first-error redacted FAIL projection correction (2026-10-31)
 
 **Authoring parent:** `5b0e284671455aa86f60a1b39723f35048d07bd7`. R6 v3 previously emitted the raw private

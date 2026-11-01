@@ -296,6 +296,10 @@ void MacRuntimeHostControl::retireAcceptedClient() noexcept
     activeAdmissionBroker_.reset();
     if (activeMcsSession_ != nullptr)
         activeMcsSession_->close();
+    // Native authorization may borrow the verified proof and sharing
+    // authority. Retire its state after R2/R3 close, before the proof owner
+    // or the accepted R1 connection is destroyed.
+    (void)nativeDesktop_.retireAfterAuthorizationLoss();
     activeMcsSession_.reset();
     activeCredSsp_.reset();
     if (activeConnection_ != nullptr)

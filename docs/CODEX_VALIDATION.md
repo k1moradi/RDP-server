@@ -1,3 +1,23 @@
+## R9/R10 macOS native proof-borrow lifetime review (2026-10-31)
+
+Audited `f4a8bf46d49cb74335138871c29683daa8c84a4b` after R10 Channel Join/Client Info and R8
+post-Join Clipboard denial. `RuntimePlatformNativeDesktop` retains
+authorization that borrows the authenticated proof and owner authority.
+`MacRuntimeHostControl::retireAcceptedClient()` previously reset
+`activeCredSsp_` before native retirement in several callers.
+Future native attachment could expose stale borrowed references.
+
+Move `nativeDesktop_.retireAfterAuthorizationLoss()` after R2/R3 close
+but before R3/proof/R1 destruction. Allocation failure, disconnect,
+timeout and Stop already call the common teardown. Dedicated offline
+`runtime.macos-native-proof-retired-before-credential-destruction`
+pins the order without opening a listener or native session.
+No new permission, Share, Graphics, Clipboard or wire state.
+
+Source audit PASS; local configure/compile/focused/full CTest and sanitizers
+NOT RUN. Exact-publication-SHA hosted CI PENDING. Manual R9 candidate
+NOT NOMINATED; physical client/native desktop NOT RUN / unauthorized.
+
 ## R6 malformed first-client-error public category privacy correction (2026-10-31)
 
 Reviewed base `5b0e284671455aa86f60a1b39723f35048d07bd7`. `scripts/windows_client_ab_evidence.py`

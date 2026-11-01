@@ -1,3 +1,13 @@
+## macOS accepted-client/native proof lifetime order test (2026-10-31)
+
+This single-owner teardown correction modifies existing R10 HostControl
+only; no new target, dependency, SSL reader, worker or build root.
+Dedicated offline CTest
+`runtime.macos-native-proof-retired-before-credential-destruction`
+uses the existing Python3 interpreter. Reuse sole `~/rdp-server/build/`
+for focused/full Debug CTest, macOS Release and existing sanitizers.
+Connector-local build/CTest NOT RUN; exact publication-SHA CI PENDING.
+
 ## R6 first-error redaction offline CTest build contract (2026-10-31)
 
 The existing Python-standard-library validator and fixture gain one

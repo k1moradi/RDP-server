@@ -1375,6 +1375,16 @@ if(NOT Python3_EXECUTABLE)
         "QColorSpace provenance CTest requires a discovered Python3 interpreter")
 endif()
 
+# Native desktop authorization borrows the accepted CredSSP proof. R2/R3
+# routes must close before native teardown, while proof/R1 still exist.
+# Offline source ordering only: no native session or network is activated.
+add_test(NAME runtime.macos-native-proof-retired-before-credential-destruction
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_native_proof_retirement_order.py"
+        --source "${PROJECT_SOURCE_DIR}/src/server/runtime/mac_runtime_host_control.cpp")
+set_tests_properties(runtime.macos-native-proof-retired-before-credential-destruction
+    PROPERTIES LABELS "runtime;macos;security;offline" TIMEOUT 15)
+
 # macOS HostControl's owner scheduler is noexcept but uses bounded dynamic
 # state during client acceptance/admission. Allocation failure must retire the
 # accepted/native lifetime and report InternalFailure rather than terminate.

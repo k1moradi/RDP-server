@@ -1,3 +1,12 @@
+## R9/R10 macOS native proof-borrow retirement CTest (2026-10-31)
+
+Offline `runtime.macos-native-proof-retired-before-credential-destruction`
+pins R2 broker close, R3 close, native desktop retirement, R3 destruction,
+CredSSP proof destruction and R1 transport cancellation in that order.
+The source-contract test does not inject a genuine native lease or prove
+physical desktop teardown. Keep it in ordinary CTest outside fixed
+sanitizer inventories. Owner-local CTest NOT RUN; exact-SHA hosted CI PENDING.
+
 ## R6 first-error category redaction denial (2026-10-31)
 
 Keep the ordinary offline

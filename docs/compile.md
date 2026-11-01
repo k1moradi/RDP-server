@@ -1,3 +1,9 @@
+## R1 Linux Type-2 immediate half-close / independent TLS lifetime (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. With Linux native host-security dependencies available, after canonical configure and Debug build run `ctest --test-dir build -C Debug -R '^runtime[.]linux-direct-ntlm-post-type2-(fin-tls-boundaries-reconnect|partial-tsrequest-fin-drain|orderly-fin|immediate-retry)$' --output-on-failure`, then ordinary full Debug CTest. Reconfigure the same build root for Release, build and run full Release CTest. The native fixture may SKIP (77) without the required logged-in Linux owner environment; SKIP is not PASS.
+
+Hosted publication `6c21f5097431f7e65f3e237b8ac6c98c54330e84`, Actions 41339927267: Ubuntu Debug/Release **1097/1097 PASS** each, with `runtime.linux-direct-ntlm-post-type2-fin-tls-boundaries-reconnect` PASS in **0.41 s / 0.29 s**; macOS **873/873**, Windows MSVC **914/914** and Windows Clang 23 **972/972** full Debug/Release PASS. R9's sanitizer job PASSed but does not invoke this exact case; per-case ASan/UBSan remains NOT RUN pending R9 selector ownership. Owner-local canonical build/CTest and physical Windows App remain NOT RUN.
+
 ## R7 rapid-test desktop launcher qualification (2026-11-01)
 
 Reuse only ~/rdp-server/build/ with the canonical Debug configure/build.
@@ -55,14 +61,6 @@ Run normal Release/hosted exact-SHA matrix and applicable existing sanitizer lan
 ## R4 first-frame native borrow focused test (2026-11-01)
 
 Reuse only `~/rdp-server/build/`: canonical Debug configure/build, `ctest --test-dir build -C Debug -R '^graphics[.]frame-(native-borrow-segmented-receipt-fence|delivery-session-retirement-before-ack|partial-data-retirement-successor-generation)$' --output-on-failure`, ordinary full Debug/Release CTest and existing unchanged portable graphics ASan/UBSan selection (fixed 23 DVC cases plus the two R4 retirement tests). No new executable/dependency/build root. Authoring parent `6c21f5097431f7e65f3e237b8ac6c98c54330e84`: source/CTest review PASS; owner-local configure/build, focused/full CTest, ASan/UBSan, exact-publication-SHA hosted CI and physical Microsoft-client frame/ACK NOT RUN. Benchmark and physical clients NOT RUN.
-
-## R1 Linux Type-2 immediate half-close / independent TLS lifetime (2026-11-01)
-
-Reuse only `~/rdp-server/build/`. With Linux native host-security dependencies available, after canonical configure and Debug build run `ctest --test-dir build -C Debug -R '^runtime[.]linux-direct-ntlm-post-type2-(fin-tls-boundaries-reconnect|partial-tsrequest-fin-drain|orderly-fin|immediate-retry)$' --output-on-failure`, then ordinary full Debug CTest. Reconfigure the same build root for Release, build and run full Release CTest; run the existing applicable R1 ASan/UBSan and exact-publication-SHA hosted matrix. The native fixture may SKIP (77) without the required logged-in Linux owner environment; SKIP is not PASS. Here source/registry inspection PASS, local configure/build/focused/full/sanitizers NOT RUN, publication-SHA hosted outcomes PENDING. No physical Windows App, capture or credential change.
-
-## R1 Linux Type-2 immediate half-close / independent TLS lifetime (2026-11-01)
-
-Reuse only `~/rdp-server/build/`. With Linux native host-security dependencies available, after canonical configure and Debug build run `ctest --test-dir build -C Debug -R '^runtime[.]linux-direct-ntlm-post-type2-(fin-tls-boundaries-reconnect|partial-tsrequest-fin-drain|orderly-fin|immediate-retry)$' --output-on-failure`, then ordinary full Debug CTest. Reconfigure the same build root for Release, build and run full Release CTest; run the existing applicable R1 ASan/UBSan and exact-publication-SHA hosted matrix. The native fixture may SKIP (77) without the required logged-in Linux owner environment; SKIP is not PASS. Here source/registry inspection PASS, local configure/build/focused/full/sanitizers NOT RUN, publication-SHA hosted outcomes PENDING. No physical Windows App, capture or credential change.
 
 ## R6 Windows-client first-error Unicode and source provenance (2026-11-01)
 

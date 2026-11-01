@@ -1,3 +1,28 @@
+## R7 post-Share macOS native attachment and GUI status boundary (2026-11-01)
+
+R10 alone may attach the existing macOS native desktop after the **same
+original** R1 accepted HYBRID/TLS connection has a current R2 concrete broker,
+the bound verified CredSSP proof, and a freshly revalidated View consent
+permission at its pinned authorization epoch. The native console/audit session
+identity and epoch must still match and satisfy independent native authorization.
+Real R3 PersonalDesktop licensing, exact accepted-byte Share activation and
+R3-owned Graphics DVC/surface readiness must have genuinely completed; neither
+Client Info, GUI state nor a synthetic fixture permits attachment. Preserve the
+borrowed authenticated proof, owner authority and R1 lifetime until native
+retirement. Owner-thread Stop, timeout, disconnect, allocation failure and
+consent/session loss close R2/R3 routing, retire native desktop, then destroy
+R3/proof/R1; no native input posts after revocation.
+
+`RuntimeHostStatus::graphicsReady` is **R3 protocol readiness**, not
+`RuntimePlatformNativeDesktop::ready()`. Once R10 actually integrates
+Graphics activation, project it only from the original R2-protected R3
+graphics/presentation state and keep `nativeDesktopReady` separate.
+`desktopVisible` additionally needs genuinely delivered first-frame evidence;
+neither local native readiness nor an R3 prepared frame implies client display.
+The existing macOS `snapshot.graphicsReady = nativeDesktop_.ready()` is a
+deferred status-only correction, not a reason to fabricate GraphicsReady now.
+R7/Qt status remains non-authorizing.
+
 ## R5 implicit X11 owner destruction is no-post by default (2026-10-31)
 
 A C++ destructor cannot assume native R2 authority is still current.

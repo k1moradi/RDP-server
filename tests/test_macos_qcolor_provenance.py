@@ -271,6 +271,46 @@ class MacQColorProvenanceTests(unittest.TestCase):
         self.assertEqual(core_graphics.released, [101, 101, 101])
         self.assertEqual(core_foundation.released, [202, 202, 202])
 
+    def test_display_icc_oversized_metadata_releases_in_reverse_order(self):
+        # CFData length is untrusted native metadata. Reject oversized
+        # profiles before obtaining any bytes, then retire the CFData borrow
+        # before its parent CGColorSpace even on a nonexceptional denial.
+        release_order = []
+
+        class CoreGraphics:
+            def CGDisplayCopyColorSpace(self, display_id):
+                return 101
+
+            def CGColorSpaceGetModel(self, color_space):
+                return 1
+
+            def CGColorSpaceCopyICCData(self, color_space):
+                return 202
+
+            def CGColorSpaceRelease(self, color_space):
+                release_order.append(("color-space", color_space))
+
+        class CoreFoundation:
+            def CFDataGetLength(self, profile_data):
+                return probe.MAX_ICC_PROFILE_BYTES + 1
+
+            def CFDataGetBytePtr(self, profile_data):
+                raise AssertionError("oversized ICC metadata must not be read")
+
+            def CFRelease(self, profile_data):
+                release_order.append(("profile-data", profile_data))
+
+        with mock.patch.object(probe.ctypes, "string_at") as header_reader:
+            self.assertEqual(
+                probe._query_display_profile(
+                    CoreGraphics(), CoreFoundation(), 44),
+                ("rgb", "invalid", "invalid-length"))
+            header_reader.assert_not_called()
+
+        self.assertEqual(
+            release_order,
+            [("profile-data", 202), ("color-space", 101)])
+
     def test_qt_warning_summary_drops_paths_and_chromaticity_values(self):
         raw = (
             'qt.core.plugin: loaded library '

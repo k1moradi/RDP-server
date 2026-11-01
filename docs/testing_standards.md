@@ -17,6 +17,18 @@ mapped-to-frame interleaving remains an independent integration gate.
 Authoring parent \`e4534704900c4a3ef890e55aa35e91a76653f0ec\`; connector source review PASS, local
 build/CTest/ASan/UBSan NOT RUN, exact publication-SHA CI PENDING.
 
+## R7 oversized ICC CFData retirement regression (2026-11-01)
+
+Extend only the existing ordinary offline
+`macos.gui-qcolor-provenance-parser-and-redaction` CTest. A native
+`CFDataGetLength` above the fixed 64 MiB cap must return `invalid-length`
+without calling `CFDataGetBytePtr` or copying a header; the exact observed
+release order must be `CFRelease` of profile data, then
+`CGColorSpaceRelease` of its parent color space. This complements the
+existing negative-length/exception/multidisplay tests, not another test runner
+or a new fixed sanitizer selector. Python callback mocks establish the
+collector's behavior only, not native ColorSync safety or the warning caller.
+
 ## R5 implicit X11 destructor no-XTEST contract (2026-10-31)
 
 Ordinary source-only

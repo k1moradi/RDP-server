@@ -19,6 +19,36 @@ queued; new publication-SHA hosted validation PENDING. R10/R3 must provide
 exact R2-backed CAPS/CREATE/MAP-to-borrow retirement regression after Share;
 R7 must fence native framebuffer callback retirement before R4 consumes it.
 
+## R7 ICC current-source qualification and oversized CFData follow-up (2026-11-01)
+
+Parent `e4534704900c4a3ef890e55aa35e91a76653f0ec`, GitHub Actions
+`41277193312`, was inspected after R7 commit
+`036f3d826de17cee26e1c8ae91f90dc523d4330b` (Actions
+`41276763203`). At both exact SHAs the hosted Linux, macOS and Windows
+protocol jobs, R7 macOS native lifecycle, R7 macOS session sanitizers,
+R9 security sanitizers, R7 portable GUI and documentation-policy jobs
+reported PASS. At inspection the parent full workflow remained queued
+on an unrelated Windows portable-GUI lane. This is hosted offline coverage,
+NOT owner-native macOS 27 acceptance or real ColorSync/ICC sanitization.
+
+Source review of `scripts/diagnose_macos_qcolor_provenance.py` confirmed
+`CFDataGetLength` is bounded before `CFDataGetBytePtr`/header copying,
+and nested `finally` handlers retire CFData before CGColorSpace.
+The existing `036f3d8` tests cover failed per-display observations,
+negative CFData length and header-copy exceptions, but did not assert
+cross-handle release ordering or an over-cap native CFData length.
+The existing registered Python test gains exactly one over-cap/reverse-release
+fixture; no production, Qt, CoreGraphics, packet, listener or native behavior
+is changed. Code/test inspection PASS; new fixture authoring-environment
+execution NOT RUN (no approved checkout or GitHub network in container).
+Publication-SHA CI PENDING; owner-native display/backtrace, capture,
+permission prompts and real-client acceptance NOT RUN.
+
+The owner still reproduces invalid-primaries QColorSpace warnings, but a
+warning-site backtrace has not identified its constructing caller.
+Do not suppress the warning or alter ICC/profile/color-space defaults
+without caller attribution and an independently reproduced bad-input path.
+
 ## R5 implicit native destructor no-XTEST follow-up (2026-10-31)
 
 **Source parent** `5b0e284671455aa86f60a1b39723f35048d07bd7`. Agent 5's

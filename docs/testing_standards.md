@@ -1,3 +1,18 @@
+## R2 final Valid Client callback audit replacement (2026-11-01)
+
+Use the same production-linked original R1 HYBRID/TLS and R2/R3 licensing
+fixture; do not synthesize a positive native admission. For
+`security.macos-protected-valid-client-final-write-callback-revocation`,
+receipt-commit a real first `STATUS_VALID_CLIENT` byte, deliver all remaining
+R1 TLS bytes through the original writer and instrument the native postcheck
+to observe R3's transient `Licensed/AwaitDemandActive` state before replacing
+the audit session. R2's protected callback must return Rejected and terminally
+close R1/R2/R3, denying late receipts and Demand Active. Preserve the prior
+Server License Request partial-write and policy-replacement regressions,
+cross-thread denial, Linux positives, and View/Input versus Clipboard scope.
+Production CredSSP principal and physical macOS evidence are separate gates.
+Connector-local compilation/CTest NOT RUN; exact publication-SHA CI PENDING.
+
 ## macOS native-attach composition tests remain non-physical (2026-11-01)
 
 A source composition CTest may prove that HostControl invokes the sole existing `attachAuthenticatedSession()` only behind mapped protected GraphicsReady, services active initialization, preserves centralized retirement and does not borrow a framebuffer. Pair that contract with existing native authorization/owner lifecycle tests; it does not prove ScreenCaptureKit/TCC, a physical console, client-visible pixels or Microsoft-client acceptance. Keep Share and Graphics-control source contracts scoped to their own pre-native branches so later legitimate attachment does not weaken earlier sequencing assertions.

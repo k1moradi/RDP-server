@@ -1,3 +1,18 @@
+## R2 final STATUS_VALID_CLIENT callback revocation regression (2026-11-01)
+
+Parent `559a89e1faf67107856fb7efe67284d14a77f4dc` source audit PASS: R2 policy and service-object identity
+pins, synchronous proof/R1/native/epoch before-and-after guards, R3's one-shot
+licensing phase, R10's service-owned borrowing/destruction and secret-safe
+diagnostics remain unchanged. The newly isolated final Valid Client accepted
+TLS suffix tests revocation *after* R3 transiently reaches Licensed inside a
+protected callback, requiring no published completion, no Share, exact late
+receipt denial and closed R1/R2/R3. The fixture's native/credential observations
+are synthetic, NOT proof of production CredSSP principal or physical macOS OS
+admission. GitHub source and CTest registration inspection PASS. Local build,
+focused/full CTest, sanitizer, performance and real-client tests NOT RUN;
+exact publication-SHA hosted validation PENDING. Linux positives and
+View/Input/Clipboard scope preserved; next gate real principal-native bridge.
+
 ## macOS GraphicsReady native-attach composition source validation (2026-11-01)
 
 Reviewed parent `6e29bec510e8b408ab6f1eef1a113b092e80db4b`: R2 PersonalDesktop policy/service identity remains immutable; R10 lifetime order keeps broker/R3/native/proof/R1 retirement safe; `RuntimePlatformNativeDesktop` already owns the downstream authenticated-session native authorization and macOS evidence reader. The implementation attaches only after the original R3 acceptance observability proves mapped GraphicsReady and the exact broker revalidates, then revalidates again after the synchronous native bind. Native initialization is serviced from `active()`; terminal native service errors close the complete accepted-client owner. Status reports active-not-ready as initializing and does not promote DesktopVisible. No framebuffer borrow, R4 frame, Clipboard or input route is introduced. New dedicated composition CTest registration and existing boundary-contract updates reviewed PASS by source inspection. Local execution and physical acceptance NOT RUN; exact publication-SHA hosted qualification PENDING.

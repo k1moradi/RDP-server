@@ -1,3 +1,12 @@
+## R2 final Valid Client protected postcheck regression (2026-11-01)
+
+No production dependencies, API or additional executable. Reuse only
+`~/rdp-server/build/` for the canonical Debug configure/build, then run
+`ctest --test-dir build -C Debug -R '^security[.]macos-protected-(valid-client-final-write-callback-revocation|license-request-partial-write-callback-revocation|partial-license-request-policy-substitution-denial|personal-desktop-licensing-receipts)$' --output-on-failure`.
+Run ordinary full Debug/Release CTest and exact-SHA hosted macOS/Ubuntu/Windows
+plus applicable ASan/UBSan after publication. Connector-local compile/CTest
+NOT RUN; no physical native/client test is authorized.
+
 ## macOS GraphicsReady native-attachment focused qualification (2026-11-01)
 
 No new production dependency or executable. Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build, run `ctest --test-dir build -C Debug -R '^runtime[.]macos-(graphics-ready-native-attach-composition-contract|native-proof-retired-before-credential-destruction|native-retirement-single-owner-callers|host-control-(share-activation|graphics-control)-composition-contract)$' --output-on-failure`, then full Debug/Release CTest and the existing macOS native lifecycle plus security sanitizer lanes. Connector-local compile/CTest is NOT RUN; publication-SHA hosted qualification is PENDING. Physical TCC/capture/client execution remains separately authorized.

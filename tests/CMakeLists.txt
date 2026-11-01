@@ -2277,6 +2277,18 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "protocol;security;transport;tls;licensing;admission;offline"
                 TIMEOUT 60)
 
+        # R2 post-callback audit-session replacement after R3 consumes the
+        # complete real R1 TLS STATUS_VALID_CLIENT suffix must not publish
+        # Licensed or permit Demand Active. Native/principal data is synthetic.
+        add_test(NAME security.macos-protected-valid-client-final-write-callback-revocation
+            COMMAND "${test_target}"
+                "macos-protected-valid-client-final-write-callback-revocation")
+        set_tests_properties(
+            security.macos-protected-valid-client-final-write-callback-revocation
+            PROPERTIES
+                LABELS "protocol;security;transport;tls;licensing;admission;offline"
+                TIMEOUT 60)
+
         # R8 production R3 Share completion with synthetic licensing/native
         # proof; macOS Clipboard stays denied outside the fixed 107 cases.
         add_test(NAME security.macos-share-activated-clipboard-permission-denial

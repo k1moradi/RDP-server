@@ -7897,6 +7897,14 @@ public:
                     semanticSessionToObserve != nullptr &&
                     semanticSessionToObserve->phase() ==
                         McsSessionPhase::AwaitConnectResponse;
+                // Check whether R3 actually reached Licensed inside the
+                // callback before R2's native postcheck revoked that result.
+                observedLicensedDuringRevokedCallback =
+                    licensingSessionToObserve != nullptr &&
+                    licensingSessionToObserve->licensingPhase() ==
+                        RdpLicensingPhase::Licensed &&
+                    licensingSessionToObserve->phase() ==
+                        McsSessionPhase::AwaitDemandActive;
                 ++output.auditSessionId;
             }
         }
@@ -7914,6 +7922,8 @@ public:
         (std::numeric_limits<std::size_t>::max)()};
     const McsSessionLifecycle *semanticSessionToObserve{};
     mutable bool observedPostMcsSemanticTransition{};
+    const McsSessionLifecycle *licensingSessionToObserve{};
+    mutable bool observedLicensedDuringRevokedCallback{};
 
 private:
     const OwnedPreauthTcpConnection *connection_{};
@@ -9332,7 +9342,8 @@ void testMacProtectedPersonalLicensingContextSubstitutionDenials()
 
 void exerciseMacProtectedPersonalDesktopLicensingReceipts(
     bool denyPrematureConfirmAfterPartialDemand,
-    bool denyReplayedClientDuringPartialValidClient)
+    bool denyReplayedClientDuringPartialValidClient,
+    bool denyFinalValidClientCallbackRevocation = false)
 {
     using rdp_server::server::runtime::RuntimeDeploymentPolicy;
     using rdp_server::server::runtime::RuntimeLicensingContext;
@@ -9508,6 +9519,82 @@ void exerciseMacProtectedPersonalDesktopLicensingReceipts(
         return;
     }
 
+    if (denyFinalValidClientCallbackRevocation)
+    {
+        // The previous STATUS_VALID_CLIENT byte was receipt-committed. Now
+        // complete the original remaining R1 TLS suffix, but replace the
+        // native audit session only after R3 processes its final receipt.
+        // R2 must not return Delivered or leak R3's transient Licensed state.
+        const auto deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds{5};
+        for (std::size_t attempt = 0U;
+             attempt < 256U && std::chrono::steady_clock::now() < deadline;
+             ++attempt)
+        {
+            const auto pending = borrowValid();
+            assert(pending && *pending);
+            const auto written =
+                fixture->connection.writeTlsApplicationData(pending->bytes);
+            if (written.outcome != TlsApplicationIoOutcome::Progress)
+            {
+                assert(written.bytes == 0U);
+                assert(written.outcome == TlsApplicationIoOutcome::NeedRead ||
+                       written.outcome == TlsApplicationIoOutcome::NeedWrite);
+                const auto interest = fixture->connection.ioInterest();
+                const auto polled = fixture->connection.pollSocketOnce(
+                    deadline, kMaximumTcpPollWait);
+                assert(polled.outcome == TcpConnectionPollOutcome::Dispatched ||
+                       polled.outcome == TcpConnectionPollOutcome::NoEvent);
+                assert(polled.nextInterest == interest);
+                continue;
+            }
+
+            assert(written.bytes > 0U && written.bytes <= pending->bytes.size());
+            std::vector<std::uint8_t> clientReceived(written.bytes);
+            readNativeTlsClientAll(fixture->tls.client.get(), clientReceived);
+            assert(std::equal(
+                clientReceived.begin(), clientReceived.end(),
+                pending->bytes.begin()));
+
+            const bool finalSlice = written.bytes == pending->bytes.size();
+            if (finalSlice)
+            {
+                fixture->nativeEvidence.licensingSessionToObserve =
+                    fixture->session.get();
+                fixture->nativeEvidence.stableReadsBeforeAuditReplacement = 1U;
+            }
+            const std::uint64_t replySequence = pending->replySequence;
+            const std::uint64_t writeSliceSequence = pending->writeSliceSequence;
+            const auto receipt =
+                fixture->broker.completeR3PersonalDesktopValidClientWrite(
+                    *fixture->session, policy, replySequence,
+                    writeSliceSequence, written.bytes);
+            if (!finalSlice)
+            {
+                assert(receipt == ValidReceipt::Pending);
+                continue;
+            }
+            assert(receipt == ValidReceipt::Rejected);
+            assert(fixture->nativeEvidence.observedLicensedDuringRevokedCallback);
+            assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+            assert(fixture->session->phase() == McsSessionPhase::Closed);
+            assert(fixture->session->licensingPhase() == RdpLicensingPhase::Closed);
+            assert(fixture->connection.stage() == PreauthStage::Closed);
+            assert(!fixture->connection.active());
+            assert(!fixture->session->firstClientAcceptanceObservability()
+                        .shareActivated);
+            assert(fixture->broker.completeR3PersonalDesktopValidClientWrite(
+                *fixture->session, policy, replySequence,
+                writeSliceSequence, written.bytes) == ValidReceipt::Rejected);
+            assert(!borrowValid());
+            assert(!fixture->broker.authorizeR3PersonalDesktopMacDemandActiveProfile(
+                *fixture->session, policy, RdpDemandActiveFeature::None));
+            return;
+        }
+        assert(false && "protected Valid Client final TLS receipt did not complete");
+        return;
+    }
+
     deliverRemaining(
         borrowValid,
         [&](std::uint64_t reply, std::uint64_t slice, std::size_t bytes) {
@@ -9619,6 +9706,13 @@ void testMacProtectedLicensedSharePrematureConfirmAfterPartialDemandDenial()
 void testMacProtectedPersonalDesktopClientLicensingReplayDuringPartialValidClientDenial()
 {
     exerciseMacProtectedPersonalDesktopLicensingReceipts(false, true);
+}
+
+// R3's final Valid Client receipt can transiently reach Licensed inside
+// the protected callback; replaced native audit evidence must still deny it.
+void testMacProtectedValidClientFinalWriteCallbackRevocation()
+{
+    exerciseMacProtectedPersonalDesktopLicensingReceipts(false, false, true);
 }
 
 void testMacProtectedPersonalDesktopLicensingDenials()
@@ -15325,6 +15419,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedPartialLicenseRequestPolicySubstitutionDenial},
     {"macos-protected-license-request-partial-write-callback-revocation",
      &testMacProtectedServerLicenseRequestPartialWriteCallbackRevocation},
+    {"macos-protected-valid-client-final-write-callback-revocation",
+     &testMacProtectedValidClientFinalWriteCallbackRevocation},
     {"macos-protected-channel-join-client-info-after-attach",
      &testMacProtectedChannelJoinClientInfoAfterAttach},
     {"macos-protected-personal-desktop-licensing-receipts",

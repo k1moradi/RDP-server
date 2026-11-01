@@ -1,3 +1,35 @@
+## R2 final STATUS_VALID_CLIENT callback authority fence (2026-11-01)
+
+Reviewed `main` parent `559a89e1faf67107856fb7efe67284d14a77f4dc`. The six existing concrete R2
+PersonalDesktop licensing operations already enforce original owner-thread,
+policy address, exact borrowed licensing identity/credential addresses,
+authenticated R1 HYBRID/TLS proof and connection, native audit/session and
+same-permission consent epoch before and after R3 transitions. Existing
+production-linked R1 TLS tests cover replacement policy/AppServer, partially
+accepted Server License Request, replay, Stop, consent/audit/R1 cancellation
+and off-owner denial. The remaining uncovered callback boundary was the final
+`STATUS_VALID_CLIENT` suffix: R3 could reach `Licensed` inside the native
+visitor before its independent postcheck. The new dedicated offline
+`security.macos-protected-valid-client-final-write-callback-revocation`
+uses the existing production TLS writer and R2/R3 licensing fixture to
+receipt-commit a first byte, deliver the remaining TLS suffix, then replace
+test native audit evidence only after R3 transiently enters `Licensed`.
+Require R2 to return Rejected, close the original R1/R2/R3 owner, deny the
+stale receipt/Valid Client borrow/Demand Active and never set ShareActivated.
+
+This is a **test-only** change, no new R2 public API or product policy;
+its principal/native sources are synthetic and do not establish production
+CredSSP principal-to-physical macOS audit/consent admission. R10 retains the
+one-shot RuntimeLicensingContext service objects longer than broker callbacks
+and prints no private PEM. View/Input does not grant Clipboard, and Linux
+native-positive paths are unmodified. Source/CTest registration inspection
+PASS; local configure/build/CTest/sanitizers/benchmarks NOT RUN because the
+connected GitHub repository is not mounted as a checkout (GitHub DNS unavailable
+from the execution container). Exact publication-SHA hosted full Debug/Release,
+Windows/MSVC/Clang, macOS and ASan/UBSan validation PENDING. Next separate gate
+is a genuine production CredSSP principal bound to independently witnessed
+physical macOS native evidence, then authorized client-visible frame/ACK.
+
 ## macOS mapped-Graphics native attachment composition (2026-11-01)
 
 **Authoring parent:** `6e29bec510e8b408ab6f1eef1a113b092e80db4b`. R10 now reaches an original R2-admitted, real PersonalDesktop-licensed, ShareActivated R3 owner with protected Graphics CAPS/CREATE/MAP and `GraphicsReady`; `RuntimePlatformNativeDesktop::attachAuthenticatedSession()` already consumes the original authenticated proof plus current-owner authority and independently re-reads macOS native audit/session evidence. Wire that existing seam only from the exact mapped GraphicsReady state, with fresh broker revalidation before and after attachment. Service an attached native owner while it is `active()`, because capture initialization precedes `ready()`; terminal native service failure retires the complete accepted R2/R3/native/proof/R1 lifetime rather than leaving an attach retry. Project `nativeDesktopInitializing` from active-not-ready.

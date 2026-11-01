@@ -1,3 +1,7 @@
+## R5/R7 GUI source-contract false-positive correction (2026-11-01)
+
+Exact R5 `5edb1d339b5de45c7f84f71d9fa01c22928c2d5a` hosted sanitizer job `124986568845` confirms 45/45 fixed native X11 ASan/UBSan and 2/2 supplemental implicit-destructor CTests PASS; the Linux GUI ZIP job PASS. Its Ubuntu full Debug job `124986568962` fails five unrelated fixtures, including `gui.round2-refresh-tray-function-boundary`. The current source places `applyStartupOptions()` between `updateTray()` and `refresh()`, and its legitimate status read triggered the tray forbidden-token check because that test sliced across two functions. Narrow only the source-contract body to `updateTray`'s top-level close; preserve the positive/negative tray tokens and existing CTest registration. No production behavior or fixed sanitizer selection changes. Source inspection PASS; no local canonical CTest/compile/sanitizers, exact-publication hosted qualification PENDING; owner-authorized real client/seat0 still NOT RUN.
+
 ## R2/R7 P0 failed secure-preference save retry follow-up (2026-11-01)
 
 Starting from refreshed `main` parent `cf2348ff211418118f4c0e91908960048c5bb585`, reviewed AGENTS,

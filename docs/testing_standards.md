@@ -1,3 +1,7 @@
+## GUI tray source-contract tests must end at the actual member function (2026-11-01)
+
+When a source-contract CTest checks forbidden/required tokens inside `DesktopWindow::updateTray`, it must stop at that member's own top-level closing brace, not at the next named `refresh()` definition: unrelated members (currently `applyStartupOptions`) may be inserted between them and legitimately query `host_.status()`. Retain all existing forbidden and required tokens and reject a missing function close. This is a test-fixture correctness repair, not a weakening of the tray/refresh separation assertion or a native/GUI runtime behavior change.
+
 ## R7 failed preference write preserves the next owner retry (2026-11-01)
 
 The dedicated ordinary `gui.offscreen-rapid-preferences-failed-save-retry`

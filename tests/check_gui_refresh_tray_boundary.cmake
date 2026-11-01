@@ -17,8 +17,18 @@ endif()
 
 math(EXPR update_length "${refresh_start} - ${update_start}")
 math(EXPR refresh_length "${close_start} - ${refresh_start}")
-string(SUBSTRING "${source}" ${update_start} ${update_length} update_body)
+string(SUBSTRING "${source}" ${update_start} ${update_length} update_window)
 string(SUBSTRING "${source}" ${refresh_start} ${refresh_length} refresh_body)
+
+# Other member functions may be declared between updateTray and refresh.
+# End the tray contract at its own top-level closing brace so a legitimate
+# host status query in an intervening method cannot masquerade as tray work.
+string(FIND "${update_window}" "\n}\n" update_close)
+if(update_close EQUAL -1)
+    message(FATAL_ERROR "updateTray function closing brace missing")
+endif()
+math(EXPR update_body_length "${update_close} + 3")
+string(SUBSTRING "${update_window}" 0 ${update_body_length} update_body)
 
 foreach(required IN ITEMS
         "traySharing_->setText"

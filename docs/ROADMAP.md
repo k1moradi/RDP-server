@@ -1,3 +1,21 @@
+## Build unblock — R2 explicit RAII return blocks R6 hosted qualification (2026-11-01)
+
+Exact R6 SHA `9e35da1d67b2ad132a39cfa94753fdf10fed07d4` failed Ubuntu
+Debug compilation before tests because inherited R2 preferences code returned
+bare `{}` from a function returning the move-only wrapper
+`FileDescriptor`, whose constructor is explicit. Parent
+`3a78e4f268f2b60fa3b9b140fde61df3f7be7c8a` retains the defect. Replace
+only those two empty returns with `FileDescriptor{}`; do not weaken the
+constructor or change filesystem behavior. Existing R2 preferences coverage
+and the R6 terminal-relative first-error fixture remain authoritative.
+
+This resolves a build dependency only. The R6 physical-client blocker is
+unchanged: no original same-attempt first-party Windows App record yet proves
+Type-2 receipt/decryption or a typed provider first error, so Type-3
+construction/submission remain unobserved and no TLS/NTLM cause is inferred.
+New exact-SHA hosted general CI and Microsoft SSPI must be reported
+separately after publication.
+
 ## R6 P0 — terminal-relative first-error correction; physical client still BLOCKED (2026-11-01)
 
 **Reviewed parent:** `cb3cc05d609d62fa9f5bcc1779629b07e18c2d52`.

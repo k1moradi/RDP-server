@@ -1,3 +1,15 @@
+## R2 explicit-RAII compile correction uses existing behavior coverage (2026-11-01)
+
+The POSIX user-preferences helper's empty `FileDescriptor` returns are a
+compile-only correction: use named `FileDescriptor{}` values so GCC
+`-Werror` accepts the existing explicit RAII constructor. Do not add a
+duplicate behavior CTest. Require the existing
+`runtime.user-preferences-owner-private-versioned-roundtrip-denials`, the
+R6 `interop.windows-client-ab-first-error-attempt-provenance-denials`, full
+Debug/Release CTest and applicable sanitizers after the exact-SHA build
+succeeds. The correction does not change filesystem, credential, listener or
+physical-client behavior.
+
 ## R9 shipped CLI denial and exact preference-mode regressions (2026-11-01)
 
 The ordinary `gui.rapid-cli-executable-denials` must execute the built desktop binary, not only `parseDesktopLaunchOptions()`. Under an intentionally invalid QPA backend, help and every invalid argv/stdin case must terminate before QApplication: unknown and duplicate switches, all argv-password spellings, conflicting help, empty redirected password input, malformed UTF-8/NUL and >256-byte input. Diagnostics are bounded and fixed-category; a synthetic secret sentinel must not be reflected. Existing fake-HostControl offscreen tests remain responsible for --enable's presentation-only behavior and explicit Sharing action.

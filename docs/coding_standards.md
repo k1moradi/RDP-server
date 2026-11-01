@@ -1,3 +1,13 @@
+## Explicit RAII empty returns must name the wrapper type (2026-11-01)
+
+For a move-only RAII wrapper whose constructor is `explicit`, do not return
+a bare `{}` from a function returning that wrapper. GCC correctly treats
+that return as copy-list-initialization and rejects use of the explicit
+constructor under the project's high-warning `-Werror` build. Return the
+named empty value (for example `FileDescriptor{}`) so ownership and
+construction are explicit without weakening the constructor or changing
+runtime behavior.
+
 ## R9 preferences object permissions are exact, not merely owner-only (2026-11-01)
 
 For the R2 per-user preferences store, POSIX production acceptance of the application directory/file uses exact permission bits: 0700 directory and regular single-link 0600 file owned by the effective UID. Owner-only executable/special modes are not canonical and fail closed rather than being silently normalized. Ancestor home/config directories keep the existing no-group/world-write requirement. Windows accepts only the current user SID, no reparse point, owner-only explicit ACEs and a DACL marked `SE_DACL_PROTECTED` so later parent inheritance cannot widen access. Atomic replacement semantics and the fixed non-secret record stay unchanged.

@@ -1,3 +1,24 @@
+## R2 GCC compile unblock inherited by R6 qualification (2026-11-01)
+
+R6 publication `9e35da1d67b2ad132a39cfa94753fdf10fed07d4` preserved the
+privacy-safe evidence contract, but its Ubuntu protocol job failed before
+CTest in parent R2 user-preferences code. GCC `-Werror` diagnosed both empty
+returns from `openDirectoryChild()`: bare `return {};` attempts
+copy-list-initialization through the explicit
+`FileDescriptor(int descriptor = -1)` constructor. Current parent
+`3a78e4f268f2b60fa3b9b140fde61df3f7be7c8a` still contains the same two
+sites after R9's independent permission hardening.
+
+Correct only those two returns to `FileDescriptor{}`; keep the constructor
+explicit, move-only RAII ownership, errno behavior and all storage semantics
+unchanged. This is an inherited build unblock, not an R6 schema/TLS/NTLM
+change. Existing R2 preferences and R6 first-error provenance tests remain
+the behavioral gates; no duplicate CTest is added. Source/compiler-diagnostic
+review PASS; owner-local build/CTest/sanitizers NOT RUN. New exact-SHA general
+CI and hosted Microsoft SSPI are PENDING. The physical Windows App blocker
+remains first-party client receipt/decryption/typed-error evidence under
+separate owner authorization.
+
 ## R9 rapid CLI executable denials and strict preferences permissions (2026-11-01)
 
 **Reviewed parent:** `9e35da1d67b2ad132a39cfa94753fdf10fed07d4`. R7's rapid-test desktop CLI and R2's typed non-secret preferences API have now landed, resolving the earlier implementation-absent blocker for their independent assurance surfaces. Source review found one concrete R2 storage mismatch: POSIX "exact private" validation accepted owner modes such as 0700 for the preferences file instead of the documented exact 0600 file / 0700 app directory, and Windows owner-only DACL validation did not require `SE_DACL_PROTECTED`. Production validation now requires those exact POSIX modes and a protected Windows DACL before accepting the object. The existing ordinary `runtime.user-preferences-owner-private-versioned-roundtrip-denials` adds POSIX uid/type/link/mode assertions plus a 0700-file denial before restoring 0600. No credential, listener, authority or preference schema changes.

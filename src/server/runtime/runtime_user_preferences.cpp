@@ -190,14 +190,14 @@ private:
     bool exactPrivateMode) noexcept
 {
     if (create && ::mkdirat(parent, name, 0700) != 0 && errno != EEXIST)
-        return {};
+        return FileDescriptor{};
     FileDescriptor child{
         ::openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)};
     if (child && privateObject(child.get(), true, exactPrivateMode))
         return child;
     if (child)
         errno = EPERM;
-    return {};
+    return FileDescriptor{};
 }
 
 [[nodiscard]] RuntimeUserPreferencesStorageStatus openNativeDirectory(

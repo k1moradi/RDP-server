@@ -1,3 +1,15 @@
+## R2 inherited GCC explicit-RAII compile unblock (2026-11-01)
+
+Exact R6 SHA `9e35da1d67b2ad132a39cfa94753fdf10fed07d4` reached hosted
+Ubuntu configure but failed during Debug compilation before any R6 test:
+GCC `-Werror` rejected two bare `return {};` statements in the parent R2
+`openDirectoryChild()` because `FileDescriptor(int = -1)` is explicit.
+On current parent `3a78e4f268f2b60fa3b9b140fde61df3f7be7c8a`, keep that
+constructor explicit and return `FileDescriptor{}` at those two empty
+ownership exits. Reuse only `~/rdp-server/build/`; run the canonical full
+Debug/Release build/CTest plus focused R2 preferences and R6 first-error
+provenance selectors. No new target, dependency or build root.
+
 ## R9 rapid CLI executable and preferences permission focused qualification (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build, run:

@@ -97,13 +97,29 @@ def main() -> int:
             "authorizeR3PersonalDesktopShareActivationWrite(",
             "completeR3PersonalDesktopShareActivationWrite(",
             "authorizeR3PersonalDesktopShareActivationPdu(",
-            "authorizeR3ApplicationTrafficReady(",
         )
         for token in share_required_once:
             require(
                 scheduler.count(token) == 1,
                 f"macOS HostControl Share call count changed: {token}",
             )
+
+        # Graphics readiness legitimately reuses the same application-traffic
+        # gate after MAP. Scope the Share assertion to the Share write branch
+        # rather than coupling this older contract to later protocol stages.
+        share_write = scheduler.find("if (writingShareActivation)")
+        valid_write = scheduler.find(
+            "authorizeR3PersonalDesktopValidClientWrite(", share_write
+        )
+        require(
+            share_write >= 0 and valid_write > share_write,
+            "cannot isolate macOS Share write branch",
+        )
+        share_write_block = scheduler[share_write:valid_write]
+        require(
+            share_write_block.count("authorizeR3ApplicationTrafficReady(") == 1,
+            "macOS Share activation must publish application traffic exactly once",
+        )
 
         for forbidden in (
             "prepareVerifiedR2MacDemandActiveProfile(",

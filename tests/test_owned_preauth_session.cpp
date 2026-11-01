@@ -10327,9 +10327,9 @@ void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
 
         const std::size_t width = widthPixels;
         const std::size_t height = heightPixels;
-        assert(width <= std::numeric_limits<std::size_t>::max() / 4U);
+        assert(width <= (std::numeric_limits<std::size_t>::max)() / 4U);
         const std::size_t strideBytes = width * 4U;
-        assert(height <= std::numeric_limits<std::size_t>::max() / strideBytes);
+        assert(height <= (std::numeric_limits<std::size_t>::max)() / strideBytes);
         std::vector<std::byte> framePixels(strideBytes * height);
         const ::FramebufferView framebuffer{
             framePixels, widthPixels, heightPixels, strideBytes};
@@ -10424,8 +10424,12 @@ void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
             delivered = outcome == Write::Delivered;
         }
         assert(delivered && acceptedOuterBytes > strideBytes * height);
-        assert(!fixture->broker.pendingR3GraphicsDynamicVirtualChannelWrite(
-            *fixture->session, policy));
+        // A Delivered receipt already proves that R3 consumed the final
+        // frame suffix. The protected pending-write broker is a positive
+        // borrow, not a read-only "is empty" probe: invoking it with no
+        // pending write intentionally retires the protected lifetime.
+        assert(fixture->session->phase() == McsSessionPhase::ShareActivated);
+        assert(fixture->broker.revalidate(kConsoleViewPermission));
         const auto committed =
             fixture->session->firstClientAcceptanceObservability();
         assert(committed.firstClearCodecFramePrepared);

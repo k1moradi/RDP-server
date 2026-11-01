@@ -1,3 +1,41 @@
+## Current-head protocol CI blocker correction after licensed Graphics integration (2026-11-01)
+
+**Failing SHA:** `30dd0c37d4e507cdbc7ab6563b9e3a879f149ff0`, Actions `41298328691`. The prior CTest-name
+configure blocker is resolved: Ubuntu/macOS/Windows all configured and the
+Linux/macOS builds completed. The next first boundaries are test-contract
+defects, not R3 PersonalDesktop licensing failures.
+
+- Ubuntu/macOS Debug CTest: the existing Share source contract still required
+  exactly one scheduler-wide `authorizeR3ApplicationTrafficReady(` call.
+  R10 now correctly has a second protected call after final Graphics MAP.
+  Scope the older Share assertion to the `writingShareActivation` branch.
+- Ubuntu/macOS first-frame positive test: after R3 returned a complete
+  GraphicsFrameData `Delivered` receipt, the test called the concrete R2
+  pending-write API merely to assert emptiness. That API is a positive borrow;
+  no pending write is an invalid protected operation and deliberately revokes
+  R2/R3/R1, clearing R4 acceptance observations. Stop probing it after
+  `Delivered`; instead require the original ShareActivated session and fresh
+  R2 revalidation before inspecting the R4 acceptance status.
+- Windows Debug compile: two newly added `numeric_limits<size_t>::max()`
+  expressions collided with the Windows `max` macro. Use the portable
+  `(std::numeric_limits<std::size_t>::max)()` spelling already required by
+  cross-platform C++ code.
+
+At the failing SHA the R3-focused production-linked cases all **PASS** on both
+Ubuntu and macOS: PersonalDesktop licensing receipts/denials, the new
+Client-Licensing replay during partial STATUS_VALID_CLIENT, the real-licensed
+partial-Demand premature Confirm Active denial, Share activation receipts and
+the real-licensed Graphics-control transcript. Windows could not reach them
+because compilation stopped at the macro collision. No production protocol
+state, fixed MCS inventory, native authority, frame encoder or public API is
+changed by this corrective commit.
+
+**Validation:** exact failing logs/source diagnosis PASS. Connector-local
+configure/build/CTest/benchmark NOT RUN. Next gate is one descendant exact-SHA
+Ubuntu/macOS/Windows full Debug/Release CTest plus applicable sanitizer lanes;
+physical Microsoft client and native desktop evidence remain separately
+unauthorized/not run.
+
 ## R10/R1 exact-SHA Graphics control CI configure unblock (2026-11-01)
 
 **Reviewed failing SHA:** `d0c36d2c563cd6d7e1b2551dae181b781b883c6d`, Actions `41298105627`. The new protected real-licensed Graphics control implementation is published, but the first hosted gate failed before building: `tests/CMakeLists.txt:6053` rejected the newly registered `security.macos-protected-graphics-first-frame-r1-receipt-client-ack` because the existing durable test-name taxonomy forbids `r1` road ownership tokens. This is not a protocol or native-authentication failure. Rename only the CTest registration to `security.macos-protected-graphics-first-frame-exact-tls-receipt-client-ack`, keep its executable dispatch/coverage, and preserve the guard. New corrective-SHA Debug/Release full CTest, focused R10 Graphics, Windows Clang 23 and sanitizer qualification PENDING; connector-local builds NOT RUN. No physical desktop/client or native input/Clipboard work performed.

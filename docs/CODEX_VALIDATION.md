@@ -1,3 +1,9 @@
+## R10 macOS PersonalDesktop -> Share activation integration (2026-11-01)
+
+**Authoring parent:** `ae4bb224339beec16d15b821bfab7c4715464463`. The prior R10 licensing compile and invalid-policy fixture blockers are resolved on main, and R2/R3 already expose the protected Demand Active/Share primitives. Production R10 now continues the original accepted R1 HYBRID/TLS, concrete R2 broker and R3 session from `AwaitDemandActive` through protected macOS Demand Active and connection finalization to genuine `ShareActivated`. Exact R1 positive accepted bytes complete only R3-owned Share suffixes; client Share TPKTs reuse the one bounded plaintext buffer. Dynamic Virtual Channels are negotiated for the later graphics road; Slow Path Input is advertised only under the originally pinned Input scope. The scheduler does not start Graphics, attach/service native desktop, dispatch input or authorize Clipboard. The 30-second accepted-client deadline still covers pending Share and stops applying only after genuine ShareActivated.
+
+Added ordinary production-linked `security.macos-protected-personal-desktop-share-activation-receipts` and source `runtime.macos-host-control-share-activation-composition-contract`. Source/dependency review PASS; local configure/build/focused/full CTest and ASan/UBSan **NOT RUN** in the connector environment; exact publication-SHA hosted CI **PENDING**. Physical Microsoft client/native capture/input/Clipboard **NOT RUN / unauthorized**. Next bounded R10 road: protected Graphics DVC/capability/surface negotiation to protocol GraphicsReady, still before native attachment or first-frame publication.
+
 ## R7 fail-closed macOS GUI GraphicsReady before Share (2026-11-01)
 
 Authoring parent `751d9d0a01aabe6c5bd0414b531b199a264da6c9`. GitHub production source confirms R10

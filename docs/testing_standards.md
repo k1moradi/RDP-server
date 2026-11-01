@@ -1,3 +1,9 @@
+## R10 real-licensing to protected macOS Share receipt coverage (2026-11-01)
+
+Register ordinary `security.macos-protected-personal-desktop-share-activation-receipts` using the existing production-linked `test_owned_preauth_session` fixture. It must complete real generated PersonalDesktop licensing first, then use the original R1 TLS owner, concrete macOS R2 broker and production R3 Share lifecycle through Demand Active, Confirm Active, server Synchronize/Cooperate, client Synchronize/Cooperate/Request Control, server Granted Control, client Font List and receipt-complete Font Map -> `ShareActivated`. Include a zero-byte Share receipt and exact one-byte suffix progression without manufacturing native macOS Admission.
+
+The separate ordinary `runtime.macos-host-control-share-activation-composition-contract` must pin R2-only orchestration, one read/write scheduler, Dynamic Virtual Channels plus conditional Slow Path Input capability selection, descriptive ShareActivated projection and the absence of direct R3, Graphics or native desktop calls. Neither test is physical-client/native evidence.
+
 ## R7 macOS pre-Share graphics status denial (2026-11-01)
 
 The ordinary macOS production-linked

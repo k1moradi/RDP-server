@@ -1426,6 +1426,18 @@ set_tests_properties(
     runtime.macos-host-control-personal-licensing-composition-contract
     PROPERTIES LABELS "runtime;macos;security;licensing;policy;offline" TIMEOUT 15)
 
+# R10 source contract for the post-licensing Share owner. It forbids direct R3,
+# native desktop and Graphics calls while pinning the exact protected sequence.
+add_test(NAME runtime.macos-host-control-share-activation-composition-contract
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_host_control_licensing_composition.py"
+        --source "${PROJECT_SOURCE_DIR}/src/server/runtime/mac_runtime_host_control.cpp"
+        --header "${PROJECT_SOURCE_DIR}/src/server/runtime/mac_runtime_host_control.h"
+        --check-share-activation)
+set_tests_properties(
+    runtime.macos-host-control-share-activation-composition-contract
+    PROPERTIES LABELS "runtime;macos;security;licensing;share;policy;offline" TIMEOUT 15)
+
 # R9 source-commit delivery policy: production changes require a centralized
 # CTest registration co-change in the same commit as the implementation/docs.
 # This is a git-metadata-only regression; no native or network activity.
@@ -2095,6 +2107,19 @@ function(add_rdp_test source_file suite behavior)
             set_tests_properties("security.macos-protected-personal-desktop-licensing-${licensing_case}"
                 PROPERTIES LABELS "protocol;security;transport;tls;licensing;admission;offline" TIMEOUT 60)
         endforeach()
+
+        # R10 continues the same protected R1/R2/R3 lifetime from real
+        # PersonalDesktop licensing through Demand/Confirm Active and the
+        # receipt-complete Share finalization. Native/Graphics stay dormant.
+        add_test(
+            NAME security.macos-protected-personal-desktop-share-activation-receipts
+            COMMAND "${test_target}"
+                "macos-protected-personal-desktop-share-activation-receipts")
+        set_tests_properties(
+            security.macos-protected-personal-desktop-share-activation-receipts
+            PROPERTIES
+                LABELS "protocol;security;transport;tls;licensing;share;admission;offline"
+                TIMEOUT 60)
 
         # Genuine accepted R1 HYBRID/TLS with synthetic authentication/native
         # evidence: owner-thread repeat preparation and pre-MCS audit loss.

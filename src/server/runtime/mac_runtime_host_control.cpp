@@ -261,6 +261,7 @@ struct MacRuntimeCredSspState final
     // These are R1 WANT direction hints only, not R3 licensing state.
     bool serverLicenseRequestWriteNeedsRead{};
     bool validClientWriteNeedsRead{};
+    bool shareActivationWriteNeedsRead{};
 
     [[nodiscard]] bool prepareChallenge() noexcept
     {
@@ -453,6 +454,44 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
                 AcceptedClientAdmissionStage::ValidClientPending;
             return {RuntimeHostError::None, false};
         }
+        if (activeAdmissionStage_ ==
+            AcceptedClientAdmissionStage::ValidClientDelivered)
+        {
+            if (activeMcsSession_ == nullptr || !deploymentPolicy_ ||
+                activeMcsSession_->phase() !=
+                    transport::McsSessionPhase::AwaitDemandActive)
+                return rejectAdmission();
+
+            using Feature = transport::RdpDemandActiveFeature;
+            Feature features = Feature::DynamicVirtualChannels;
+            if ((activeAdmissionPermissionMask_ &
+                 security::kConsoleInputPermission) != 0U)
+                features = features | Feature::SlowPathInput;
+
+            const auto profile =
+                activeAdmissionBroker_->
+                    authorizeR3PersonalDesktopMacDemandActiveProfile(
+                        *activeMcsSession_, *deploymentPolicy_, features);
+            if (!profile)
+                return rejectAdmission();
+            const auto first =
+                activeAdmissionBroker_->
+                    authorizeR3PersonalDesktopShareActivation(
+                        *activeMcsSession_, *deploymentPolicy_, *profile);
+            if (!first || !*first ||
+                first->kind != transport::RdpShareServerWriteKind::DemandActive ||
+                activeMcsSession_->phase() !=
+                    transport::McsSessionPhase::ShareActivation ||
+                !activeAdmissionBroker_->revalidate(
+                    activeAdmissionPermissionMask_))
+                return rejectAdmission();
+
+            activeAdmissionStage_ =
+                AcceptedClientAdmissionStage::ShareActivationWritePending;
+            acceptedClientDiagnostics_.protocolStage =
+                RuntimeAcceptedClientProtocolStage::ShareActivation;
+            return {RuntimeHostError::None, false};
+        }
 
         const bool readingFirstMcs =
             activeAdmissionStage_ == AcceptedClientAdmissionStage::TransportAdmitted;
@@ -485,17 +524,25 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
         const bool writingValidClient =
             activeAdmissionStage_ ==
                 AcceptedClientAdmissionStage::ValidClientPending;
+        const bool writingShareActivation =
+            activeAdmissionStage_ ==
+                AcceptedClientAdmissionStage::ShareActivationWritePending;
+        const bool readingShareActivation =
+            activeAdmissionStage_ ==
+                AcceptedClientAdmissionStage::ShareActivationClientExpected;
         if (!readingFirstMcs && !writingConnectResponse &&
             !readingErectDomain && !readingAttachUser &&
             !writingAttachConfirm && !readingChannelJoin &&
             !writingChannelJoinConfirm && !readingClientInfo &&
             !writingServerLicenseRequest && !readingClientLicenseResponse &&
-            !writingValidClient)
+            !writingValidClient && !writingShareActivation &&
+            !readingShareActivation)
         {
-            // Licensing is not Share or native desktop authority. R10 stops
-            // here until a later separately protected Demand Active increment.
+            // Share activation is still not GraphicsReady, native desktop,
+            // input dispatch or Clipboard authority. A later increment owns
+            // those separately protected transitions.
             return activeAdmissionStage_ ==
-                           AcceptedClientAdmissionStage::ValidClientDelivered
+                           AcceptedClientAdmissionStage::ShareActivated
                 ? RuntimeHostResult{RuntimeHostError::None, true}
                 : rejectAdmission();
         }
@@ -506,7 +553,8 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
         auto& credSsp = *activeCredSsp_;
         auto& session = *activeMcsSession_;
         if ((writingServerLicenseRequest || readingClientLicenseResponse ||
-             writingValidClient) &&
+             writingValidClient || writingShareActivation ||
+             readingShareActivation) &&
             (!deploymentPolicy_ || !licensingContext_.configured() ||
              licensingContext_.identity() == nullptr ||
              licensingContext_.credential() == nullptr ||
@@ -522,16 +570,18 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
         const bool readingMcsTpkt =
             readingFirstMcs || readingErectDomain || readingAttachUser ||
             readingChannelJoin || readingClientInfo ||
-            readingClientLicenseResponse;
+            readingClientLicenseResponse || readingShareActivation;
         const bool writeNeedsRead = writingServerLicenseRequest
             ? credSsp.serverLicenseRequestWriteNeedsRead
             : (writingValidClient
                    ? credSsp.validClientWriteNeedsRead
-                   : (writingConnectResponse
-                          ? credSsp.connectResponseWriteNeedsRead
-                          : (writingAttachConfirm
-                                 ? credSsp.attachConfirmWriteNeedsRead
-                                 : credSsp.channelJoinConfirmWriteNeedsRead)));
+                   : (writingShareActivation
+                          ? credSsp.shareActivationWriteNeedsRead
+                          : (writingConnectResponse
+                                 ? credSsp.connectResponseWriteNeedsRead
+                                 : (writingAttachConfirm
+                                        ? credSsp.attachConfirmWriteNeedsRead
+                                        : credSsp.channelJoinConfirmWriteNeedsRead))));
         const Interest interest = readingMcsTpkt
             ? connection.ioInterest()
             : (writeNeedsRead ? Interest::Read : Interest::Write);
@@ -714,6 +764,51 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
                 return {RuntimeHostError::None, false};
             }
 
+            if (readingShareActivation)
+            {
+                const auto intake =
+                    activeAdmissionBroker_->
+                        authorizeR3PersonalDesktopShareActivationPdu(
+                            session, *deploymentPolicy_, completeTpkt);
+                if (intake ==
+                        transport::RdpShareActivationClientIntake::Rejected ||
+                    intake ==
+                        transport::RdpShareActivationClientIntake::Closed ||
+                    !activeAdmissionBroker_->revalidate(
+                        activeAdmissionPermissionMask_))
+                    return rejectAdmission();
+
+                credSsp.firstMcsBytes = 0U;
+                credSsp.firstMcsExpectedBytes = 0U;
+                switch (intake)
+                {
+                case transport::RdpShareActivationClientIntake::
+                    ConfirmActiveAccepted:
+                case transport::RdpShareActivationClientIntake::
+                    RequestControlAccepted:
+                case transport::RdpShareActivationClientIntake::
+                    FontListAccepted:
+                    activeAdmissionStage_ =
+                        AcceptedClientAdmissionStage::
+                            ShareActivationWritePending;
+                    break;
+                case transport::RdpShareActivationClientIntake::
+                    SynchronizeAccepted:
+                case transport::RdpShareActivationClientIntake::
+                    CooperateAccepted:
+                case transport::RdpShareActivationClientIntake::
+                    InputIgnoredUntilActivated:
+                    activeAdmissionStage_ =
+                        AcceptedClientAdmissionStage::
+                            ShareActivationClientExpected;
+                    break;
+                case transport::RdpShareActivationClientIntake::Rejected:
+                case transport::RdpShareActivationClientIntake::Closed:
+                    return rejectAdmission();
+                }
+                return {RuntimeHostError::None, false};
+            }
+
             const auto clientInfo =
                 activeAdmissionBroker_->authorizeR3ClientInfoPacket(
                     session, completeTpkt);
@@ -730,7 +825,8 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
             return {RuntimeHostError::None, false};
         }
 
-        if (writingServerLicenseRequest || writingValidClient)
+        if (writingServerLicenseRequest || writingValidClient ||
+            writingShareActivation)
         {
             using TlsOutcome = transport::TlsApplicationIoOutcome;
             if (writingServerLicenseRequest)
@@ -779,6 +875,95 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
                         return rejectAdmission();
                     activeAdmissionStage_ =
                         AcceptedClientAdmissionStage::ServerLicenseRequestDelivered;
+                }
+                return {RuntimeHostError::None, false};
+            }
+
+            if (writingShareActivation)
+            {
+                const auto pending =
+                    activeAdmissionBroker_->
+                        authorizeR3PersonalDesktopShareActivationWrite(
+                            session, *deploymentPolicy_);
+                if (!pending || !*pending)
+                    return rejectAdmission();
+
+                const auto sent =
+                    connection.writeTlsApplicationData(pending->bytes);
+                if (sent.outcome == TlsOutcome::NeedRead ||
+                    sent.outcome == TlsOutcome::NeedWrite)
+                {
+                    if (sent.bytes != 0U)
+                        return rejectAdmission();
+                    credSsp.shareActivationWriteNeedsRead =
+                        sent.outcome == TlsOutcome::NeedRead;
+                    return {RuntimeHostError::None, true};
+                }
+                if (sent.outcome != TlsOutcome::Progress ||
+                    sent.bytes == 0U || sent.bytes > pending->bytes.size() ||
+                    !activeAdmissionBroker_->revalidate(
+                        activeAdmissionPermissionMask_))
+                    return rejectAdmission();
+
+                credSsp.shareActivationWriteNeedsRead = false;
+                const auto completedKind = pending->kind;
+                const auto receipt =
+                    activeAdmissionBroker_->
+                        completeR3PersonalDesktopShareActivationWrite(
+                            session, *deploymentPolicy_,
+                            pending->replySequence,
+                            pending->writeSliceSequence, sent.bytes);
+                if (receipt ==
+                        transport::RdpShareActivationWriteOutcome::Rejected ||
+                    !activeAdmissionBroker_->revalidate(
+                        activeAdmissionPermissionMask_))
+                    return rejectAdmission();
+                if (receipt ==
+                    transport::RdpShareActivationWriteOutcome::Pending)
+                    return {RuntimeHostError::None, false};
+                if (receipt ==
+                    transport::RdpShareActivationWriteOutcome::Activated)
+                {
+                    if (session.phase() !=
+                            transport::McsSessionPhase::ShareActivated ||
+                        !activeAdmissionBroker_->
+                            authorizeR3ApplicationTrafficReady(
+                                session, *deploymentPolicy_) ||
+                        !activeAdmissionBroker_->revalidate(
+                            activeAdmissionPermissionMask_))
+                        return rejectAdmission();
+
+                    activeAdmissionStage_ =
+                        AcceptedClientAdmissionStage::ShareActivated;
+                    acceptedClientDiagnostics_.protocolStage =
+                        RuntimeAcceptedClientProtocolStage::ShareActivated;
+                    acceptedClientDiagnostics_.shareActivated = true;
+                    stage_ = RuntimeHostStage::ShareActivated;
+                    lastError_ = RuntimeHostError::None;
+                    return {RuntimeHostError::None, false};
+                }
+
+                if (receipt !=
+                    transport::RdpShareActivationWriteOutcome::Delivered)
+                    return rejectAdmission();
+
+                switch (completedKind)
+                {
+                case transport::RdpShareServerWriteKind::DemandActive:
+                case transport::RdpShareServerWriteKind::Cooperate:
+                case transport::RdpShareServerWriteKind::GrantedControl:
+                    activeAdmissionStage_ =
+                        AcceptedClientAdmissionStage::
+                            ShareActivationClientExpected;
+                    break;
+                case transport::RdpShareServerWriteKind::Synchronize:
+                    activeAdmissionStage_ =
+                        AcceptedClientAdmissionStage::
+                            ShareActivationWritePending;
+                    break;
+                case transport::RdpShareServerWriteKind::FontMap:
+                case transport::RdpShareServerWriteKind::None:
+                    return rejectAdmission();
                 }
                 return {RuntimeHostError::None, false};
             }
@@ -2187,7 +2372,9 @@ RuntimeHostResult MacRuntimeHostControl::serviceOnce() noexcept try
 
     if (activeConnection_ != nullptr)
     {
-        if (activeConnection_->cancelIfExpired(now, activeClientDeadline_))
+        if (activeAdmissionStage_ !=
+                AcceptedClientAdmissionStage::ShareActivated &&
+            activeConnection_->cancelIfExpired(now, activeClientDeadline_))
         {
             retireAcceptedClient();
             stage_ = RuntimeHostStage::ListenerAvailable;

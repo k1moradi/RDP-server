@@ -9271,6 +9271,253 @@ void testMacProtectedPersonalDesktopLicensingDenials()
     }
 }
 
+
+void testMacProtectedPersonalDesktopShareActivationReceipts()
+{
+    using rdp_server::server::runtime::RuntimeDeploymentPolicy;
+    using rdp_server::server::runtime::RuntimeLicensingContext;
+    using RequestReceipt = RdpServerLicenseRequestWriteOutcome;
+    using ValidReceipt = RdpPersonalDesktopValidClientWriteOutcome;
+    using ShareReceipt = RdpShareActivationWriteOutcome;
+    using ShareIntake = RdpShareActivationClientIntake;
+    using Feature = RdpDemandActiveFeature;
+
+    RuntimeDeploymentPolicy policy;
+    assert(policy.configurePersonalDesktopPrivateLan(3389U));
+    RuntimeLicensingContext licensing;
+    assert(licensing.configureGeneratedApplicationIdentity());
+    assert(licensing.identity() != nullptr && licensing.credential() != nullptr);
+    auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture(
+        kConsoleViewPermission | kConsoleInputPermission);
+
+    assert(fixture->broker.authorizeR3PersonalDesktopLicensingMode(
+        *fixture->session, policy));
+
+    const auto drainLicensingWrite =
+        [&](auto borrow, auto complete, auto pendingOutcome,
+            auto deliveredOutcome)
+    {
+        const auto deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds{5};
+        for (std::size_t attempt = 0U;
+             attempt < 512U && std::chrono::steady_clock::now() < deadline;
+             ++attempt)
+        {
+            const auto pending = borrow();
+            assert(pending && *pending);
+            const auto offered = pending->bytes;
+            const auto written =
+                fixture->connection.writeTlsApplicationData(offered);
+            if (written.outcome != TlsApplicationIoOutcome::Progress)
+            {
+                assert(written.bytes == 0U);
+                assert(written.outcome == TlsApplicationIoOutcome::NeedRead ||
+                       written.outcome == TlsApplicationIoOutcome::NeedWrite);
+                const auto interest = fixture->connection.ioInterest();
+                const auto pollResult = fixture->connection.pollSocketOnce(
+                    deadline, kMaximumTcpPollWait);
+                assert(pollResult.outcome ==
+                           TcpConnectionPollOutcome::Dispatched ||
+                       pollResult.outcome == TcpConnectionPollOutcome::NoEvent);
+                assert(pollResult.nextInterest == interest);
+                continue;
+            }
+
+            assert(written.bytes > 0U && written.bytes <= offered.size());
+            std::vector<std::uint8_t> clientReceived(written.bytes);
+            readNativeTlsClientAll(
+                fixture->tls.client.get(), clientReceived);
+            assert(std::equal(
+                clientReceived.begin(), clientReceived.end(), offered.begin()));
+
+            const auto outcome = complete(
+                pending->replySequence, pending->writeSliceSequence,
+                written.bytes);
+            if (outcome == deliveredOutcome)
+                return;
+            assert(outcome == pendingOutcome);
+        }
+        assert(false && "protected licensing write did not complete");
+    };
+
+    const auto borrowRequest = [&]() {
+        return fixture->broker.authorizeR3PersonalDesktopServerLicenseRequestWrite(
+            *fixture->session, policy, *licensing.identity(),
+            *licensing.credential());
+    };
+    drainLicensingWrite(
+        borrowRequest,
+        [&](std::uint64_t reply, std::uint64_t slice, std::size_t bytes) {
+            return fixture->broker.completeR3PersonalDesktopServerLicenseRequestWrite(
+                *fixture->session, policy, reply, slice, bytes);
+        },
+        RequestReceipt::Pending, RequestReceipt::Delivered);
+    assert(fixture->session->phase() ==
+           McsSessionPhase::AwaitClientLicenseResponse);
+
+    auto clientLicensing = makeMaximumClientLicensingTpkt();
+    clientLicensing[8] = 0U;
+    clientLicensing[9] = 1U;
+    writeNativeTlsClientAll(fixture->tls.client.get(), clientLicensing);
+    std::array<std::uint8_t, kMaximumInitialMcsTpktBytes> received{};
+    readOwnedRuntimeTlsAll(fixture->connection, received);
+    assert(received == clientLicensing);
+    const auto licensingIntake =
+        fixture->broker.authorizeR3PersonalDesktopClientLicensingMessage(
+            *fixture->session, policy, *licensing.credential(), received);
+    assert(licensingIntake &&
+           *licensingIntake ==
+               RdpLicensingIntake::ClientNewLicenseRequestAccepted);
+
+    const auto borrowValid = [&]() {
+        return fixture->broker.authorizeR3PersonalDesktopValidClientWrite(
+            *fixture->session, policy);
+    };
+    drainLicensingWrite(
+        borrowValid,
+        [&](std::uint64_t reply, std::uint64_t slice, std::size_t bytes) {
+            return fixture->broker.completeR3PersonalDesktopValidClientWrite(
+                *fixture->session, policy, reply, slice, bytes);
+        },
+        ValidReceipt::Pending, ValidReceipt::Delivered);
+    assert(fixture->session->phase() == McsSessionPhase::AwaitDemandActive);
+
+    const auto features =
+        Feature::DynamicVirtualChannels | Feature::SlowPathInput;
+    const auto profile =
+        fixture->broker.authorizeR3PersonalDesktopMacDemandActiveProfile(
+            *fixture->session, policy, features);
+    assert(profile);
+    const auto initial =
+        fixture->broker.authorizeR3PersonalDesktopShareActivation(
+            *fixture->session, policy, *profile);
+    assert(initial && *initial &&
+           initial->kind == RdpShareServerWriteKind::DemandActive);
+
+    assert(fixture->broker.completeR3PersonalDesktopShareActivationWrite(
+               *fixture->session, policy, initial->replySequence,
+               initial->writeSliceSequence, 0U) == ShareReceipt::Pending);
+    const auto zeroRetry =
+        fixture->broker.authorizeR3PersonalDesktopShareActivationWrite(
+            *fixture->session, policy);
+    assert(zeroRetry && *zeroRetry);
+    assert(zeroRetry->kind == initial->kind);
+    assert(zeroRetry->replySequence == initial->replySequence);
+    assert(zeroRetry->writeSliceSequence == initial->writeSliceSequence);
+    assert(zeroRetry->bytes.data() == initial->bytes.data());
+    assert(zeroRetry->bytes.size() == initial->bytes.size());
+
+    const auto flushShare =
+        [&](RdpShareServerWriteKind kind, ShareReceipt finalOutcome)
+    {
+        auto pending =
+            fixture->broker.authorizeR3PersonalDesktopShareActivationWrite(
+                *fixture->session, policy);
+        assert(pending && *pending && pending->kind == kind);
+        const std::size_t length = pending->bytes.size();
+        for (std::size_t accepted = 0U; accepted < length; ++accepted)
+        {
+            pending =
+                fixture->broker.authorizeR3PersonalDesktopShareActivationWrite(
+                    *fixture->session, policy);
+            assert(pending && *pending && pending->kind == kind);
+            assert(pending->bytes.size() == length - accepted);
+            const std::size_t bytes =
+                writeOneMacProtectedPlaintextByte(*fixture, pending->bytes);
+            assert(bytes == 1U);
+            const auto outcome =
+                fixture->broker.completeR3PersonalDesktopShareActivationWrite(
+                    *fixture->session, policy, pending->replySequence,
+                    pending->writeSliceSequence, bytes);
+            assert(outcome == (accepted + 1U == length
+                ? finalOutcome : ShareReceipt::Pending));
+        }
+    };
+
+    const auto clientUserId = fixture->session->allocatedUserId();
+    const auto ioChannelId = fixture->session->allocatedIoChannelId();
+    const auto sendShare =
+        [&](std::span<const std::uint8_t> sharePdu, ShareIntake expected)
+    {
+        const auto packet = makeMacProtectedClientChannelTpkt(
+            clientUserId, sharePdu, ioChannelId);
+        writeNativeTlsClientAll(fixture->tls.client.get(), packet);
+        std::vector<std::uint8_t> serverReceived(packet.size());
+        readOwnedRuntimeTlsAll(fixture->connection, serverReceived);
+        assert(serverReceived == packet);
+        assert(fixture->broker.authorizeR3PersonalDesktopShareActivationPdu(
+                   *fixture->session, policy, serverReceived) == expected);
+    };
+    const auto write16 = [](std::span<std::uint8_t> bytes,
+                            std::size_t offset, std::uint16_t value) {
+        bytes[offset] = static_cast<std::uint8_t>(value);
+        bytes[offset + 1U] = static_cast<std::uint8_t>(value >> 8U);
+    };
+    const auto write32 = [&](std::span<std::uint8_t> bytes,
+                             std::size_t offset, std::uint32_t value) {
+        write16(bytes, offset, static_cast<std::uint16_t>(value));
+        write16(bytes, offset + 2U,
+                static_cast<std::uint16_t>(value >> 16U));
+    };
+    const auto bindShare = [&](std::span<std::uint8_t> pdu) {
+        write16(pdu, 4U, static_cast<std::uint16_t>(clientUserId));
+        write32(pdu, 6U, profile->shareId());
+    };
+
+    flushShare(RdpShareServerWriteKind::DemandActive, ShareReceipt::Delivered);
+
+    std::array<std::uint8_t, 36> confirm{{
+        0x24,0x00,0x13,0x00,0xef,0x03,0xea,0x03,0x01,0x00,0xea,0x03,
+        0x04,0x00,0x10,0x00,0x52,0x44,0x50,0x00,0x02,0x00,0x34,0x12,
+        0x09,0x00,0x08,0x00,0xea,0x03,0xdc,0xe2,0x0e,0x00,0x04,0x00
+    }};
+    bindShare(confirm);
+    sendShare(confirm, ShareIntake::ConfirmActiveAccepted);
+
+    flushShare(RdpShareServerWriteKind::Synchronize, ShareReceipt::Delivered);
+    flushShare(RdpShareServerWriteKind::Cooperate, ShareReceipt::Delivered);
+
+    std::array<std::uint8_t, 22> synchronize{{
+        0x16,0x00,0x17,0x00,0xef,0x03,0xea,0x03,0x01,0x00,0x00,0x01,
+        0x08,0x00,0x1f,0x00,0x00,0x00,0x01,0x00,0xea,0x03
+    }};
+    std::array<std::uint8_t, 26> cooperate{{
+        0x1a,0x00,0x17,0x00,0xef,0x03,0xea,0x03,0x01,0x00,0x00,0x01,
+        0x0c,0x00,0x14,0x00,0x00,0x00,0x04,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00
+    }};
+    auto requestControl = cooperate;
+    requestControl[18] = 1U;
+    std::array<std::uint8_t, 26> fontList{{
+        0x1a,0x00,0x17,0x00,0xef,0x03,0xea,0x03,0x01,0x00,0x00,0x01,
+        0x1a,0x00,0x27,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0x03,0x00,0x32,0x00
+    }};
+    bindShare(synchronize);
+    bindShare(cooperate);
+    bindShare(requestControl);
+    bindShare(fontList);
+
+    sendShare(synchronize, ShareIntake::SynchronizeAccepted);
+    sendShare(cooperate, ShareIntake::CooperateAccepted);
+    sendShare(requestControl, ShareIntake::RequestControlAccepted);
+    flushShare(RdpShareServerWriteKind::GrantedControl, ShareReceipt::Delivered);
+    sendShare(fontList, ShareIntake::FontListAccepted);
+    flushShare(RdpShareServerWriteKind::FontMap, ShareReceipt::Activated);
+
+    assert(fixture->session->phase() == McsSessionPhase::ShareActivated);
+    assert(fixture->broker.authorizeR3ApplicationTrafficReady(
+        *fixture->session, policy));
+    const auto acceptance =
+        fixture->session->firstClientAcceptanceObservability();
+    assert(acceptance.shareActivated);
+    assert(!acceptance.graphicsDynamicVirtualChannelActivated);
+    assert(!acceptance.graphicsControlReady);
+    assert(!acceptance.surfaceCreated);
+    assert(!acceptance.surfaceMapped);
+}
+
+
 // Reuse one production Share transcript for offline protected macOS roads.
 // Only the Licensed phase is test-staged; every Share PDU and receipt uses
 // the original R1 TLS owner plus concrete R2/R3 gates.
@@ -14245,6 +14492,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedPersonalDesktopLicensingReceipts},
     {"macos-protected-personal-desktop-licensing-denials",
      &testMacProtectedPersonalDesktopLicensingDenials},
+    {"macos-protected-personal-desktop-share-activation-receipts",
+     &testMacProtectedPersonalDesktopShareActivationReceipts},
     {"macos-protected-first-mcs-partial-read-stop-retirement",
      &testMacProtectedFirstMcsPartialReadStopRetirement},
     {"macos-protected-post-mcs-semantic-audit-loss",

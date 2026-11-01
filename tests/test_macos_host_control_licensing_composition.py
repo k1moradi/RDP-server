@@ -15,6 +15,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", required=True, type=Path)
     parser.add_argument("--header", required=True, type=Path)
+    parser.add_argument("--check-share-activation", action="store_true")
     args = parser.parse_args()
 
     source = args.source.read_text(encoding="utf-8")
@@ -75,15 +76,75 @@ def main() -> int:
     ):
         require(required in scheduler, f"macOS licensing scheduler contract missing: {required}")
 
-    # Licensing completion is deliberately not Share/native authority. The
-    # scheduler must stop after STATUS_VALID_CLIENT/AwaitDemandActive.
+    # Licensing completion may hand off only to the protected Share path. It
+    # still grants no native desktop, GraphicsReady, input dispatch or Clipboard.
     terminal = scheduler.find("AcceptedClientAdmissionStage::ValidClientDelivered")
     demand = scheduler.find("transport::McsSessionPhase::AwaitDemandActive")
-    require(terminal >= 0 and demand >= 0, "licensed terminal boundary is missing")
-    require(
-        "RuntimeHostResult{RuntimeHostError::None, true}" in scheduler,
-        "licensed scheduler boundary must yield without entering Share",
+    share_begin = scheduler.find(
+        "authorizeR3PersonalDesktopMacDemandActiveProfile(", terminal
     )
+    require(
+        terminal >= 0 and demand >= 0 and share_begin > terminal,
+        "licensed-to-Share protected handoff is missing or reordered",
+    )
+
+    if args.check_share_activation:
+        share_required_once = (
+            "authorizeR3PersonalDesktopMacDemandActiveProfile(",
+            "authorizeR3PersonalDesktopShareActivation(",
+            "authorizeR3PersonalDesktopShareActivationWrite(",
+            "completeR3PersonalDesktopShareActivationWrite(",
+            "authorizeR3PersonalDesktopShareActivationPdu(",
+            "authorizeR3ApplicationTrafficReady(",
+        )
+        for token in share_required_once:
+            require(
+                scheduler.count(token) == 1,
+                f"macOS HostControl Share call count changed: {token}",
+            )
+
+        for forbidden in (
+            "prepareVerifiedR2MacDemandActiveProfile(",
+            "beginVerifiedR2ShareActivation(",
+            "pendingVerifiedR2ShareActivationWrite(",
+            "completeVerifiedR2ShareActivationWrite(",
+            "acceptVerifiedR2ShareActivationPdu(",
+            "verifiedR2ApplicationTrafficReady(",
+        ):
+            require(
+                forbidden not in scheduler,
+                f"HostControl bypassed R2 with a direct R3 Share call: {forbidden}",
+            )
+
+        for required in (
+            "ShareActivationWritePending",
+            "ShareActivationClientExpected",
+            "AcceptedClientAdmissionStage::ShareActivated",
+            "RdpShareServerWriteKind::DemandActive",
+            "RdpShareServerWriteKind::Synchronize",
+            "RdpShareServerWriteKind::Cooperate",
+            "RdpShareServerWriteKind::GrantedControl",
+            "RdpShareServerWriteKind::FontMap",
+            "RdpShareActivationClientIntake::ConfirmActiveAccepted",
+            "RdpShareActivationClientIntake::SynchronizeAccepted",
+            "RdpShareActivationClientIntake::CooperateAccepted",
+            "RdpShareActivationClientIntake::RequestControlAccepted",
+            "RdpShareActivationClientIntake::FontListAccepted",
+            "Feature::DynamicVirtualChannels",
+            "Feature::SlowPathInput",
+            "stage_ = RuntimeHostStage::ShareActivated",
+            "acceptedClientDiagnostics_.shareActivated = true",
+        ):
+            require(required in scheduler, f"macOS Share scheduler contract missing: {required}")
+
+        require(
+            "nativeDesktop_" not in scheduler,
+            "Share scheduler must not attach or service the native desktop",
+        )
+        require(
+            "authorizeR3Graphics" not in scheduler,
+            "Share scheduler must not start Graphics",
+        )
 
     # C++ member destruction is reverse declaration order. Service policy and
     # licensing material therefore must be declared before every accepted-client

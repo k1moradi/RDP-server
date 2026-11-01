@@ -1,3 +1,9 @@
+## R10 protected macOS Share activation build/test scope (2026-11-01)
+
+No new executable, external dependency, scheduler, TLS owner or build root is introduced. Reuse `~/rdp-server/build/` and the existing `test_owned_preauth_session` plus Python HostControl composition fixture. After the canonical Debug configure/build, run:
+`ctest --test-dir build -C Debug -R '^security[.]macos-protected-personal-desktop-share-activation-receipts$|^runtime[.]macos-host-control-share-activation-composition-contract$|^security[.]macos-protected-personal-desktop-licensing-(receipts|denials)$' --output-on-failure`,
+then full CTest and applicable existing ASan/UBSan gates. Connector-local compile/CTest **NOT RUN**; exact publication-SHA hosted qualification **PENDING**.
+
 ## R7 macOS pre-Share GUI status projection qualification (2026-11-01)
 
 Use only `~/rdp-server/build/`, after canonical Debug configure/build:

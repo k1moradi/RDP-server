@@ -152,6 +152,9 @@ private:
         ClientLicenseResponseAccepted,
         ValidClientPending,
         ValidClientDelivered,
+        ShareActivationWritePending,
+        ShareActivationClientExpected,
+        ShareActivated,
     };
 
     const std::thread::id ownerThread_;

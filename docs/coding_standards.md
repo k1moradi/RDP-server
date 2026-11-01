@@ -1,3 +1,9 @@
+## R10 macOS licensed Share activation remains one-owner protected (2026-11-01)
+
+After receipt-complete PersonalDesktop `STATUS_VALID_CLIENT`, the same serialized macOS HostControl owner may prepare the R3-owned macOS Demand Active profile only through the original concrete R2 broker, then alternate the sole R1 TLS writer/reader according to R3 Share activation state. Advertise Dynamic Virtual Channels for the later graphics road and add Slow Path Input only when the originally pinned View|Input scope includes Input; capability negotiation is not native input authority. Positive R1 accepted bytes alone advance exact Share reply/slice receipts. The HostControl scheduling states only select read versus write; R3 remains the Share transcript owner and R2 remains the authority issuer.
+
+A genuine `ShareActivated` transition may update descriptive runtime/diagnostic state and ends the accepted-client pre-auth deadline, but it must not start Graphics DVC, set GraphicsReady, attach/service the native desktop, dispatch input or authorize Clipboard. Pending Demand/Confirm/finalization remains deadline-bound and terminally retires through the existing R2 -> R3 -> native -> proof/R1 order on Stop, authority replacement or transport failure.
+
 ## R7 macOS pre-Share GUI GraphicsReady isolation (2026-11-01)
 
 Before R10 composes genuine R3 Share activation, Graphics DVC and surface

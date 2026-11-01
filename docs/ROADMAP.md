@@ -1,3 +1,11 @@
+## R10 macOS protected Demand/Confirm Active and Share finalization (2026-11-01)
+
+**Authoring parent:** `ae4bb224339beec16d15b821bfab7c4715464463`. Licensing is no longer the R10 blocker: current main has the original-owner PersonalDesktop exchange through receipt-complete `STATUS_VALID_CLIENT`, and the demonstrated test compile/policy blockers were corrected by concurrent agents. R2 already owns the protected macOS Demand Active/Share visitors and R3 owns capability/profile, client-finalization ordering and exact write receipts.
+
+Implement the next bounded production increment in the same serialized HostControl owner: after `AwaitDemandActive`, obtain the macOS profile through R2, negotiate Dynamic Virtual Channels and Slow Path Input only when the pinned Input scope permits it, write Demand Active and all server finalization suffixes only through the original R1 TLS writer, and consume bounded Confirm Active/finalization TPKTs through the same R1 buffer until R3 reports actual `ShareActivated`. Preserve full owner/native/listener/proof revalidation around every protected operation. Stop the 30-second accepted pre-auth deadline only after actual ShareActivated; pending Share remains timeout-retired.
+
+Dedicated ordinary real-loopback coverage now spans real PersonalDesktop licensing into the interleaved Share transcript with zero/partial/exact receipts, plus a HostControl composition source contract. No Graphics DVC start, GraphicsReady, native desktop attachment/service, first-frame publication, input dispatch or Clipboard authorization belongs in this increment. Local build/full CTest/sanitizers **NOT RUN**; hosted exact-publication-SHA **PENDING**; physical client/native evidence **NOT RUN / unauthorized**. **Next:** protected Graphics DVC/capability/surface negotiation to protocol GraphicsReady, then a later independently authorized native attach/first-frame road.
+
 ## R1/R7 exact-head CI unblock: allocation-failure contract follows centralized retirement (2026-11-01)
 
 **Failing source SHA:** `6f10bcce0ddbf5cd18f41113e811977d2992a782`, Actions `41293004442`. Debug configure

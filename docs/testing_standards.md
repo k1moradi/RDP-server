@@ -1,3 +1,15 @@
+## Allocation-failure source contract must follow the single accepted-client retirement owner (2026-11-01)
+
+When `MacRuntimeHostControl::retireAcceptedClient()` is the canonical owner of
+accepted-client native teardown, allocation-failure source tests must not require
+a second direct `nativeDesktop_.retireAfterAuthorizationLoss()` call after that
+helper. The allocation contract must require the central retirement call and
+fail-closed stage/error recovery, while explicitly rejecting a duplicate native
+retirement in the helper. The independent centralized-caller test continues to
+pin the one direct native-service failure path. A stale source guard that
+requires removed redundancy is a real full-CTest failure, not evidence that
+production should restore the duplicate cleanup.
+
 ## R4 protected Share helper packet-builder correction (2026-11-01)
 
 When extracting a reusable protected macOS Share transcript, do not strand caller-only lambdas in the original behavior test. The R1/MCS client SendDataRequest builder is now one bounded test helper used by both the shared Share intake and the preserved R8 clipboard-denial tail. The builder keeps the existing <128-byte PER-length assumption, validated user/channel IDs and exact TPKT/X.224/MCS fields. No wire semantics or test assertions change. Parent `a02bb368e06581513623c692bc6e28ed4cd2266b`; static review PASS, local compile/CTest NOT RUN, exact-SHA CI PENDING.

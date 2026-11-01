@@ -1,3 +1,15 @@
+## R7 allocation-failure source-contract corrective check (2026-11-01)
+
+At `6f10bcce0ddbf5cd18f41113e811977d2992a782`, hosted Ubuntu and macOS Debug builds succeeded but full
+CTest failed only
+`runtime.macos-host-control-allocation-failure-retirement-contract` because
+its source assertion predated centralized native retirement. No production
+compile change is required. Reuse only `~/rdp-server/build/`; after canonical
+Debug configure/build run:
+`ctest --test-dir build -C Debug -R '^runtime[.]macos-(host-control-allocation-failure-retirement-contract|native-retirement-single-owner-callers|native-proof-retired-before-credential-destruction)$' --output-on-failure`,
+then full Debug/Release CTest and applicable same-SHA hosted gates. Connector
+execution NOT RUN; exact corrective-SHA qualification PENDING.
+
 ## R4 protected macOS mapped-first-frame focused check (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build, run `ctest --test-dir build -C Debug -R '^security[.]macos-protected-graphics-mapped-first-frame-consent-replacement-denial$' --output-on-failure`, then the full Debug CTest. This ordinary offline fixture opens only loopback TLS and uses synthetic proof/native evidence; it does not activate ScreenCaptureKit, input, TCC, a LAN listener or a physical RDP client. Authoring parent `7b23827c9cc19cef1e3605ad08e0e964e164e2f3`; connector-local compile/CTest NOT RUN, exact publication-SHA CI PENDING.

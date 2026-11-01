@@ -1,3 +1,22 @@
+## Exact-head protocol CI first failure: stale allocation-retirement source contract (2026-11-01)
+
+Reviewed `6f10bcce0ddbf5cd18f41113e811977d2992a782` after R10 licensing and R7 retirement cleanup. Actions
+`41293004442` compiled Debug successfully on Ubuntu and macOS. Ubuntu job
+`124808388014` then ran 1076 tests with **1075 PASS / 1 FAIL**; macOS job
+`124808387941` ran 852 tests with **851 PASS / 1 FAIL**. Both failures were
+`runtime.macos-host-control-allocation-failure-retirement-contract` with the
+same message: `allocation failure helper missing:
+nativeDesktop_.retireAfterAuthorizationLoss()`.
+
+Production review shows that missing direct call is intentional: R7
+`7b0f07ed` made `retireAcceptedClient()` the sole accepted-client native
+retirement owner and separately pins caller ownership. Correct the older
+allocation source contract to require the central helper and prohibit duplicate
+native retirement. No production R1/R2/R3/R7/R10 code changes. Hosted focused
+security/sanitizer jobs already completed successfully at the failing SHA, but
+full protocol CI is FAIL until the corrective SHA reruns. Local CTest,
+sanitizers and physical-client/native testing NOT RUN.
+
 ## R4 protected Share helper compile correction (2026-11-01)
 
 Post-publication audit of `a02bb368e06581513623c692bc6e28ed4cd2266b` found one compile-time scope defect: the extracted Share helper owned the old `makeClientTpkt` lambda, but the pre-existing R8 clipboard-denial tail still called that name. The corrective change creates one `makeMacProtectedClientChannelTpkt()` helper with the same bounded packet construction and updates both callers. No production source or protocol behavior changes. Source inspection PASS; local build/focused/full CTest and sanitizers NOT RUN; exact corrective-SHA hosted CI PENDING.

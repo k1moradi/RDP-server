@@ -48,7 +48,6 @@ def main() -> int:
     helper = source[helper_start:helper_end]
     for required in (
         "retireAcceptedClient();",
-        "nativeDesktop_.retireAfterAuthorizationLoss()",
         "stage_ != RuntimeHostStage::Revoked",
         "RuntimeHostStage::ListenerAvailable",
         "RuntimeHostStage::Stopped",
@@ -57,6 +56,10 @@ def main() -> int:
     ):
         require(required in helper, f"allocation failure helper missing: {required}")
 
+    require(
+        "nativeDesktop_.retireAfterAuthorizationLoss()" not in helper,
+        "allocation failure helper duplicated accepted-client native retirement",
+    )
     require("catch (...)" not in source,
             "allocation policy must not hide unrelated exceptions")
     print("macOS HostControl allocation-failure retirement contract PASS")

@@ -1,3 +1,30 @@
+## R1/R7 exact-head CI unblock: allocation-failure contract follows centralized retirement (2026-11-01)
+
+**Failing source SHA:** `6f10bcce0ddbf5cd18f41113e811977d2992a782`, Actions `41293004442`. Debug configure
+and compile succeeded on Ubuntu and macOS, but ordinary full CTest failed only
+`runtime.macos-host-control-allocation-failure-retirement-contract`
+(Ubuntu test 178/1076; macOS test 134/852). The stale Python contract still
+required `failClosedAfterAllocationFailure()` to call
+`nativeDesktop_.retireAfterAuthorizationLoss()` directly even though R7
+`7b0f07ed` deliberately centralized accepted-client native retirement inside
+`retireAcceptedClient()` and added a separate source contract that forbids
+those duplicate calls.
+
+Correct the existing allocation-failure contract, not production HostControl:
+it must require `retireAcceptedClient()`, InternalFailure projection and
+listener/stopped recovery, and explicitly reject a second direct native
+retirement in that helper. This preserves the reviewed R2/R3 -> native ->
+proof/R1 destruction order and removes no runtime coverage. No RDP wire, R1
+SSL/BIO, scheduler, native desktop, licensing or build dependency changes.
+
+**Dependency state:** R10 protected PersonalDesktop licensing remains integrated
+through `ValidClientDelivered / AwaitDemandActive`. No demonstrated R1
+transport defect is blocking progress. The next production composition blocker
+remains R10 Demand Active / Confirm Active / Share finalization, then genuine
+Graphics DVC/surface readiness and separately authorized native attachment.
+Exact corrective-SHA hosted full CTest is required; connector-local tests and
+physical Microsoft-client/native macOS evidence are NOT RUN.
+
 ## R6 paired macOS first-error schema compatibility fix (2026-11-01)
 
 Exact-SHA CI for `517eb73946da50e29f17a9104bc07a8bd68c68de` cleared the prior shared compile blocker, then exposed an R6-only compatibility regression in full CTest. The macOS private owner manifest carries both local and UTC first-error timestamps; the R6 pair validator incorrectly required the Windows five-field first-error shape and therefore marked three valid paired cases FAIL. The focused privacy/provenance denial CTests, including `interop.windows-client-ab-malformed-source-projection-denials`, passed.

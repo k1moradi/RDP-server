@@ -1406,6 +1406,18 @@ set_tests_properties(
     runtime.macos-host-control-allocation-failure-retirement-contract
     PROPERTIES LABELS "runtime;macos;security;policy;offline" TIMEOUT 15)
 
+# R2/R10 source contract for the real macOS HostControl licensing scheduler.
+# It pins R2-only licensing calls and service-lifetime policy/context ordering
+# without fabricating a native lease or opening a listener.
+add_test(NAME runtime.macos-host-control-personal-licensing-composition-contract
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_host_control_licensing_composition.py"
+        --source "${PROJECT_SOURCE_DIR}/src/server/runtime/mac_runtime_host_control.cpp"
+        --header "${PROJECT_SOURCE_DIR}/src/server/runtime/mac_runtime_host_control.h")
+set_tests_properties(
+    runtime.macos-host-control-personal-licensing-composition-contract
+    PROPERTIES LABELS "runtime;macos;security;licensing;policy;offline" TIMEOUT 15)
+
 # R9 source-commit delivery policy: production changes require a centralized
 # CTest registration co-change in the same commit as the implementation/docs.
 # This is a git-metadata-only regression; no native or network activity.

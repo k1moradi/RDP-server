@@ -1,3 +1,18 @@
+## R2/R10 macOS HostControl licensing composition source contract (2026-11-01)
+
+Ordinary `runtime.macos-host-control-personal-licensing-composition-contract`
+must inspect the production macOS HostControl source/header and pin the runtime
+composition that cannot be behaviorally executed with synthetic native admission.
+Require exactly one call to each existing R2 PersonalDesktop licensing entry
+point, forbid direct R3 licensing calls from HostControl, require the immutable
+service `RuntimeDeploymentPolicy` and `RuntimeLicensingContext` borrows, and
+pin the terminal boundary at `AwaitDemandActive` without Share authority.
+Member declaration order must keep licensing context and deployment policy alive
+longer than the accepted R1/proof/R3/R2 borrowers. This source contract is
+structural assurance only; the existing real-loopback R1/R2/R3 receipt tests
+remain the behavioral mechanics evidence, and neither test is physical macOS
+native admission or Microsoft-client acceptance.
+
 ## R7/R10 centralized macOS native-retirement caller regression (2026-11-01)
 
 Ordinary offline `runtime.macos-native-retirement-single-owner-callers`

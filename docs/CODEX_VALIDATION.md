@@ -1,3 +1,42 @@
+## R2 review of landed R10 macOS PersonalDesktop licensing composition (2026-11-01)
+
+**Reviewed main:** `73ce0a06df6421abf79ecd5794f9b675cd6bfc6a`.
+R10's earlier dependency is resolved in source: `MacRuntimeHostControl`
+selects PersonalDesktop after Client Info through the original R2 broker, borrows
+the service-lifetime deployment policy/licensing identity/credential, drains the
+R3-owned Server License Request through the sole R1 TLS writer, consumes one
+bounded licensing TPKT and publishes STATUS_VALID_CLIENT receipts. It stops at
+`AwaitDemandActive`; no Share/native desktop/Clipboard authority is inferred.
+
+Review found no demonstrated production R2 authorization defect. The six R2
+licensing calls occur exactly once in the HostControl scheduler and R2 still
+revalidates original proof/credential generation, accepted R1 connection,
+native audit/session evidence, permission scope and consent epoch around every
+operation/receipt. Service member declaration order keeps
+`RuntimeLicensingContext` and `RuntimeDeploymentPolicy` alive longer than the
+accepted connection, CredSSP proof, R3 session and R2 broker. Private licensing
+key bytes are not named or logged by the scheduler.
+
+The new R10 receipt/denial CTests exercise the shared R1/R2/R3 fixture directly,
+not `MacRuntimeHostControl` itself. Add ordinary source-contract
+`runtime.macos-host-control-personal-licensing-composition-contract` to pin the
+runtime's R2-only calls, lifetime ordering and AwaitDemandActive stop without
+fabricating a positive macOS native lease. During this review, R1 independently
+found and fixed two test/build blockers at `73ce0a06`: invalid
+`configurePersonalDesktop(false, 3389)` fixture setup and a duplicate
+`rdp-server-runtime-licensing` test linkage. Those fixes are consumed rather
+than duplicated here.
+
+**Dependency state:** R10 licensing composition is no longer the R2 blocker.
+The next runtime composition dependency is R10's protected Demand Active /
+Confirm Active / Share finalization. R2 already exposes those protected
+wrappers, so no new public R2 API is currently justified. Product-valid progress
+still depends on a genuine production CredSSP principal proof independently
+matching a real macOS console/audit session and owner consent; synthetic
+fixtures cannot satisfy that gate. Exact hosted CI for the corrective parent is
+queued; local build/focused/full CTest, sanitizers and physical client/native
+tests are NOT RUN here.
+
 ## R7/R10 native-retirement single-owner cleanup and dependency review (2026-11-01)
 
 Reviewed parent `8ad30ce79d006c01b7e28c74cdb9ac74902a5ae2` after R10

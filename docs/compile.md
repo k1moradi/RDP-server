@@ -1,3 +1,19 @@
+## R2/R10 macOS licensing HostControl composition source gate (2026-11-01)
+
+No production target, library dependency, executable or build root changes.
+The Python-standard-library
+`runtime.macos-host-control-personal-licensing-composition-contract` reads
+only checked-in `mac_runtime_host_control.cpp/.h` and runs in ordinary CTest
+on every platform. Reuse `~/rdp-server/build/` and, after canonical configure
+and build, run:
+`ctest --test-dir build -C Debug -R '^runtime[.]macos-host-control-personal-licensing-composition-contract$' --output-on-failure`,
+then the existing
+`security.macos-protected-personal-desktop-licensing-(receipts|denials)` and
+full CTest. The earlier duplicate `rdp-server-runtime-licensing` test link and
+invalid PersonalDesktop fixture policy were independently corrected on main by
+`73ce0a06`; do not reintroduce either. Connector source-contract logic review
+PASS; local build/CTest and hosted exact-SHA CI remain NOT RUN/PENDING.
+
 ## R7/R10 centralized macOS native-retirement qualification (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. After canonical Debug configure/build run:

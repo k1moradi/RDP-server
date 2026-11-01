@@ -1163,6 +1163,25 @@ currently owns a one-shot `RuntimeLicensingContext`, but has not yet composed
 these R2 licensing entry points; first real R10 licensing scheduler increment
 and complete CredSSP principal-proof/macOS native authority remain next gates.
 
+
+**R2 dependency refresh, 2026-11-01:** R10's protected macOS
+PersonalDesktop licensing scheduler has landed and now consumes the existing six
+R2 operations through the original service policy/context and sole R1 TLS owner,
+stopping at `AwaitDemandActive`. Review found no new R2 production API or
+authorization correction required. Add ordinary
+`runtime.macos-host-control-personal-licensing-composition-contract` because
+the R10 receipt/denial CTests exercise the shared R1/R2/R3 fixture rather than
+the HostControl scheduler itself; the source contract pins exact R2-only calls,
+service-object lifetime ordering and no premature Share. R1 independently fixed
+the invalid licensing fixture policy and duplicate test dependency at
+`73ce0a06`; do not duplicate those changes. Source/dependency inspection PASS;
+local build/CTest/sanitizers and exact-SHA hosted qualification NOT RUN/PENDING.
+**Next composition dependency:** R10 protected Demand Active / Confirm Active /
+Share finalization. R2's existing wrappers are ready; genuine product acceptance
+remains blocked on independently verified real macOS console/audit-session
+authority bound to the authenticated CredSSP principal and explicit owner
+consent, plus owner-authorized physical client evidence.
+
 ## R8 X11 destroyed-owner claim callback fence (2026-10-31)
 
 **Authoring main parent:** `f4e89610a62470d0f7e6a1f1827ad3af03ba81f4`. Source audit found a distinct claim-time

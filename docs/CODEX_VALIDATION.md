@@ -1,3 +1,7 @@
+## R9 current-round candidate dependency graph hardening (2026-11-01)
+
+Review parent `f5cf9a8242b31a63ef75c50b4e9379a186865eab` after concurrent agents cleared the R10 licensing fixture compile and invalid-policy blockers. The manual owner-candidate job checked protocol, Windows Clang 23, R9 sanitizers, GUI and documentation producers but did not directly require the R2 Linux production-runtime-security matrix or the focused R7 native lifecycle/session-sanitizer jobs that this qualification round treats as mandatory. Tighten only the dispatch-time dependency graph and result checks, and pin those edges in `scripts/validate_ci_workflow.py`. No candidate is dispatched, no clean-Windows or physical-client gate is reclassified, and no acceptance criterion is weakened. Source/structure review PASS; exact publication-SHA hosted CI PENDING.
+
 ## R5 exact-SHA qualification and current dependency audit (2026-11-01)
 
 R5 commit `64732a09d1f78934ecac60ef0b5db96e29b42cbf` is now fully qualified for

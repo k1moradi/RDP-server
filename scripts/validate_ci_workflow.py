@@ -667,6 +667,37 @@ def validate(path: Path, full: bool) -> tuple[str, int]:
             r6_job.count("-DRDP_SERVER_BUILD_DESKTOP_GUI=OFF") == 1,
             "only the R6 sanitizer reconfigure may disable the desktop GUI",
         )
+        candidate_start = next(
+            line for job, line in found_jobs if job == "r9-credssp-owner-candidate"
+        ) - 1
+        candidate_position = next(
+            index for index, (job, _) in enumerate(found_jobs)
+            if job == "r9-credssp-owner-candidate"
+        )
+        candidate_end = (
+            found_jobs[candidate_position + 1][1] - 1
+            if candidate_position + 1 < len(found_jobs)
+            else len(lines)
+        )
+        candidate_job = "\n".join(lines[candidate_start:candidate_end])
+        for dependency in (
+            "r2-linux-production-runtime-security",
+            "r7-macos-native-lifecycle",
+            "r7-macos-session-sanitizers",
+        ):
+            require(
+                f"      - {dependency}" in candidate_job,
+                f"manual owner candidate lost required producer dependency: {dependency}",
+            )
+        for result_variable in (
+            "R2_LINUX_SECURITY_RESULT",
+            "R7_NATIVE_LIFECYCLE_RESULT",
+            "R7_SESSION_SANITIZERS_RESULT",
+        ):
+            require(
+                f'"${result_variable}"' in candidate_job,
+                f"manual owner candidate does not fail closed on {result_variable}",
+            )
         require(
             text.count("RDP_SERVER_BUILD_DESKTOP_GUI:BOOL=ON") >= 2,
             "ordinary Qt-capable application configurations must prove GUI default ON",

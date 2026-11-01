@@ -1,3 +1,7 @@
+## R9 exact-SHA candidate dependency graph follow-up (2026-11-01)
+
+At parent `f5cf9a8242b31a63ef75c50b4e9379a186865eab`, concurrent agents have cleared both demonstrated R10 licensing test blockers and R5's automated X11 retirement increment is independently qualified at its own source SHA. R9 dependency review found a separate assurance gap: the manual `r9-credssp-owner-candidate` job could run without direct `needs` on the R2 Linux production runtime-security matrix and the R7 macOS native lifecycle/session-sanitizer producers, even though those producers are required by the current qualification round. Add those three direct dependencies, require their result values to be `success`, and make the existing workflow structure validator fail if any edge/result check disappears. This is qualification hardening only: no manual dispatch, publication freeze, clean-Windows success claim or physical client operation. Exact publication-SHA hosted structure/full producer review remains the next gate; any later source publication supersedes this candidate review.
+
 ## R5 exact-SHA implicit-retirement qualification complete; dependency refresh (2026-11-01)
 
 **Qualified R5 publication SHA:** `64732a09d1f78934ecac60ef0b5db96e29b42cbf`.

@@ -2557,6 +2557,9 @@ jobs:
     if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.r9_credssp_owner_candidate }}
     needs:
       - ci-workflow-structure
+      - r2-linux-production-runtime-security
+      - r7-macos-native-lifecycle
+      - r7-macos-session-sanitizers
       - protocol
       - r6-windows-clang23
       - r9-security-protocol-sanitizers
@@ -2580,6 +2583,9 @@ jobs:
       - name: Require exact-SHA CredSSP owner-candidate prerequisites
         env:
           STRUCTURE_RESULT: ${{ needs.ci-workflow-structure.result }}
+          R2_LINUX_SECURITY_RESULT: ${{ needs.r2-linux-production-runtime-security.result }}
+          R7_NATIVE_LIFECYCLE_RESULT: ${{ needs.r7-macos-native-lifecycle.result }}
+          R7_SESSION_SANITIZERS_RESULT: ${{ needs.r7-macos-session-sanitizers.result }}
           PROTOCOL_RESULT: ${{ needs.protocol.result }}
           WINDOWS_CLANG_RESULT: ${{ needs.r6-windows-clang23.result }}
           R9_RESULT: ${{ needs.r9-security-protocol-sanitizers.result }}
@@ -2724,6 +2730,9 @@ jobs:
           grep -Eq 'hosted-version-structure=(valid|absent)' <<< "$type1_profile"
           for result in \
             "$STRUCTURE_RESULT" \
+            "$R2_LINUX_SECURITY_RESULT" \
+            "$R7_NATIVE_LIFECYCLE_RESULT" \
+            "$R7_SESSION_SANITIZERS_RESULT" \
             "$PROTOCOL_RESULT" \
             "$WINDOWS_CLANG_RESULT" \
             "$R9_RESULT" \

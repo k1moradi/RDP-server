@@ -1,3 +1,17 @@
+## R6 first-error category redaction denial (2026-10-31)
+
+Keep the ordinary offline
+`interop.windows-client-ab-invalid-first-error-redaction-denials`
+CTest in the shared registry, using the existing Python fixture. An
+unrecognized private string category, a list-valued category and a
+list-valued source must each produce a complete
+`evidence_status=FAIL` summary with
+`WINDOWS_FIRST_ERROR_INVALID` and fixed public category `unknown`.
+Assert that no private sentinel appears in the serialized output.
+Type-check string-enum membership before lookup; keep valid categories,
+stage and original-attempt correlation unchanged. No client, capture,
+credential, listener, certificate or native OS operation is permitted.
+
 ## R3 one-shot Client Info after protected Channel Join (2026-10-31)
 
 Ordinary `transport.mcs-macos-client-info-join-replay-denials` reuses the

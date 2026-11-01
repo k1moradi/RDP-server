@@ -1,3 +1,13 @@
+## R6 first-error redaction offline CTest build contract (2026-10-31)
+
+The existing Python-standard-library validator and fixture gain one
+behavior-named ordinary offline CTest; no C++ target, package, native
+operation or additional build root. Reuse only `~/rdp-server/build/`.
+After canonical Debug configure/build, run:
+`ctest --test-dir build -C Debug -R '^interop[.]windows-client-ab-(invalid-first-error-redaction-denials|invalid-private-summary-redaction|stage-provenance-splice-denials)$' --output-on-failure`.
+Then run full CTest and exact-SHA hosted qualification. Connector-local
+focused/full CTest **NOT RUN**; new publication-SHA CI **PENDING**.
+
 ## R8 post-join CLIPRDR permission-denial test scope (2026-10-31)
 
 Reuse the existing `test_owned_preauth_session` fixture and canonical

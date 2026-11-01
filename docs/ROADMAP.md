@@ -1,3 +1,35 @@
+## R6 first-error redacted FAIL projection correction (2026-10-31)
+
+**Authoring parent:** `5b0e284671455aa86f60a1b39723f35048d07bd7`. R6 v3 previously emitted the raw private
+`first_client_error.normalized_category` even after classifying an invalid
+category as `WINDOWS_FIRST_ERROR_INVALID`. An unhashable category/source
+could also raise a Python type error instead of returning a typed FAIL.
+The narrowly scoped correction guards membership checks by string type and
+projects only allowlisted fixed categories, defaulting malformed input to
+`unknown`. A dedicated ordinary offline
+`interop.windows-client-ab-invalid-first-error-redaction-denials` CTest
+exercises string/list private sentinel values, requires the typed FAIL
+summary and forbids secret reflection. The original closed schema and all
+Type-2/Type-3 source-provenance semantics remain unchanged.
+
+R6 `379f05d3ff3a31df5ae80cd7f437b508c23653f9`, Actions
+`41250520319`, now has a same-SHA hosted Microsoft SSPI
+`COMPLETE_PASS` artifact, Windows/MSVC and macOS full protocol
+Debug/Release PASS, Windows Clang 23 PASS and R9 sanitizer PASS. The
+R6 paired provenance CTests also PASS on Windows, macOS and Ubuntu.
+The Ubuntu full protocol job fails at unrelated R5
+`x11.input-native-failure-terminal-retirement-no-xtest`;
+Agent 5 has since published source/test repairs, which require fresh
+qualification. R9's candidate was skipped, not nominated.
+
+R6 source/CTest registry inspection: **PASS**. New correction's local
+focused/full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted CI: **PENDING**. Physical Windows App/mstsc
+A/B, packet/capture enabling, credential/trust/Group Policy changes and
+Windows native activation: **NOT RUN / unauthorized** until R9 manual
+exact-SHA candidate and separate owner permission. A locally committed
+Type 2 followed by FIN still proves no client-side receipt or password cause.
+
 ## R5 policy-registry co-change follow-up (2026-10-31)
 
 The prior `05ea486bb8f16a479a0924013b4f7f39b04c574f` changed X11

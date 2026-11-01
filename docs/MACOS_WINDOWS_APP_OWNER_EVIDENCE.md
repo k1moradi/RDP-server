@@ -1,3 +1,17 @@
+## R6 fail-closed public first-client-error category (2026-10-31)
+
+For the existing closed v3 A/B record, the private Windows
+`first_client_error.normalized_category` is not arbitrary public text.
+Only `credential`, `trust`, `negotiation`, `cancellation`,
+`transport`, `unknown` and `not-observed` are public tokens.
+An invalid string/non-string category or source must yield typed
+`WINDOWS_FIRST_ERROR_INVALID` and a redacted FAIL summary with
+`first_client_error_category=unknown`, not a raw private echo or an
+uncaught type error. Preserve the original client record privately.
+This offline hardening does not authorize client diagnostics/capture,
+a physical Windows App/mstsc attempt, certificate/Group Policy changes,
+credential replacement or Windows desktop activation.
+
 ## R6 current-head A/B provenance recheck (2026-10-31)
 
 The closed paired schema remains `rdp-server.windows-client-ab-pair.v3`;

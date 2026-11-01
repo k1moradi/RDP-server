@@ -821,6 +821,28 @@ class OwnerEvidenceTests(unittest.TestCase):
         self.assertEqual(summary["windows"]["windows_11_build"], "INVALID")
         self.assertEqual(summary["windows"]["mstsc_file_version"], "INVALID")
 
+    def test_paired_private_invalid_first_error_category_is_redacted(self):
+        manifest = evidence.build_manifest(self.options)
+        private_marker = "private-session-password-sentinel"
+        for invalid_category, invalid_source in (
+            (private_marker, "windows-ui"),
+            ([private_marker], "windows-ui"),
+            ("unknown", [private_marker]),
+        ):
+            with self.subTest(invalid_category=type(invalid_category).__name__,
+                              invalid_source=type(invalid_source).__name__):
+                pair = self._paired_record(manifest)
+                first_error = pair["windows"]["first_client_error"]
+                first_error["normalized_category"] = invalid_category
+                first_error["source"] = invalid_source
+                summary = ab_evidence.validate_pair(manifest, pair)
+                self.assertEqual(summary["evidence_status"], "FAIL")
+                self.assertIn("WINDOWS_FIRST_ERROR_INVALID",
+                              summary["evidence_failures"])
+                self.assertEqual(summary["windows"]["first_client_error_category"],
+                                 "unknown")
+                self.assertNotIn(private_marker, json.dumps(summary, sort_keys=True))
+
     def test_paired_private_missing_client_stage_remains_fail_closed(self):
         manifest = evidence.build_manifest(self.options)
         pair = self._paired_record(manifest)

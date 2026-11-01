@@ -1451,6 +1451,16 @@ add_test(NAME interop.windows-client-ab-invalid-private-summary-redaction
 set_tests_properties(interop.windows-client-ab-invalid-private-summary-redaction PROPERTIES
     LABELS "interop;offline;security;evidence" TIMEOUT 15)
 
+# R6 invalid first-client-error metadata must be a typed denial and cannot
+# reflect unrecognized private values into a redacted FAIL summary.
+add_test(NAME interop.windows-client-ab-invalid-first-error-redaction-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_windows_app_owner_evidence.py"
+        --script "${PROJECT_SOURCE_DIR}/scripts/macos_windows_app_owner_evidence.py"
+        -k paired_private_invalid_first_error_category_is_redacted)
+set_tests_properties(interop.windows-client-ab-invalid-first-error-redaction-denials
+    PROPERTIES LABELS "interop;offline;security;evidence" TIMEOUT 15)
+
 # R5 owner-private Linux/X11 evidence validation is offline only. No listener,
 # XTEST/XCB, credentials, native R2 lease or physical desktop is opened.
 add_test(NAME linux.x11-owner-private-evidence-validation-denials

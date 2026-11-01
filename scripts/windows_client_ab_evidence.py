@@ -313,7 +313,8 @@ def _first_error_failures(first_error: object) -> list[str]:
         return ["WINDOWS_FIRST_ERROR_INVALID"]
     category = first_error["normalized_category"]
     source = first_error["source"]
-    if category not in ERROR_CATEGORIES or source not in ERROR_SOURCES:
+    if (not isinstance(category, str) or category not in ERROR_CATEGORIES or
+            not isinstance(source, str) or source not in ERROR_SOURCES):
         return ["WINDOWS_FIRST_ERROR_INVALID"]
     if category == "not-observed":
         if source != "not-observed" or any(first_error[name] is not None for name in (
@@ -555,7 +556,9 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
             "app": "mstsc.exe",
             "windows_11_build": _redacted_windows_version(windows["windows_11_build"]),
             "mstsc_file_version": _redacted_windows_version(windows["mstsc_file_version"]),
-            "first_client_error_category": windows["first_client_error"].get("normalized_category"),
+            "first_client_error_category": _redacted_stage(
+                windows["first_client_error"].get("normalized_category"),
+                ERROR_CATEGORIES, "unknown"),
             "type3_received": windows_type3,
             "client_security_stages": _redacted_client_stages(
                 windows["client_security_stages"]),

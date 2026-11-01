@@ -1,3 +1,35 @@
+## R6 malformed first-client-error public category privacy correction (2026-10-31)
+
+Reviewed base `5b0e284671455aa86f60a1b39723f35048d07bd7`. `scripts/windows_client_ab_evidence.py`
+previously allowed malformed private
+`windows.first_client_error.normalized_category` to be copied directly
+into a shared FAIL summary despite `WINDOWS_FIRST_ERROR_INVALID`.
+Non-string list-valued `normalized_category` or `source` could also
+raise `TypeError` during enum membership instead of returning the
+typed denial. The correction type-checks both enum fields, and the shared
+projection uses the existing fixed-value `_redacted_stage()` gate with
+fallback `unknown`. Valid category semantics and all v3 correlation
+logic are preserved.
+
+Added `test_paired_private_invalid_first_error_category_is_redacted`
+with invalid private string/list category and list source, plus central
+`interop.windows-client-ab-invalid-first-error-redaction-denials`
+CTest registration. Requires FAIL, typed invalid error and no private
+sentinel in any summary output. No RDP wire, Microsoft SSPI, TLS, native
+Windows or credential operation. Source/CTest review **PASS**; local
+focused/full execution **NOT RUN**; new publication-SHA hosted
+qualification **PENDING**.
+
+R6 `379f05d3ff3a31df5ae80cd7f437b508c23653f9` Windows job
+`124683461688` in Actions `41250520319` reported hosted
+`interop-matrix-final=COMPLETE_PASS` and 877/877 Debug and Release
+protocol CTests PASS. Its macOS protocol suite passed 834/834
+Debug/Release, and its R6 provenance CTests passed on Ubuntu too.
+Ubuntu full protocol 1055/1056 failed in Agent 5's unrelated X11
+no-XTEST terminal test, subsequently under R5 repair. R9 manual
+owner candidate was skipped. No physical Windows App/mstsc A/B is
+authorized; Type-2 local commit/FIN still does not prove receipt.
+
 ## Agent 3: R10 Client Info replay and incomplete-join denial (2026-10-31)
 
 Parent `3ca570272c1bee1072b0a6b5af96a50bb738e529`. Agent 10's first production-linked Channel Join/Confirm

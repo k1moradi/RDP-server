@@ -1,3 +1,24 @@
+## R4 mapped-first-frame owner-retirement seam (2026-11-01)
+
+Base \`e4534704900c4a3ef890e55aa35e91a76653f0ec\` inspected via GitHub: R4 mapped/resize tests,
+pre/post DATA tests, macOS R2 prepared-only Graphics denial, real R1 TLS
+Graphics DATA receipt fixture and fixed CI sanitizer selectors. Missing
+isolated R4 case was owner retirement *after* MAP delivery but before
+the first framebuffer borrow. Added ordinary production-R4 lifecycle
+CTest \`graphics.mapped-before-first-frame-owner-retirement\` to the
+shared registry (not the fixed R4/R3 sanitizer inventories). Verify
+stale output/receipt untouched, no R1/ACK claims, and replacement
+generation using newly supplied bytes. It cannot prove original R2 native
+consent changed during an R10-hosted macOS frame; that requires R10's
+future genuine protected post-Client-Info composition.
+
+Source and registry static inspection PASS. Owner-local configure/build,
+focused/full CTest, sanitizer execution and physical R7 capture NOT RUN.
+At base SHA the structure workflow succeeded but full protocol workflow was
+queued; new publication-SHA hosted validation PENDING. R10/R3 must provide
+exact R2-backed CAPS/CREATE/MAP-to-borrow retirement regression after Share;
+R7 must fence native framebuffer callback retirement before R4 consumes it.
+
 ## R5 implicit native destructor no-XTEST follow-up (2026-10-31)
 
 **Source parent** `5b0e284671455aa86f60a1b39723f35048d07bd7`. Agent 5's

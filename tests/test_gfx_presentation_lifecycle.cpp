@@ -172,6 +172,82 @@ void firstFrameCompatibilityContract()
 }
 
 
+// R3 closes the original mapped presentation when R2 owner consent expires.
+// R4 must reject the old framebuffer borrow without writing, reserving credit,
+// recording an R1 receipt, or accepting a fabricated client acknowledgement.
+// This offline test models the R4 retirement boundary, not genuine macOS R2.
+void mappedBeforeFirstFrameOwnerRetirement()
+{
+    constexpr std::uint64_t retiredGeneration = 2503U;
+    constexpr std::uint64_t replacementGeneration = 2504U;
+    constexpr std::uint32_t firstFrameId = 44U;
+
+    GfxPresentationLifecycle lifecycle;
+    mapped(lifecycle, retiredGeneration, {1U, 1U});
+    const std::array<std::byte, 4U> retiredPixels{
+        std::byte{0x11}, std::byte{0x22},
+        std::byte{0x33}, std::byte{0xFF}};
+    const GfxClearCodecFrameRequest retiredFrame{
+        7U, firstFrameId, FramebufferView{retiredPixels, 1U, 1U, 4U}};
+    assert(lifecycle.framePublicationReadiness(
+               retiredGeneration, firstFrameId) ==
+           GfxFramePublicationReadiness::Ready);
+    {
+        const auto status = lifecycle.acceptanceStatus();
+        assert(!status.firstClearCodecFramePrepared);
+        assert(!status.firstExactFrameWriteCommitted);
+        assert(status.outstandingFrameAcknowledgements == 0U);
+        assert(!status.firstGenuineFrameAcknowledge);
+    }
+
+    // CREATE and MAP were receipt-committed, but no pixels were borrowed
+    // and no first DATA record was prepared when R3 retired its R4 owner.
+    lifecycle.disconnect();
+    std::array<std::byte, 96U> output{};
+    output.fill(std::byte{0xA5});
+    GfxFrameDeliveryReceipt deniedReceipt{
+        retiredGeneration, 1U, firstFrameId, 71U};
+    const auto unchangedReceipt = deniedReceipt;
+    assert(!lifecycle.prepareClearCodecFrame(
+        retiredGeneration, retiredFrame, output, deniedReceipt));
+    assert(deniedReceipt == unchangedReceipt);
+    for (const std::byte value : output)
+        assert(value == std::byte{0xA5});
+    assert(!lifecycle.completeFrameDelivery(
+        deniedReceipt, deniedReceipt.bytes));
+    GfxFrameAckWindowResult acknowledgement{};
+    assert(!lifecycle.onFrameAcknowledge(
+        retiredGeneration, ack(firstFrameId), acknowledgement));
+    assert(!lifecycle.open(retiredGeneration));
+    assert(!lifecycle.canSubmitFrame(retiredGeneration));
+    assert(lifecycle.outstandingFrames() == 0U);
+
+    // Reconnect may reuse numeric surface and frame IDs, but never the old
+    // authorization generation or borrowed framebuffer. Only a newly
+    // supplied frame may be prepared under a fresh mapped presentation.
+    mapped(lifecycle, replacementGeneration, {1U, 1U});
+    assert(!lifecycle.prepareClearCodecFrame(
+        retiredGeneration, retiredFrame, output, deniedReceipt));
+    const std::array<std::byte, 4U> replacementPixels{
+        std::byte{0x44}, std::byte{0x55},
+        std::byte{0x66}, std::byte{0xFF}};
+    const GfxClearCodecFrameRequest replacementFrame{
+        7U, firstFrameId,
+        FramebufferView{replacementPixels, 1U, 1U, 4U}};
+    GfxFrameDeliveryReceipt currentReceipt{};
+    assert(lifecycle.prepareClearCodecFrame(
+        replacementGeneration, replacementFrame, output, currentReceipt));
+    assert(currentReceipt.generation == replacementGeneration);
+    assert(currentReceipt.frameId == firstFrameId);
+    assert(currentReceipt.serial > deniedReceipt.serial);
+    assert(lifecycle.cancelUnwrittenFrameDelivery(currentReceipt));
+    const auto status = lifecycle.acceptanceStatus();
+    assert(status.firstClearCodecFramePrepared);
+    assert(!status.firstExactFrameWriteCommitted);
+    assert(status.outstandingFrameAcknowledgements == 0U);
+    assert(!status.firstGenuineFrameAcknowledge);
+}
+
 void resizeBeforeFirstFramePublication()
 {
     constexpr std::uint64_t generation = 2502U;
@@ -1002,6 +1078,7 @@ int main(int argc, char **argv)
     if (argc != 2) return 2;
     const std::string_view mode{argv[1]};
     if (mode == "first-frame-compatibility-contract") { firstFrameCompatibilityContract(); return 0; }
+    if (mode == "mapped-before-first-frame-owner-retirement") { mappedBeforeFirstFrameOwnerRetirement(); return 0; }
     if (mode == "surface-remap-before-first-frame-wire") { resizeBeforeFirstFramePublication(); return 0; }
     if (mode == "channel-lifecycle-ordering") { ordering(); return 0; }
     if (mode == "channel-lifecycle-denials") { denials(); return 0; }

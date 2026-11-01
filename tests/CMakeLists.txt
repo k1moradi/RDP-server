@@ -1867,6 +1867,15 @@ function(add_rdp_test source_file suite behavior)
         # Focused R4/R3 receipt-order assurance. Keep this ordinary full-CTest
         # regression outside the fixed 23-case transport.dvc-graphics
         # sanitizer census; it exercises the same production DVC lifecycle.
+        # R4-specific mapped-but-unpublished revocation seam. Ordinary offline
+        # CTest, intentionally outside fixed 42 portable and 23 R3 DVC
+        # sanitizer selections; no synthetic macOS native issuer is created.
+        add_test(NAME graphics.mapped-before-first-frame-owner-retirement
+            COMMAND "${test_target}"
+                "mapped-before-first-frame-owner-retirement")
+        set_tests_properties(
+            graphics.mapped-before-first-frame-owner-retirement
+            PROPERTIES LABELS "protocol;graphics;security;offline")
         add_test(NAME graphics.frame-delivery-session-retirement-before-ack
             COMMAND "${test_target}"
                 "dvc-graphics-frame-delivered-session-retirement-before-ack")

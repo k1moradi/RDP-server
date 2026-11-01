@@ -1,3 +1,22 @@
+## R4 mapped-before-first-frame retirement without native admission (2026-11-01)
+
+Register ordinary \`graphics.mapped-before-first-frame-owner-retirement\`
+in the existing \`test_gfx_presentation_lifecycle\` executable. After real R4
+CAPS_CONFIRM/CREATE_SURFACE/MAP_SURFACE_TO_OUTPUT accepted receipts, retire
+the original mapped owner *before* borrowing any first framebuffer. Require
+the stale-generation ClearCodec request to fail without writing the supplied
+output span or replacing the receipt, without frame credit, local delivery
+or client ACK. A fresh generation may reuse the numeric surface/frame IDs
+only with newly supplied pixels; zero-wire cancellation does not synthesize
+R1 receipt or FRAME_ACK. This is an R4 production-lifecycle regression
+modeling R3's response to R2 revocation, not a positive R2/macOS native
+consent test or proof of R10 Share integration. Keep it separate from the
+fixed 42 portable R4, 23 R3 DVC and 29 x264/BGRA sanitizer inventories;
+ordinary full CTest must include it. The later protected R2/R10 positive
+mapped-to-frame interleaving remains an independent integration gate.
+Authoring parent \`e4534704900c4a3ef890e55aa35e91a76653f0ec\`; connector source review PASS, local
+build/CTest/ASan/UBSan NOT RUN, exact publication-SHA CI PENDING.
+
 ## R5 implicit X11 destructor no-XTEST contract (2026-10-31)
 
 Ordinary source-only

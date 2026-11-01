@@ -1,3 +1,7 @@
+## Exact-run negative fixtures must vary one validated dimension (2026-11-01)
+
+When a metadata classifier strengthens its baseline schema, each negative fixture must continue satisfying every unrelated required field and vary only the dimension under test. In particular, an exact-SHA mismatch fixture for the R9 Actions classifier must retain a valid positive outer `run.id`; otherwise it tests malformed-run rejection instead of SHA attribution and can mask the intended assertion. Keep separate fixtures for missing/foreign run provenance.
+
 ## R7 restored-preferences offline GUI qualification (2026-11-01)
 
 Two ordinary gui.offscreen-rapid-preferences-* CTests reuse the existing

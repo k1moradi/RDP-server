@@ -1,3 +1,9 @@
+## R9 exact-run self-test fixture correction — 2026-11-01
+
+Reviewed current parent `d331f8f7716cdb645acb34068dc703e254a69d40` after the new exact-run provenance checks landed. GitHub structure runs for both the R9 commit and its R7 descendant failed before roadmap validation because `verify_r9_qualification_matrix.py --self-test` called `evaluate()` for the SHA-mismatch case with no outer `run.id`. That violates the strengthened input contract and produces `INVALID_RUN`, so the test never evaluates `SHA_MISMATCH`.
+
+The correction supplies the existing synthetic `run_id` while keeping only `head_sha` different. No classifier behavior, production code, R1 transport, job inventory, artifact acceptance rule, credential/trust state or physical-client action changes. Source review PASS; canonical local build/CTest/sanitizers/benchmarks NOT RUN in this connector environment. Exact publication-SHA hosted structure/full CI is PENDING.
+
 ## R7 P0 restored desktop preferences (2026-11-01)
 
 Authoring baseline `5115ce956dd36dc75741c309767505229678f779`.

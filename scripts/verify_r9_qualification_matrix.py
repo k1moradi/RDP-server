@@ -214,7 +214,7 @@ def self_test() -> None:
         raise AssertionError("R9 self-test denial failed")
     if not (evaluate(sha, other, run, jobs, artifacts)["current_head"] == "DIFFERENT_SHA"):
         raise AssertionError("R9 self-test denial failed")
-    wrong = evaluate(sha, sha, {"head_sha": other}, jobs, artifacts)
+    wrong = evaluate(sha, sha, {"id": run_id, "head_sha": other}, jobs, artifacts)
     if not (all(value == "SHA_MISMATCH" for value in wrong["lanes"].values())):
         raise AssertionError("R9 self-test denial failed")
     if not (wrong["sspi_artifact"] == "SHA_MISMATCH"):

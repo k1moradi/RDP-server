@@ -1,3 +1,15 @@
+## R7 rapid-test desktop launcher qualification (2026-11-01)
+
+Reuse only ~/rdp-server/build/ with the canonical Debug configure/build.
+Run ctest --test-dir build -C Debug -R
+'^gui[.](offscreen-rapid-|rapid-help-before-qapplication)'
+--output-on-failure, followed by ordinary full Debug/Release CTest and
+hosted Linux/GCC, macOS/Clang, Windows/MSVC and required Clang 23 checks.
+The new cases reuse the existing GUI test executable; no separate build
+root, library dependency, physical listener or owner permission is needed.
+Mark tests NOT RUN when Qt6/checkout is unavailable rather than projecting
+source review as a compilation success.
+
 ## R8 original-receipt initialization focused CTest (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build, run:

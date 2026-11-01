@@ -1,3 +1,15 @@
+## R7 rapid-test argv and GUI boundaries (2026-11-01)
+
+Classify arguments before QApplication using bounded, borrowed
+std::string_view; reject duplicate, malformed, conflicting and all argv
+password options. Require redirected non-terminal stdin for a bounded,
+validated password line, with private bytes wiped after masked GUI handoff.
+Do not read a password from environment or echo stdin. CLI --enable cannot
+call R10 Start; only the owner's subsequent Sharing UI action may do so.
+R7 must consume R2's single secure non-secret preferences API when supplied;
+do not create another settings path, infer R2 permission from stored fields,
+or persist Session Password under the volatile bootstrap policy.
+
 ## R8 dormant CLIPRDR initialization and native-scope continuation (2026-11-01)
 
 R10 exclusively schedules server Clipboard initialization within its current serialized post-Share tick. The R8 `prepareNextServerInitializationPdu()` helper only stages bounded server Capabilities at Dormant or Monitor Ready after a fully delivered original R3/R1 Capabilities receipt; the prepared-owner handoff must first visit the current R2-protected joined Clipboard route. It never queues TLS, constructs another issuer or treats pending/zero/WANT/partial writes as delivery. The R10 writer is still the original R3 queue and R1 TLS writer. Initial native X11 publication requires delivered server Capabilities, Monitor Ready and initial client Format List Response, no pending write and a fresh R2 Clipboard visit. Separately, `serviceNative()` must check readiness, no write and fresh R2 Clipboard scope before native paste servicing, not just rely on a previous network-path check. Native work cannot follow View/Input-only, Share or GraphicsReady. Keep `kLinuxProductionClipboardActivationApproved = false`, and keep file, PNG and native-paste production paths dormant. Exact parent for this increment is the publication commit's parent; validation requires same-SHA CTest and owner-authorized physical evidence.

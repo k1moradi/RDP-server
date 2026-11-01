@@ -18035,6 +18035,31 @@ Each row has **one active next action**, one code owner and a concrete dependent
 
 ### R7 current gate — ICC provenance and macOS post-Share attachment (2026-11-01)
 
+**R7 P0 rapid-test CLI (source parent e222dbdc07374d6824c5a8f50061aa2c989c5141):** A strict pre-QApplication
+desktop launch parser and Qt-only UI handoff now support zero-argument startup,
+--help, --username NAME, redirected bounded --password-stdin and --enable.
+The latter displays a manual Sharing confirmation notice only; a later owner
+toggle invokes the original requestStart/R10 transaction. CLI values remain
+process-local and the password buffer is zeroed after masked handoff.
+--config stays Linux-only and mutually exclusive; argv passwords, duplicates,
+malformed UTF-8 and unknown options deny. R7 added dedicated ordinary offline
+gui.offscreen-rapid-cli-privacy, gui.offscreen-rapid-start-explicit-consent and
+gui.rapid-help-before-qapplication CTests. Source and registration review PASS;
+connector-local Qt6 build/CTest NOT RUN, exact-publication-SHA hosted CI PENDING;
+no real credentials, listener, native desktop, client or auto-Sharing tested.
+
+**R7 next dependency — R2 P0 preferences:** the approved secure per-user
+non-secret preferences API is not present in this parent. R7 intentionally
+did not create a second settings file/store. Request R2's stable load/save
+contract for Username, preferred interface ID, port and input/lifetime values,
+including path/symlink/permission and corrupted-input denials. Once published,
+R7 must integrate UI-initiated save and restart restore, require an exact
+stable-ID match in fresh R10-approved LAN enumeration, apply CLI values over
+saved values, and deny stale/replaced interface, saved permission, Sharing ON
+and SessionPassword restoration. Add dedicated offscreen tests for those cases.
+R10 remains sole runtime/Sharing authority; R2's storage API cannot mint a
+listener or desktop authorization. **Persistence: BLOCKED on R2 API.**
+
 **ICC assurance:** The `036f3d8` three-display/failing-ICC regression and
 the over-64-MiB CFData child-before-parent release fixture are on main.
 Exact `8844742a1bbb1ac51354e08c44dddafa3a5684c0` hosted

@@ -1,3 +1,20 @@
+## Rapid-test desktop CLI and settings boundary (2026-11-01)
+
+The portable rdp-server-desktop accepts zero arguments for normal startup,
+--username NAME for a validated non-authorizing per-process edit,
+--password-stdin for a bounded non-echo redirected secret and --enable
+solely to display the GUI Sharing confirmation. The owner must still
+explicitly turn Sharing ON through the existing runtime-owned flow.
+--help prints without QApplication or native runtime construction.
+No command-line/environment password or automatic listener is allowed.
+The Linux-only --config FILE expert option remains isolated.
+
+R2 alone owns the future secure per-user non-secret preferences API.
+Until that API exists, R7 does not invent a local settings file or claim
+restart restoration. Once it exists, never persist Session Password or
+Sharing ON; revalidate any saved interface ID using current R10-approved
+LAN enumeration and never treat preferences as admission or permission.
+
 ## Remote RDP client credential guidance (2026-10-27)
 
 The standalone Main credential surface must tell the owner that the displayed

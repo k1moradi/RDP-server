@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+#include "desktop_launch_options.h"
 #include "desktop_window.h"
 #include "host_control.h"
 #include "local_username.h"
@@ -36,11 +37,13 @@
 #include <QWizard>
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstdint>
+#include <initializer_list>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -773,6 +776,123 @@ int main(int argc, char** argv)
     HostControl host(runtime);
     const QString mode =
         argc > 1 ? QString::fromLocal8Bit(argv[1]) : QString();
+
+    if (mode == "rapid-cli-privacy")
+    {
+        const auto parse = [](const std::initializer_list<std::string_view> args) {
+            DesktopLaunchOptions options;
+            return parseDesktopLaunchOptions(
+                std::span<const std::string_view>{args.begin(), args.size()},
+                options);
+        };
+        assert(parse({"rdp-server-desktop"}) == DesktopLaunchError::None);
+        assert(parse({"rdp-server-desktop", "--help"}) == DesktopLaunchError::None);
+        assert(parse({"rdp-server-desktop", "--username", "owner",
+                      "--password-stdin", "--enable"}) == DesktopLaunchError::None);
+        assert(parse({"rdp-server-desktop", "--password", "secret"}) ==
+               DesktopLaunchError::InvalidOption);
+        assert(parse({"rdp-server-desktop", "--password=secret"}) ==
+               DesktopLaunchError::InvalidOption);
+        assert(parse({"rdp-server-desktop", "--username", "owner",
+                      "--username", "replacement"}) == DesktopLaunchError::InvalidOption);
+        assert(parse({"rdp-server-desktop", "--enable", "--enable"}) ==
+               DesktopLaunchError::InvalidOption);
+        assert(parse({"rdp-server-desktop", "--password-stdin",
+                      "--password-stdin"}) == DesktopLaunchError::InvalidOption);
+        assert(parse({"rdp-server-desktop", "--help", "--enable"}) ==
+               DesktopLaunchError::InvalidOption);
+        assert(parse({"rdp-server-desktop", "--config", "server.conf",
+                      "--enable"}) == DesktopLaunchError::InvalidOption);
+        assert(parse({"rdp-server-desktop", "--username", "\xc0\xaf"}) ==
+               DesktopLaunchError::InvalidOption);
+        assert(parse({"rdp-server-desktop", "--username", "\xed\xa0\x80"}) ==
+               DesktopLaunchError::InvalidOption);
+        assert(parse({"rdp-server-desktop", "--unknown"}) ==
+               DesktopLaunchError::InvalidOption);
+        assert(parse({"rdp-server-desktop", "--username"}) ==
+               DesktopLaunchError::InvalidOption);
+        DesktopLaunchOptions precedence;
+        constexpr std::array<std::string_view, 4> arguments{
+            "rdp-server-desktop", "--username", "explicit-owner", "--enable"};
+        assert(parseDesktopLaunchOptions(arguments, precedence) ==
+               DesktopLaunchError::None);
+        assert(precedence.username == "explicit-owner");
+        assert(precedence.requestSharingConfirmation);
+
+        auto* input = std::tmpfile();
+        assert(input != nullptr);
+        constexpr std::string_view token = "test-only-credential";
+        assert(std::fwrite(token.data(), 1, token.size(), input) ==
+               token.size());
+        std::rewind(input);
+        std::array<char, kDesktopMaximumPasswordBytes + 1U> privateInput{};
+        std::size_t length = 0;
+        assert(readDesktopPasswordLine(input, privateInput, length) ==
+               DesktopLaunchError::None);
+        assert(std::string_view(privateInput.data(), length) == token);
+        wipeDesktopPassword(privateInput);
+        assert(std::all_of(privateInput.begin(), privateInput.end(),
+                           [](char byte) { return byte == 0; }));
+        std::fclose(input);
+
+        input = std::tmpfile();
+        assert(input != nullptr);
+        const std::string oversized(kDesktopMaximumPasswordBytes + 1U, 'x');
+        assert(std::fwrite(oversized.data(), 1, oversized.size(), input) ==
+               oversized.size());
+        std::rewind(input);
+        assert(readDesktopPasswordLine(input, privateInput, length) ==
+               DesktopLaunchError::PasswordTooLong);
+        assert(length == 0U);
+        std::fclose(input);
+
+        input = std::tmpfile();
+        assert(input != nullptr);
+        const char invalidUtf8[] = {'x', char(0xed), char(0xa0), char(0x80)};
+        assert(std::fwrite(invalidUtf8, 1, sizeof(invalidUtf8), input) ==
+               sizeof(invalidUtf8));
+        std::rewind(input);
+        assert(readDesktopPasswordLine(input, privateInput, length) ==
+               DesktopLaunchError::InvalidPasswordInput);
+        assert(length == 0U);
+        std::fclose(input);
+        assert(readDesktopPasswordLine(nullptr, privateInput, length) ==
+               DesktopLaunchError::MissingPasswordInput);
+        return 0;
+    }
+
+    if (mode == "rapid-start-consent")
+    {
+        FakeRuntimeHost candidate;
+        prepareReadyHost(candidate);
+        candidate.startSucceeds = true;
+        HostControl candidateHost(candidate);
+        DesktopWindow first(candidateHost);
+        auto* notice = requiredLabel(first, "startupSharingConfirmation");
+        assert(notice->isHidden());
+        const QString explicitUser = QStringLiteral("rapid-owner");
+        assert(first.applyStartupOptions(&explicitUser, nullptr, true));
+        assert(!notice->isHidden());
+        assert(candidate.startCalls == 0);
+        assert(candidate.standaloneCredentialCalls == 0);
+        auto* username = first.findChild<QLineEdit*>("standaloneUsername");
+        assert(username && username->text() == explicitUser);
+        first.refresh();
+        assert(candidate.startCalls == 0);
+
+        // The pre-existing owner-operated switch is the only Start action.
+        sharingToggle(first)->click();
+        assert(candidate.startCalls == 1);
+        assert(candidate.configureCalls == 1);
+        candidateHost.stop();
+        assert(candidate.stopCalls == 1);
+        DesktopWindow restarted(candidateHost);
+        assert(requiredLabel(restarted, "startupSharingConfirmation")->isHidden());
+        auto* sessionPassword = restarted.findChild<QLineEdit*>("sessionPassword");
+        assert(sessionPassword && sessionPassword->text().isEmpty());
+        assert(candidate.startCalls == 1);
+        return 0;
+    }
 
     if (mode == "automatic-tls-preparation-order")
     {

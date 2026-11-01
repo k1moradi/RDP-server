@@ -750,6 +750,10 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
       addressStatus_(label({}, mainTab_)),
       credentialStatus_(label({}, mainTab_)),
       sharingAvailabilityStatus_(label({}, mainTab_)),
+      startupSharingNotice_(label(
+          QStringLiteral("Sharing was requested from the command line. "
+                         "Review settings, then explicitly turn Sharing ON "
+                         "to confirm."), mainTab_)),
       permissionStatus_(label({}, advancedTab_)),
       selectedInterfaceStatus_(label({}, advancedTab_)),
       errorStatus_(label({}, advancedTab_)),
@@ -780,6 +784,8 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     credentialStatus_->setObjectName("credentialStatus");
     rdpClientCredentialGuidance_->setObjectName("rdpClientCredentialGuidance");
     sharingAvailabilityStatus_->setObjectName("sharingAvailabilityStatus");
+    startupSharingNotice_->setObjectName("startupSharingConfirmation");
+    startupSharingNotice_->hide();
     permissionStatus_->setObjectName("permissionStatus");
     selectedInterfaceStatus_->setObjectName("selectedLanInterfaceStatus");
     errorStatus_->setObjectName("hostErrorExplanation");
@@ -889,6 +895,7 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     sharingRow->addStretch();
     mainLayout->addLayout(sharingRow);
     mainLayout->addWidget(sharingAvailabilityStatus_);
+    mainLayout->addWidget(startupSharingNotice_);
     allowRemoteInput_->setChecked(true);
     mainLayout->addWidget(allowRemoteInput_);
     requestHostPermission_->setParent(advancedTab_);
@@ -1467,6 +1474,41 @@ void DesktopWindow::updateTray(
             : serverStateTitle_->text() + QStringLiteral(" — ") + address);
 }
 
+bool DesktopWindow::applyStartupOptions(
+    const QString* usernameOverride, const QString* passwordOverride,
+    const bool requestSharingConfirmation)
+{
+    // This method is called on the existing QApplication GUI thread.
+    // Release credential capability and current R10 editability remain gates.
+    if (passwordOverride != nullptr)
+    {
+        const HostStatus snapshot = host_.status();
+        if (!standalonePasswordSurfaceAvailable(snapshot) ||
+            !snapshot.credentialEditingAllowed)
+            return false;
+    }
+    if (usernameOverride != nullptr)
+    {
+        startupUsernameOverrideActive_ = true;
+        const QSignalBlocker blocked(username_);
+        username_->setText(*usernameOverride);
+    }
+    if (passwordOverride != nullptr)
+    {
+        const QSignalBlocker blockedPassword(sessionPassword_);
+        const QSignalBlocker blockedConfirmation(sessionPasswordConfirm_);
+        sessionPassword_->setText(*passwordOverride);
+        sessionPasswordConfirm_->setText(*passwordOverride);
+    }
+
+    // --enable cannot call requestStart, requestHostPermission, or R1.
+    startupSharingNotice_->setVisible(requestSharingConfirmation);
+    if (requestSharingConfirmation)
+        tabs_->setCurrentWidget(mainTab_);
+    refresh();
+    return true;
+}
+
 void DesktopWindow::refresh()
 {
     const HostStatus snapshot = host_.status();
@@ -1477,9 +1519,10 @@ void DesktopWindow::refresh()
     if (!snapshot.configuredStandaloneUsername.isEmpty())
     {
         const bool maySynchronize =
-            configuredStandaloneUsername_.isEmpty() ||
+            !startupUsernameOverrideActive_ &&
+            (configuredStandaloneUsername_.isEmpty() ||
             username_->text().isEmpty() ||
-            username_->text() == configuredStandaloneUsername_;
+            username_->text() == configuredStandaloneUsername_);
         if (maySynchronize &&
             username_->text() != snapshot.configuredStandaloneUsername)
         {

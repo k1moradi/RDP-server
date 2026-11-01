@@ -28,6 +28,10 @@ public:
     explicit DesktopWindow(HostControl& host, QWidget* parent = nullptr);
 
     void refresh();
+    // CLI-only Qt presentation; R10 retains every credential/Start decision.
+    [[nodiscard]] bool applyStartupOptions(
+        const QString* usernameOverride, const QString* passwordOverride,
+        bool requestSharingConfirmation);
     [[nodiscard]] bool canStart() const;
     [[nodiscard]] QString blockedReason() const;
     [[nodiscard]] QString diagnosticExportText() const;
@@ -80,6 +84,7 @@ private:
     QLabel* addressStatus_;
     QLabel* credentialStatus_;
     QLabel* sharingAvailabilityStatus_;
+    QLabel* startupSharingNotice_;
     QLabel* permissionStatus_;
     QLabel* selectedInterfaceStatus_;
     QLabel* errorStatus_;
@@ -101,6 +106,7 @@ private:
     QAction* trayQuit_;
 
     bool manualInterfaceOverride_{false};
+    bool startupUsernameOverrideActive_{false};
     bool quitRequested_{false};
     QString userFacingError_;
     // Last authoritative non-secret Username projected by R10. This is only

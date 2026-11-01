@@ -1,3 +1,15 @@
+## R7 desktop CLI offline regression contract (2026-11-01)
+
+Extend the existing Qt test_desktop_gui_offline fake-R10 executable, with
+QT_QPA_PLATFORM=offscreen, for argv secret/duplicate/conflict/UTF-8 denials,
+bounded redirected stdin, secret-buffer clearing, --enable without Start,
+explicit UI confirmation, Stop and fresh-window defaults. A real desktop
+--help CTest with invalid QPA proves help exits before Qt/native startup.
+No test may create a physical listener or need OS credentials. R2-dependent
+restart persistence, invalid saved preferences and stale-interface restoration
+must remain BLOCKED until its single per-user preferences API is published.
+Same-SHA full cross-platform and sanitizer testing is still required.
+
 ## R8 dormant server initialization original-receipt regression (2026-11-01)
 
 Dedicated `runtime.clipboard-initial-handshake-exact-receipt-denials` uses the existing production R8 bridge and R3 static-channel route without synthetic native admission. Check missing fresh route visits, CAPs/Monitor ordering, no progress for no accepted-byte callback (zero/WANT), first-byte partial receipts, full initial Format List Response delivery, Stop/revoke, reconnect and late stale receipt. This tests R3 receipt accounting with injected accepted bytes, **not a genuine R1 TLS write**. Extend the existing `runtime.linux-clipboard-native-publication-receipt-scope-denial` source contract to pin R10's explicit initialization scheduling, R2-scoped R8 preparation, and fresh Clipboard visits before network publication and native paste. Keep new receipt CTest outside fixed 107-case Clipboard sanitizer selection. The three existing macOS joined-CLIPRDR/Share/post-Share View/Input-only Clipboard denial cases, static-channel routing, X11 callback/INCR and generation regressions are preserved. Source and registry inspection PASS; local CMake/CTest/sanitizer NOT RUN; exact publication-SHA CI PENDING; physical native grant NOT RUN.

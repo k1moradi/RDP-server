@@ -5716,6 +5716,23 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-authoritative-sharing-toggle
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;product;runtime;lifecycle" TIMEOUT 30)
+    # R7 rapid-test CLI reuses the existing fake R10 Qt fixture.
+    add_test(NAME gui.offscreen-rapid-cli-privacy
+        COMMAND test_desktop_gui_offline rapid-cli-privacy)
+    add_test(NAME gui.offscreen-rapid-start-explicit-consent
+        COMMAND test_desktop_gui_offline rapid-start-consent)
+    set_tests_properties(
+        gui.offscreen-rapid-cli-privacy
+        gui.offscreen-rapid-start-explicit-consent
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;cli;credentials;offline" TIMEOUT 20)
+    # --help must terminate before QApplication even with an invalid QPA.
+    add_test(NAME gui.rapid-help-before-qapplication
+        COMMAND $<TARGET_FILE:rdp-server-desktop> --help)
+    set_tests_properties(gui.rapid-help-before-qapplication PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=invalid-headless-backend"
+        LABELS "gui;cli;security;offline" TIMEOUT 10)
+
     # Qt must display the current platform's native target without an X11 claim.
     add_test(NAME gui.offscreen-native-desktop-platform-labels
         COMMAND test_desktop_gui_offline native-desktop-platform-labels)

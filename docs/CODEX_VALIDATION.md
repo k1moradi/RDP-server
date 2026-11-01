@@ -1,3 +1,17 @@
+## R7 rapid-test GUI CLI and manual Sharing consent (2026-11-01)
+
+Parent e222dbdc07374d6824c5a8f50061aa2c989c5141. R7 added strict
+pre-QApplication argument validation, redirected bounded password-stdin
+with private-buffer retirement, masked GUI handoff, and --enable guidance
+without Start. The existing R10 runtime Start/credential gates remain intact.
+Offline CTests: gui.offscreen-rapid-cli-privacy,
+gui.offscreen-rapid-start-explicit-consent,
+gui.rapid-help-before-qapplication. Source/registration review PASS;
+connector-local Qt6 compile and CTest NOT RUN (no canonical checkout/Qt6);
+exact publication-SHA hosted CI PENDING. R2 per-user non-secret preferences
+API was absent at this parent: persistence and invalid/replaced-interface
+restore acceptance BLOCKED. No native listener, client or credentials run.
+
 ## R8 P1 dormant initial Clipboard handshake and native scope audit (2026-11-01)
 
 Reviewed current Linux R10 post-Share: R10 already dispatches complete authenticated joined CLIPRDR PDUs through R2/R3 to the R8 owner and uses the original R3 queue and R1 TLS writer/accepted-byte receipt path. Missing: explicit initialization staging of server Capabilities and Monitor Ready; the bridge's existing readiness gate cannot become true through queued response alone. Introduce R8 one-step route-observed stage preparation and R10 explicit stage selection (no second event loop or TLS writer). Preserve `kLinuxProductionClipboardActivationApproved = false`. Additional source audit found `serviceNative()` previously reached paste servicing after checking readiness but without its own fresh R2 Clipboard-scope visit. Add that visit and outstanding-write fence, preserving the earlier network publication receipt/scope fix. New ordinary production-backed `runtime.clipboard-initial-handshake-exact-receipt-denials` checks ordered R3 receipt states, zero/WANT nonreceipt, partial response, full delivery, Stop/reconnect and stale old receipt. The pre-existing native publication source guard now covers R10 scheduling and both independent R2 visits. The fixed 107-case Clipboard sanitizer, static CLIPRDR, X11 INCR/callback and three macOS scope-denial cases remain unchanged. Review/registration PASS; local compilation, CTest and sanitizers NOT RUN; exact-SHA hosted matrix PENDING. New fixture does not run R1 TLS or mint R2 native admission. No actual OS clipboard, file materialization, PNG, paste or physical client acceptance.

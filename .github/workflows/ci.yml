@@ -1610,7 +1610,7 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
           set -euo pipefail
-          portable_graphics_selection='^graphics\.(first-frame-compatibility-contract|surface-(lifecycle-(wire|rejections)|zero-id-wire)|frame-ack-(wire|suspension|rejections|correlation|bounded-backpressure|deferred-revocation-generation-reset|backpressure-observation|decode-progress(-observation)?|stale-generation)|channel-lifecycle-(ordering|denials)|surface-resize-revocation|surface-remap-before-first-frame-wire|frame-publication-backpressure|frame-delivery-(receipt-ordering|abort-revocation|unsent-cancellation|partial-send-remains-terminal)|avc420-mapped-frame-(wire|denials|reconnect)|avc420-mapped-padded-picture|segmented-data-(single|multipart|denials-inplace|u32-boundary-denial)|avc420-(picture-(wire|rejections|overlap)|zero-frame-id-wire|zero-surface-id-wire|visible-crop(-rejections)?|segmented-frame-(single|multipart|denials-reconnect|delivery-ack|unsent-cancellation|owned-output-reuse-denials|retirement-reuse)))$'
+          portable_graphics_selection='^graphics\.(first-frame-compatibility-contract|surface-(lifecycle-(wire|rejections)|zero-id-wire)|frame-ack-(wire|suspension|rejections|correlation|bounded-backpressure|deferred-revocation-generation-reset|backpressure-observation|decode-progress(-observation)?|stale-generation)|channel-lifecycle-(ordering|denials)|surface-resize-revocation|surface-remap-before-first-frame-wire|frame-publication-backpressure|frame-delivery-(receipt-ordering|abort-revocation|unsent-cancellation|partial-send-remains-terminal)|frame-delivery-session-retirement-before-ack|frame-partial-data-retirement-successor-generation|avc420-mapped-frame-(wire|denials|reconnect)|avc420-mapped-padded-picture|segmented-data-(single|multipart|denials-inplace|u32-boundary-denial)|avc420-(picture-(wire|rejections|overlap)|zero-frame-id-wire|zero-surface-id-wire|visible-crop(-rejections)?|segmented-frame-(single|multipart|denials-reconnect|delivery-ack|unsent-cancellation|owned-output-reuse-denials|retirement-reuse)))$'
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$portable_graphics_selection")"
           printf '%s\n' "$selected_tests"
           grep -Fq 'graphics.first-frame-compatibility-contract' <<< "$selected_tests"
@@ -1624,6 +1624,8 @@ jobs:
           grep -Fq 'graphics.frame-delivery-abort-revocation' <<< "$selected_tests"
           grep -Fq 'graphics.frame-delivery-unsent-cancellation' <<< "$selected_tests"
           grep -Fq 'graphics.frame-delivery-partial-send-remains-terminal' <<< "$selected_tests"
+          grep -Fq 'graphics.frame-delivery-session-retirement-before-ack' <<< "$selected_tests"
+          grep -Fq 'graphics.frame-partial-data-retirement-successor-generation' <<< "$selected_tests"
           grep -Fq 'graphics.avc420-zero-frame-id-wire' <<< "$selected_tests"
           grep -Fq 'graphics.segmented-data-denials-inplace' <<< "$selected_tests"
           grep -Fq 'graphics.segmented-data-u32-boundary-denial' <<< "$selected_tests"

@@ -1,3 +1,7 @@
+## R4 standalone Graphics retirement sanitizer selection (2026-11-01)
+
+Source reviewed parent `e5e6dd7e4db9028560449739757977c1269d6377`: existing `test_owned_mcs_connect_initial` provides complete-DATA retirement-before-ACK and partial-DATA retirement/successor-generation negative tests, both ordinarily CTest-registered. The protected macOS MAP-to-frame R2 consent replacement and exact R1 TLS first-frame/client-ACK regressions are separately registered and no new interleaving CTest is needed. The one CI-only change includes the two standalone R4 regressions in already compiled ASan/UBSan portable Graphics selection, with exact name pins, leaving the separate fixed 23-case R3 DVC sanitizer inventory untouched. Source/selector audit PASS; owner-host configure/build/CTest and local ASan/UBSan NOT RUN; exact publication-SHA hosted workflow PENDING, no physical capture or client-delivered frame claimed. R10 remains blocked on post-GraphicsReady native frame-to-R1/R3 publishing and observable client ACK, not upstream licensing/Share/Graphics MAP.
+
 ## R8 dormant native publication receipt and Clipboard-scope guard (2026-11-01)
 
 At parent `58b5c59111ed3219b84105f7b4f3eb392e7c3877`, source audit exposed a future-enable hazard:

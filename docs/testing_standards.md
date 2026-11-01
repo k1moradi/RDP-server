@@ -1,3 +1,7 @@
+## R4 standalone partial-DATA and delivered-retirement ASan/UBSan selection (2026-11-01)
+
+Keep the R3 Graphics DVC sanitizer census at exactly 23 `transport.dvc-graphics-*` cases. The two separate production-backed ordinary full-CTest regressions `graphics.frame-delivery-session-retirement-before-ack` and `graphics.frame-partial-data-retirement-successor-generation` reuse already-built `test_owned_mcs_connect_initial`. Pin both as required names in the existing `portable_graphics_selection` ASan/UBSan lane; do not create a second test executable, alter R4 credit/ACK or add a duplicate MAP-to-frame consent regression. Focused owner command: `ctest --test-dir build -C Debug -R '^graphics[.](frame-delivery-session-retirement-before-ack|frame-partial-data-retirement-successor-generation)$' --output-on-failure`, followed by ordinary full CTest in the same `~/rdp-server/build/` directory. The protected R1/TLS first-frame and MAP-consent tests remain independent. Source/selector review PASS at parent `e5e6dd7e4db9028560449739757977c1269d6377`; local execution NOT RUN and exact publication-SHA sanitizer/Debug/Release CI PENDING. No native macOS capture or physical client ACK performed.
+
 ## R8 native Clipboard publication requires completed initialization and scope (2026-11-01)
 
 Client FORMAT_LIST intake or queued FORMAT_LIST_RESPONSE is not X11 native

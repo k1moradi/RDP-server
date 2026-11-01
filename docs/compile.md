@@ -1,3 +1,16 @@
+## R3/R10 macOS protected Share positive and source-guard unblock (2026-11-01)
+
+No production build target, link graph, third-party dependency or native
+desktop configuration changes. Continue using only the existing
+`~/rdp-server/build/` and the existing three registered CTests.
+After canonical Debug configure/build run:
+`ctest --test-dir build -C Debug -R '^security[.]macos-protected-personal-desktop-share-activation-receipts$|^runtime[.]macos-(native-retirement-single-owner-callers|host-control-share-activation-composition-contract)$|^security[.]macos-protected-licensed-share-premature-confirm-partial-demand-denial$' --output-on-failure`
+then full Debug/Release CTest and the fixed R9 security/protocol sanitizer
+selectors at one exact publication SHA. Changes are test-only:
+original GCC `drdynvc` capability fixture plus multiline C++ source
+contract matching and the ShareActivated deadline fence. Source review
+PASS; connector-local configure/build/CTest/sanitizers NOT RUN.
+
 ## R3 original-licensing-to-Share denial CTest (2026-11-01)
 
 The existing `test_owned_preauth_session` executable and one existing CTest

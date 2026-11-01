@@ -1,3 +1,29 @@
+## macOS protected Share source/fixture qualification correction (2026-11-01)
+
+The R10 real-licensed positive Share test must advertise `drdynvc`
+and the corresponding GCC Client Core early-capability bit **before**
+requesting a macOS Demand Active profile with
+`RdpDemandActiveFeature::DynamicVirtualChannels`. The production R3
+profile correctly closes when this original negotiated/joined channel is
+absent; weakening the R3 check is prohibited. Reuse the existing
+`makeMacProtectedAwaitServerLicenseRequestFixture(..., 0U, true)`
+variant already used by the R4 graphics road rather than inventing
+a post-Connect-Initial channel or new R3 owner.
+
+Two ordinary Python source-contract CTests must also recognize existing
+production C++ ordering: accepted-client timeout is gated until
+`ShareActivated` and retires through the sole
+`retireAcceptedClient()` owner; and the Share intake switch spells its
+`RdpShareActivationClientIntake::` case labels across source lines.
+A whitespace-tolerant scoped enum-case match preserves exact enumerator
+checks without demanding particular C++ formatting. These changes adjust
+existing behavior test fixtures/source guards only, not their CTest
+names, compiled production path, sanitizer census or native authority.
+At parent `5190e13a59be2a83520927a411cb9863bbdd5371`, CI on Agent-10 source commit `fc7126df`
+showed three failing macOS/Ubuntu tests: the two source guards and the
+real-licensed Share positive test's profile preflight. Test-only
+corrective source inspection PASS; publication-SHA full CTest pending.
+
 ## R3 licensed-to-Share premature Confirm Active denial (2026-11-01)
 
 The ordinary offline

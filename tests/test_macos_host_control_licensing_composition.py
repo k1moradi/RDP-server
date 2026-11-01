@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
 
@@ -125,17 +126,31 @@ def main() -> int:
             "RdpShareServerWriteKind::Cooperate",
             "RdpShareServerWriteKind::GrantedControl",
             "RdpShareServerWriteKind::FontMap",
-            "RdpShareActivationClientIntake::ConfirmActiveAccepted",
-            "RdpShareActivationClientIntake::SynchronizeAccepted",
-            "RdpShareActivationClientIntake::CooperateAccepted",
-            "RdpShareActivationClientIntake::RequestControlAccepted",
-            "RdpShareActivationClientIntake::FontListAccepted",
             "Feature::DynamicVirtualChannels",
             "Feature::SlowPathInput",
             "stage_ = RuntimeHostStage::ShareActivated",
             "acceptedClientDiagnostics_.shareActivated = true",
         ):
             require(required in scheduler, f"macOS Share scheduler contract missing: {required}")
+
+        # These switch labels split the qualified enum and enumerator
+        # across C++ source lines. Match the actual case syntax, not a
+        # single-line source fragment that is absent despite valid code.
+        for accepted in (
+            "ConfirmActiveAccepted",
+            "SynchronizeAccepted",
+            "CooperateAccepted",
+            "RequestControlAccepted",
+            "FontListAccepted",
+        ):
+            require(
+                re.search(
+                    r"case\s+transport::RdpShareActivationClientIntake::\s+"
+                    + accepted + r":",
+                    scheduler,
+                ) is not None,
+                f"macOS Share intake dispatch missing: {accepted}",
+            )
 
         require(
             "nativeDesktop_" not in scheduler,

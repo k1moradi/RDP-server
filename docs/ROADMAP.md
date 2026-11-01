@@ -1,3 +1,35 @@
+## R3/R10 Share CI unblock: preserve original GCC capability and source guards (2026-11-01)
+
+**Reviewed main parent:** `5190e13a59be2a83520927a411cb9863bbdd5371` after R10 `fc7126df` landed protected
+macOS PersonalDesktop -> Share and Agent 3 added a distinct early Confirm
+Active after partial Demand regression. The new R10 positive test failed
+at `authorizeR3PersonalDesktopMacDemandActiveProfile` because its default
+Client GCC fixture had no `drdynvc`, yet it requested
+`DynamicVirtualChannels | SlowPathInput`. R3's refusal to advertise an
+unjoined/unsupported DVC is correct. Change only that test to use the
+existing `advertiseGraphicsPipeline=true` Connect Initial fixture and
+joined `drdynvc`. Keep one original R1/R2/R3 generation.
+
+The Ubuntu/macOS full CTest at R10's publication SHA also failed two
+old source guards: `runtime.macos-native-retirement-single-owner-callers`
+assumed the timeout condition starts with direct `cancelIfExpired`,
+while R10 now suppresses that deadline after real `ShareActivated`; and
+`runtime.macos-host-control-share-activation-composition-contract`
+expected one-line qualified enum switch labels although production
+splits the name and case. Keep both actual behavior checks but match the
+new guarded timeout and valid multiline enum syntax. The existing
+CTest names/registrations, native retirement ordering and production
+R1/R2/R3/R10 code are unchanged.
+
+**Verification:** root-cause and test-source review PASS; corrected
+publication-SHA hosted full Linux/macOS/Windows protocol CTest and fixed
+R9 sanitizers PENDING, connector-local execution NOT RUN. Physical
+Windows App/mstsc, genuine macOS native Admission/GraphicsReady, native
+input/capture/Clipboard remain NOT RUN/unauthorized. After exact-SHA
+qualification, the next product dependency is R10 protected Graphics DVC
+and R4 native presentation—not a protocol shortcut, second authority or
+CAL bypass.
+
 ## R3 handoff: real PersonalDesktop licensing to partial Demand Active denial (2026-11-01)
 
 **Source review parent:** `751d9d0a01aabe6c5bd0414b531b199a264da6c9`. Agent 10 has resolved the

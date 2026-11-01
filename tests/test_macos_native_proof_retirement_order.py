@@ -80,14 +80,22 @@ def main() -> int:
         if service_start < 0 or service_stop <= service_start:
             raise SystemExit("cannot isolate macOS HostControl service scheduler")
         service = text[service_start:service_stop]
-        timeout_start = service.find("if (activeConnection_->cancelIfExpired")
+        # The pre-auth deadline now expires only before genuine
+        # ShareActivated. Keep the original cancel/retire ordering while
+        # allowing the condition to span multiple C++ source lines.
+        timeout_start = service.find("if (activeConnection_ != nullptr)")
         timeout_stop = service.find(
             "const RuntimeHostResult preAdmission", timeout_start)
         if timeout_start < 0 or timeout_stop <= timeout_start:
             raise SystemExit("cannot isolate accepted-client timeout retirement")
         timeout = service[timeout_start:timeout_stop]
-        if "retireAcceptedClient();" not in timeout or native_retirement in timeout:
-            raise SystemExit("timeout must use only accepted-client retirement")
+        if (
+            "AcceptedClientAdmissionStage::ShareActivated" not in timeout
+            or "activeConnection_->cancelIfExpired(" not in timeout
+            or "retireAcceptedClient();" not in timeout
+            or native_retirement in timeout
+        ):
+            raise SystemExit("pre-Share timeout must use only accepted-client retirement")
 
         native_service_start = service.find("if (nativeDesktop_.ready())")
         if native_service_start < 0:

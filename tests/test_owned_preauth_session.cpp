@@ -9458,8 +9458,10 @@ void testMacProtectedPersonalDesktopShareActivationReceipts()
     RuntimeLicensingContext licensing;
     assert(licensing.configureGeneratedApplicationIdentity());
     assert(licensing.identity() != nullptr && licensing.credential() != nullptr);
+    // Dynamic Virtual Channels must be present in the original GCC
+    // Connect Initial before the real Demand Active profile may advertise them.
     auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture(
-        kConsoleViewPermission | kConsoleInputPermission);
+        kConsoleViewPermission | kConsoleInputPermission, 0U, true);
 
     assert(fixture->broker.authorizeR3PersonalDesktopLicensingMode(
         *fixture->session, policy));

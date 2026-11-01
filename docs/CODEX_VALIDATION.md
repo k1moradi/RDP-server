@@ -1,3 +1,28 @@
+## Post-R10 macOS Share fixture and source-contract CI diagnosis (2026-11-01)
+
+Reviewed `5190e13a59be2a83520927a411cb9863bbdd5371` after R10's `fc7126df` Share integration and
+R3's `5190e13a` real-licensed partial-Demand early-Confirm denial.
+The full Ubuntu and macOS protocol CTests at `fc7126df` have three
+failures: `runtime.macos-native-retirement-single-owner-callers`
+cannot isolate timeout after the new explicit pre-Share deadline guard;
+`runtime.macos-host-control-share-activation-composition-contract`
+looks for an enum case in one source line though the C++ switch splits
+the qualified name from the enumerator; the positive
+`security.macos-protected-personal-desktop-share-activation-receipts`
+fixture requests Dynamic Virtual Channels from a GCC fixture that did
+not advertise/join `drdynvc`. R3's failure to prepare that profile
+is correct fail-closed protocol behavior.
+
+Test-only corrections: make the positive fixture use the existing
+Graphics-capable GCC/Join variant, assert the existing accepted-client
+timeout is guarded until ShareActivated and has one native retirement
+owner, and match each Share intake case with a whitespace-tolerant
+qualified C++ enum regex. Do not change production R3 negotiation,
+permissions, TLS reader, native desktop or current fixed inventories.
+Existing CTest registrations remain unchanged. Source/CI diagnosis
+PASS; corrected local/hosted exact-SHA CTest, ASan/UBSan and physical
+Microsoft-client/macOS Admission NOT RUN/PENDING.
+
 ## R3 licensed-to-Demand early Confirm Active boundary (2026-11-01)
 
 Reviewed parent `751d9d0a01aabe6c5bd0414b531b199a264da6c9`: prior R3 premature Client Licensing denial

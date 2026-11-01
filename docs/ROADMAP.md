@@ -1,3 +1,27 @@
+## R7 P0 — preference write coalescing after restored-settings integration (2026-11-01)
+
+Dependency refresh: R2 secure non-secret storage, R7 restore/presentation and
+R10 explicit Sharing ownership are all present on current main. The earlier R7
+failed-save snapshot bug is resolved on ancestor
+`2fc77f8f91b00a8f65e4f106c2af0939ce7b59e9`; concurrent macOS source and
+qualification updates through `9ecc26faf3dd71837aa1c9a5d96c45e57374990d`
+are preserved. This increment removes remaining avoidable settings-I/O churn by
+disabling QSpinBox keyboard tracking for port/lifetime entry and skipping a
+save when the complete candidate equals the last successfully stored record.
+A later successful Stored result clears the stale preference-action error while
+failed writes continue preserving a pending explicit Username. New ordinary
+offline `gui.offscreen-rapid-preferences-write-coalescing` covers zero-write
+same-interface activation and one-write changed-port behavior; the existing
+failed-save retry test now verifies UI error recovery.
+
+No dependency blocker remains in R2/R7/R10 source composition. Hosted full CI
+is still the verification blocker: recent full workflows have not yet reached
+the cross-platform compile/CTest matrix, while independent fast structure
+guards are green. Connector-local configure/build/full CTest/sanitizers are
+NOT RUN. Next gate is exact-descendant full Debug/Release CTest and packaging;
+physical Windows App/mstsc remains separately owner-authorized and is not
+required for this offline preference feature.
+
 ## R10/R4 follow-up — frame-pump guard no longer treats resize control as starvation (2026-11-01)
 
 **Current parent:** `c34b5e3f7a937b1873dd75699b1aea4a2d62ae2f`. Hosted ancestor full CTest reproduced a source-contract failure in `runtime.macos-host-control-native-frame-pump-composition-contract`: its textual check searched from ACK consumption all the way to frame preflight and therefore rejected the legitimate `RdpGraphicsSurfaceReconfiguration::Started` return that hands DELETE/CREATE/MAP to the sole R3/R1 writer before a resized frame can be preflighted. Production ordering is correct: successful bounded inbound ACK/input/Clipboard dispatch falls through to current R7 native service; after native observation begins, changed geometry may defer frame work while R3 remaps.

@@ -71,6 +71,19 @@ namespace
            source == Source::SoleEligibleInterface;
 }
 
+[[nodiscard]] bool sameUserPreferences(
+    const rdp_server::server::runtime::RuntimeUserPreferences& first,
+    const rdp_server::server::runtime::RuntimeUserPreferences& second) noexcept
+{
+    return first.lastExplicitUsername == second.lastExplicitUsername &&
+           first.preferredStableLanInterfaceId ==
+               second.preferredStableLanInterfaceId &&
+           first.port == second.port &&
+           first.preferRemoteInput == second.preferRemoteInput &&
+           first.permissionLifetimeMinutes ==
+               second.permissionLifetimeMinutes;
+}
+
 QLabel* label(const QString& message, QWidget* parent = nullptr)
 {
     // Set the format before assigning runtime text. Constructing QLabel with
@@ -917,8 +930,12 @@ DesktopWindow::DesktopWindow(
                          QString());
     port_->setRange(1, 65535);
     port_->setValue(3389);
+    // Do not rewrite the private preferences file for each digit typed.
+    // Qt still emits valueChanged for committed edits and explicit stepping.
+    port_->setKeyboardTracking(false);
     permissionLifetimeMinutes_->setRange(1, 60);
     permissionLifetimeMinutes_->setValue(15);
+    permissionLifetimeMinutes_->setKeyboardTracking(false);
     permissionLifetimeMinutes_->setSuffix(QStringLiteral(" min"));
 
     auto* advancedTabLayout = new QVBoxLayout(advancedTab_);
@@ -1368,6 +1385,16 @@ void DesktopWindow::saveOwnerPreferences()
             approved ? interfaceId.toUtf8().toStdString() : std::string{};
     }
 
+    // Avoid filesystem churn for an explicit UI action that resolves to the
+    // already-stored non-secret record (for example reselecting the same LAN).
+    if (sameUserPreferences(candidate, savedPreferences_))
+    {
+        usernameOwnerEdited_ = false;
+        userFacingError_.clear();
+        refresh();
+        return;
+    }
+
     std::vector<std::byte> encoded;
     if (!rdp_server::server::runtime::encodeRuntimeUserPreferences(
             candidate, encoded))
@@ -1386,6 +1413,7 @@ void DesktopWindow::saveOwnerPreferences()
     {
         savedPreferences_ = std::move(candidate);
         usernameOwnerEdited_ = false;
+        userFacingError_.clear();
     }
     else
     {

@@ -1,3 +1,16 @@
+## GUI preference writes are commit-coalesced and no-op aware (2026-11-01)
+
+R7 non-secret preference persistence is owner-convenience I/O, not a hot-path
+runtime signal. Disable QSpinBox keyboard tracking for port and permission
+lifetime so typing multiple digits does not synchronously rewrite the private
+R2 preferences object for each intermediate value; committed edits and explicit
+step actions still emit the existing valueChanged path. Before encoding or
+calling R2 save, compare the complete candidate against the last successfully
+stored snapshot and skip identical records. A successful store clears the
+previous fixed preference-action error; a denied store still preserves the
+pending explicit Username edit for the next owner action. Do not debounce with
+a second timer/store, add background I/O, or weaken R2 validation/atomicity.
+
 ## GUI persistence errors preserve pending explicit edits (2026-11-01)
 
 The R7 GUI's memory-only `savedPreferences_` snapshot is the last

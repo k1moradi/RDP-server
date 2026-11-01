@@ -1,3 +1,15 @@
+## R7 preference write-coalescing focused qualification (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build:
+```sh
+ctest --test-dir build -C Debug -R '^gui[.]offscreen-rapid-preferences-(write-coalescing|failed-save-retry|restart-cli-precedence|invalid-replaced-interface)$' --output-on-failure
+ctest --test-dir build -C Debug --output-on-failure
+```
+Repeat full Release CTest and the applicable existing GUI/package sanitizer
+lanes on the exact publication SHA. The new case adds no target, thread, timer,
+native store, listener or credential. Connector-local compile/CTest remains
+NOT RUN; hosted exact-SHA execution is required.
+
 ## R10 macOS frame-pump source-contract correction qualification (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. After canonical Debug configure/build run `ctest --test-dir build -C Debug -R '^runtime[.]macos-(host-control-native-frame-pump-composition-contract|host-control-native-frame-callback-rejection-retires|graphics-ready-native-attach-composition-contract|native-retirement-single-owner-callers|native-owner-global-namespace-contract)$' --output-on-failure`, then ordinary full Debug CTest. Repeat full Release and unchanged applicable macOS/native/security sanitizer lanes on the publication SHA.

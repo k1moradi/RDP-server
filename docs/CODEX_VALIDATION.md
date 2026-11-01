@@ -1,3 +1,25 @@
+## R7 P0 preference write-coalescing and success-state cleanup (2026-11-01)
+
+Refreshed from R7 save-retry parent
+`2fc77f8f91b00a8f65e4f106c2af0939ce7b59e9`, rebased over current
+`9ecc26faf3dd71837aa1c9a5d96c45e57374990d` while preserving concurrent
+macOS qualification work. A second review found avoidable secure-file churn:
+both QSpinBox controls used keyboard tracking with synchronous valueChanged
+persistence, so typing a multi-digit port/lifetime could issue multiple atomic
+R2 writes. It also left the prior fixed save-error text visible after a
+subsequent successful retry.
+
+The correction keeps the same owner-thread synchronous R2 API, disables only
+spin-box keyboard tracking, skips complete no-op records against the last
+successfully stored snapshot, and clears the previous action error after a
+Stored result. Dedicated offline
+`gui.offscreen-rapid-preferences-write-coalescing` pins the no-op/write-count
+contract; the failed-save-retry test now pins error cleanup. No R10 command,
+credential, listener, saved address, permission, Session Password or Sharing
+state changes. Source/ownership review PASS. Canonical local build/CTest,
+sanitizers and benchmarks NOT RUN in this connector environment; exact-SHA
+hosted full CI remains the next gate.
+
 ## R10/R4 macOS frame-pump source-contract false failure correction (2026-11-01)
 
 Reviewed parent `c34b5e3f7a937b1873dd75699b1aea4a2d62ae2f` plus the hosted ancestor protocol logs. The macOS compiler diagnostics were genuine nested-namespace errors and have already been corrected on current main with global `::rdp::macos` qualification. Ubuntu and Windows full CTest also reproduced `runtime.macos-host-control-native-frame-pump-composition-contract` failing with “successful bounded inbound dispatch must not starve native frame preflight.”

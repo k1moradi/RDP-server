@@ -996,6 +996,47 @@ int main(int argc, char** argv)
         return 0;
     }
 
+
+    if (mode == "rapid-preferences-write-coalescing")
+    {
+        fakeLoadStatus = RuntimeUserPreferencesStorageStatus::Loaded;
+        fakeSaveStatus = RuntimeUserPreferencesStorageStatus::Stored;
+        fakePreferenceSaves = 0;
+        fakeStoredPreferences = {
+            "stored-owner", "ethernet-1", 3390U, false, 22U};
+        FakeRuntimeHost candidate;
+        prepareReadyHost(candidate);
+        HostControl candidateHost(candidate);
+        DesktopWindow window(candidateHost, nullptr, kFakePreferences);
+        auto* interfaces = window.findChild<QComboBox*>("lanInterface");
+        auto* port = window.findChild<QSpinBox*>("sharingPort");
+        auto* lifetime =
+            window.findChild<QSpinBox*>("ownerPermissionLifetimeMinutes");
+        assert(interfaces && port && lifetime);
+        assert(!port->keyboardTracking());
+        assert(!lifetime->keyboardTracking());
+        assert(fakePreferenceSaves == 0);
+
+        // Re-activating the already restored exact stable interface is a
+        // no-op record and must not rewrite the secure preferences object.
+        assert(QMetaObject::invokeMethod(
+            interfaces, "activated", Qt::DirectConnection,
+            Q_ARG(int, interfaces->currentIndex())));
+        assert(fakePreferenceSaves == 0);
+
+        // A real changed value still persists immediately once Qt commits it.
+        port->setValue(3391);
+        assert(fakePreferenceSaves == 1);
+        assert(fakeStoredPreferences.port == 3391U);
+        assert(QMetaObject::invokeMethod(
+            interfaces, "activated", Qt::DirectConnection,
+            Q_ARG(int, interfaces->currentIndex())));
+        assert(fakePreferenceSaves == 1);
+        assert(candidate.startCalls == 0);
+        assert(candidate.permissionSetupCalls == 0);
+        return 0;
+    }
+
     if (mode == "rapid-preferences-failed-save-retry")
     {
         fakeLoadStatus = RuntimeUserPreferencesStorageStatus::Loaded;
@@ -1033,6 +1074,8 @@ int main(int argc, char** argv)
         assert(fakeStoredPreferences.lastExplicitUsername ==
                "new-manual-owner");
         assert(fakeStoredPreferences.port == 3391U);
+        assert(!requiredLabel(window, "hostErrorExplanation")->text().contains(
+            QStringLiteral("Private preferences could not be saved")));
         assert(password->text().isEmpty());
         assert(candidate.startCalls == 0);
         assert(candidate.permissionSetupCalls == 0);

@@ -1,3 +1,14 @@
+## R7 preference write-coalescing regression (2026-11-01)
+
+The dedicated ordinary `gui.offscreen-rapid-preferences-write-coalescing`
+CTest reuses the existing single-QApplication fake-R10 fixture and memory-only
+R2 callbacks. It requires keyboard tracking disabled on the port/lifetime spin
+boxes, proves re-activating the already restored exact stable interface performs
+zero save calls, then proves one actual changed port persists once and another
+identical interface activation remains a no-op. The failed-save retry case also
+requires the fixed private-preferences error to disappear after a later Stored
+result. No listener, credential, OS permission or native I/O is exercised.
+
 ## R10 macOS frame-pump source guard distinguishes dispatch progress from resize handoff (2026-11-01)
 
 The existing ordinary `runtime.macos-host-control-native-frame-pump-composition-contract` must reject a successful post-Share Graphics ACK or inert bounded input/Clipboard dispatch that returns before the current R7 native-service boundary. Do **not** extend that textual prohibition through R3 surface reconfiguration: after native observation begins, changed geometry may legitimately call `beginR3GraphicsSurfaceReconfiguration()`, start DELETE/CREATE/MAP and return to flush that control write before any new frame preflight/borrow.

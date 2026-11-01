@@ -805,6 +805,11 @@ if(TARGET rdp-server-linux-host-control)
     add_test(NAME runtime.linux-direct-ntlm-post-type2-immediate-retry
         COMMAND test_linux_runtime_direct_ntlm_lifecycle
             direct-ntlm-post-type2-immediate-retry)
+    # Distinct one-listener, three-connection half-close regression: peer FIN
+    # after no data, truncated encrypted TLS, and complete TLS/partial DER.
+    add_test(NAME runtime.linux-direct-ntlm-post-type2-fin-tls-boundaries-reconnect
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-post-type2-fin-tls-boundaries-reconnect)
     set_tests_properties(
         runtime.linux-direct-ntlm-post-type2-silence
         runtime.linux-direct-ntlm-post-type2-partial-tls-record
@@ -814,6 +819,7 @@ if(TARGET rdp-server-linux-host-control)
         runtime.linux-direct-ntlm-post-type2-orderly-fin
         runtime.linux-direct-ntlm-post-type2-abortive-reset-classification
         runtime.linux-direct-ntlm-post-type2-immediate-retry
+        runtime.linux-direct-ntlm-post-type2-fin-tls-boundaries-reconnect
         PROPERTIES
             LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;lifecycle;linux;native-environment"
             SKIP_RETURN_CODE 77)

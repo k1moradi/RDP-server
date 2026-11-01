@@ -1313,6 +1313,7 @@ enum class PostTypeTwoPeerAction : std::uint8_t
 {
     Silence,
     PartialTlsRecord,
+    PartialTlsRecordThenOrderlyFin,
     PartialTsRequestThenOrderlyFin,
     CompleteNonTypeThreeTsRequest,
     TlsCloseNotify,
@@ -1351,6 +1352,16 @@ enum class PostTypeTwoPeerAction : std::uint8_t
         constexpr std::array<std::uint8_t, 6> partialRecord{
             0x17U, 0x03U, 0x03U, 0x00U, 0x10U, 0x00U};
         applied = client.writeRawTransportBytes(partialRecord);
+        break;
+    }
+    case PostTypeTwoPeerAction::PartialTlsRecordThenOrderlyFin:
+    {
+        // A truncated encrypted TLS record and FIN are already on the wire
+        // before the service owner reads either event. No plaintext exists.
+        constexpr std::array<std::uint8_t, 6> partialRecord{
+            0x17U, 0x03U, 0x03U, 0x00U, 0x10U, 0x00U};
+        applied = client.writeRawTransportBytes(partialRecord) &&
+                  client.sendOrderlyFin();
         break;
     }
     case PostTypeTwoPeerAction::PartialTsRequestThenOrderlyFin:
@@ -1997,6 +2008,8 @@ int main(int argc, char** argv)
         testCase == "direct-ntlm-post-type2-abortive-reset-classification";
     const bool postTypeTwoImmediateRetryOnly =
         testCase == "direct-ntlm-post-type2-immediate-retry";
+    const bool postTypeTwoFinBoundaryReconnectOnly =
+        testCase == "direct-ntlm-post-type2-fin-tls-boundaries-reconnect";
     const bool postTypeTwoObservationOnly =
         postTypeTwoSilenceOnly || postTypeTwoPartialTlsRecordOnly ||
         postTypeTwoPartialTsRequestFinOnly ||
@@ -2030,7 +2043,7 @@ int main(int argc, char** argv)
         !stopQueuedAuthInfoRetirementOnly &&
         !authInfoDiagnosticReplacementOnly &&
         !postTypeTwoTimelineDiagnosticsOnly && !postTypeTwoObservationOnly &&
-        !typeTwoTimeoutOnly && !peerCloseClassificationOnly &&
+        !postTypeTwoFinBoundaryReconnectOnly && !typeTwoTimeoutOnly && !peerCloseClassificationOnly &&
         !invalidCredentialDiagnosticOnly &&
         !preauthOwnerIsolationOnly && !targetIdentityRetryOnly)
     {
@@ -2560,6 +2573,120 @@ int main(int argc, char** argv)
         assert(peerResult.passed);
         assert(peerResult.directTypeTwoReceived);
         assert(!peerResult.authInfoSent);
+        assert(control.stopSharing().succeeded());
+        assert(control.revokeSharing().succeeded());
+        return 0;
+    }
+
+    if (postTypeTwoFinBoundaryReconnectOnly)
+    {
+        // One original listener and R1 SSL/BIO writer, three independent
+        // clients: FIN without TLS bytes, truncated encrypted TLS + FIN,
+        // then a complete TLS record with a partial DER TSRequest + FIN.
+        // This is cross-connection state isolation, not another delayed
+        // partial-TSRequest drain or a physical Windows App receipt test.
+        constexpr std::array<PostTypeTwoPeerAction, 3U> actions{
+            PostTypeTwoPeerAction::OrderlyFin,
+            PostTypeTwoPeerAction::PartialTlsRecordThenOrderlyFin,
+            PostTypeTwoPeerAction::PartialTsRequestThenOrderlyFin};
+        std::optional<NtlmServerChallenge> precedingChallenge;
+        std::uint64_t precedingClientId = 0U;
+
+        for (const PostTypeTwoPeerAction action : actions)
+        {
+            std::atomic<bool> typeTwoReceived{false};
+            std::atomic<bool> performAction{false};
+            std::atomic<bool> actionApplied{false};
+            std::atomic<bool> releasePeer{false};
+            std::atomic<bool> peerFinished{false};
+            PeerResult peerResult;
+            std::thread peer([&] {
+                peerResult = runPostTypeTwoObservationPeer(
+                    recommendation.address, selectedPort, action,
+                    typeTwoReceived, performAction, actionApplied,
+                    releasePeer);
+                peerFinished.store(true, std::memory_order_release);
+            });
+
+            assert(pumpUntilPeerSignal(control, typeTwoReceived, peerFinished));
+            const RuntimeHostStatus waiting = control.status();
+            assert(waiting.listenerGeneration == firstListenerGeneration);
+            assert(waiting.activeClients.size() == 1U);
+            const std::uint64_t acceptedClientId =
+                waiting.activeClients.front().opaqueId;
+            assert(acceptedClientId != 0U);
+            assert(acceptedClientId != precedingClientId);
+            assertPostTypeTwoSilence(waiting);
+            assertPhysicalOwnerGrantActive(waiting);
+            assertClipboardDormant(waiting);
+            assertGraphicsDormant(waiting);
+
+            // The client first decrypted and structurally parsed the full
+            // Type-2 TSRequest. Queue its selected payload and SHUT_WR
+            // without another server service step between them.
+            performAction.store(true, std::memory_order_release);
+            assert(waitForRelease(actionApplied));
+            assert(pumpUntilClientRetired(control));
+            releasePeer.store(true, std::memory_order_release);
+            peer.join();
+            assert(peerResult.passed && peerResult.directTypeTwoReceived);
+            assert(!peerResult.authInfoSent);
+            if (precedingChallenge.has_value())
+                assert(challengesDiffer(*precedingChallenge,
+                                        peerResult.serverChallenge));
+            precedingChallenge = peerResult.serverChallenge;
+            precedingClientId = acceptedClientId;
+
+            const RuntimeHostStatus terminal = control.status();
+            const auto& diagnostics = terminal.acceptedClientPreauthDiagnostics;
+            assert(terminal.listenerAvailable);
+            assert(terminal.listenerGeneration == firstListenerGeneration);
+            assert(terminal.activeClients.empty());
+            assert(diagnostics.available);
+            assert(diagnostics.acceptedClientId == acceptedClientId);
+            assert(diagnostics.directNtlmTypeTwoDelivered);
+            assert(diagnostics.termination ==
+                   RuntimeAcceptedClientTermination::PeerEof);
+            assert(diagnostics.preType3Termination ==
+                   RuntimeAcceptedClientPreType3Termination::PeerEof);
+            assert(diagnostics.postTypeTwoTcpFinReceived);
+            assert(!diagnostics.postTypeTwoTcpResetReceived);
+            assert(!diagnostics.postTypeTwoTlsCloseNotifyReceived);
+            assert(diagnostics.postTypeTwoTlsAlertsReceived == 0U);
+            assert(diagnostics.postTypeTwoCompleteTsRequestCount == 0U);
+            assert(!diagnostics.standaloneCredentialsRejected);
+            assert(!diagnostics.mcsSessionAdvanced);
+            assert(!diagnostics.shareActivated);
+            assertPhysicalOwnerGrantActive(terminal);
+            assertClipboardDormant(terminal);
+            assertGraphicsDormant(terminal);
+
+            if (action == PostTypeTwoPeerAction::OrderlyFin)
+            {
+                assert(diagnostics.postTypeTwoClientTlsBytes == 0U);
+                assert(!diagnostics.postTypeTwoFirstClientTlsByteAvailable);
+                assert(diagnostics.postTypeTwoPlaintextBytes == 0U);
+                assert(diagnostics.postTypeTwoPartialTsRequestBytes == 0U);
+            }
+            else if (action ==
+                     PostTypeTwoPeerAction::PartialTlsRecordThenOrderlyFin)
+            {
+                assert(diagnostics.postTypeTwoClientTlsBytes >= 6U);
+                assert(diagnostics.postTypeTwoFirstClientTlsByteAvailable);
+                assert(diagnostics.postTypeTwoPlaintextBytes == 0U);
+                assert(diagnostics.postTypeTwoPartialTsRequestBytes == 0U);
+            }
+            else
+            {
+                assert(action ==
+                       PostTypeTwoPeerAction::PartialTsRequestThenOrderlyFin);
+                assert(diagnostics.postTypeTwoClientTlsBytes != 0U);
+                assert(diagnostics.postTypeTwoFirstClientTlsByteAvailable);
+                assert(diagnostics.postTypeTwoPlaintextBytes == 1U);
+                assert(diagnostics.postTypeTwoPartialTsRequestBytes == 1U);
+            }
+        }
+
         assert(control.stopSharing().succeeded());
         assert(control.revokeSharing().succeeded());
         return 0;

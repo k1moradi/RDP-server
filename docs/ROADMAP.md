@@ -50,9 +50,10 @@ sanitizers, exact-publication-SHA Linux/macOS/Windows hosted confirmation.
 a real production CredSSP principal proof independently matched to macOS
 native console/audit session and exact owner View consent. Existing production
 R1 TLS fixture uses intentionally synthetic proof/native observations and
-cannot qualify that boundary. Agent 10 has already landed the licensing
-scheduler through `AwaitDemandActive`; protected Demand/Confirm Active,
-Share and then Graphics/native attachment remain its next composition gates.
+cannot qualify that boundary. Agent 10 has landed the original licensing
+scheduler and, in `fc7126df`, protected Demand/Confirm Active and
+receipt-complete Share activation. Remaining composition: Graphics DVC,
+surface readiness and independent native desktop attachment/service.
 No Clipboard permission, CAL bypass of admission, or public R2 API added.
 
 ## R10 macOS protected Demand/Confirm Active and Share finalization (2026-11-01)

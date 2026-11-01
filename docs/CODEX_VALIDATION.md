@@ -46,8 +46,11 @@ sanitizers, exact-publication-SHA hosted CI and real production CredSSP/native
 admission remain **NOT RUN/PENDING**, not PASS. The loopback fixture uses
 synthetic principal/native observations; the next gate is hosted full tests and
 a separate real CredSSP principal proof/physical macOS consent evidence gate.
-R10's protected post-licensing Demand/Share/Graphics composition is independent
-remaining product work; no Clipboard authority has been granted.
+R10's intervening `fc7126df` increment already composes the protected
+Demand/Confirm Active and Share-finalization transcript through `ShareActivated`.
+The remaining separate product gate is R3 Graphics DVC/surface readiness,
+owner-authorized native desktop attachment and genuine CredSSP/native proof;
+no Clipboard authority has been granted.
 
 ## Exact-head protocol CI first failure: stale allocation-retirement source contract (2026-11-01)
 

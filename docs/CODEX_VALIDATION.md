@@ -158,37 +158,51 @@ Reviewed main parent `8b7cd13f3874513bcd838ad64f8eaffdef284d09`. Extend the exis
 
 ## R5 descendant implicit-X11 teardown and owner-evidence gate verification (2026-11-01)
 
-**Evidence source SHA:** `fdca79857b9df684f97c1b32b7dbd709fcab4c6f`
-(Actions `41299381227`; Ubuntu protocol job `124826980728`;
-R9 ASan/UBSan job `124826980655`). The X11 aggregate/header/input
-production Git blobs match `e4534704900c4a3ef890e55aa35e91a76653f0ec`
-exactly. Ubuntu Debug CTest individually **PASS** for the terminal-failure
-no-XTEST guard, aggregate implicit-destruction guard, nested held-input
-teardown-chain source contract, RandR-held-state, implicit queued-XDamage
-owner replacement, reentrant XDamage loss and in-flight frame borrow loss.
-The owner-private independent connection/native pin and client-frame
-write/ACK/reconnect anti-splice validators also **PASS**.
+**Exact source reviewed and tested:** `559a89e1faf67107856fb7efe67284d14a77f4dc`.
+GitHub Actions C++23 protocol CI `41306620036`: Ubuntu job
+`124848246730` full Debug/Release **1092/1092 PASS** each, macOS job
+`124848246915` **868/868 PASS** each, Windows MSVC job `124848246794`
+**910/910 PASS** each, and Windows Clang23 job `124848246905`
+**967/967 PASS** each. This includes the formerly failing protected
+Share/Graphics/first-frame client-ACK fixture family.
 
-The same exact SHA's R9 sanitizer job completed successfully: fixed X11 R5
-native **45/45 PASS**, plus separately registered implicit X11 destructor
-Xvfb sanitizer **1/1 PASS**. This is real hosted automated evidence, not a
-physical seat0/R2/XTEST/Windows-client acceptance claim. The new source-only
-chain does not provide an actual aggregate-held keyboard+button native-post
-counter; that combined behavioral receipt remains **NOT RUN**.
+The exact-head Ubuntu native R5 regression CTests **PASS** for implicit
+aggregate destruction, nested held-input terminal source-chain,
+native failure no-XTEST, RandR held-state, queued Damage replacement,
+reentrant authority loss and in-flight frame borrow retirement.
+The separate independent-socket/native pin and genuine inbound-ACK
+anti-splice *validators* also **PASS**. The `e453470` R5 X11 desktop
+source/header/input Git blobs, the `1dbb95d` source CTest and the owner
+evidence validator are unchanged.
 
-The global protocol matrix is **FAIL outside R5** at this source SHA.
-Ubuntu full Debug ran 1088 registered cases but failed one protected macOS
-first-frame exact TLS receipt/ACK test at
-`tests/test_owned_preauth_session.cpp:10509`
-(`acceptedOuterBytes == firstFrameWireBytes`); its Release stage was
-skipped. Hosted macOS timed out waiting for the same frame fixture's
-`delivered` state (`line 10508`); Windows additionally reports
-Share/Graphics fixture failures. R9 manual-candidate prerequisites require
-a green full protocol matrix and Windows Clang qualification and thus remain
-**BLOCKED**. No additional R5 production change or second authority owner
-is warranted; the next gate is cross-road first-frame fixture correction,
-same-SHA CI, independent owner authorization, then private native
-R1/R2/R3/R5/R4 delivery/ACK/terminal/reconnect evidence.
+R9 sanitizer job `124848246690` **PASS**: exactly **45/45**
+instrumented native R5 X11 CTests, plus separately selected
+`x11.desktop-resource-implicit-destruction-queued-damage-isolation`
+**1/1 PASS**. The Windows job also emitted
+`interop-matrix-final=COMPLETE_PASS source-sha=559a89e1faf67107856fb7efe67284d14a77f4dc`
+from hosted SSPI/CredSSP interop checks. This is not real-client/native
+owner acceptance. Production R5 remains unchanged and has no measured
+performance or correctness reason for new optimization.
+
+The R9 candidate job was **SKIPPED** in the normal push, not accepted:
+the source workflow requires explicit `workflow_dispatch`, green
+same-SHA prerequisite results, matching Microsoft interop and Linux
+owner package artifacts and the separate owner's permission. The
+clean-Windows GUI producer was **QUEUED** when checked.
+Combined aggregate-held keyboard+button implicit zero-XTEST post/leak
+instrumentation is still **NOT RUN**; static, controller and aggregate
+tests cannot be spliced into that observation. Real seat0/R2/native
+frame/client TLS write/inbound ACK/input/RandR/Stop/reconnect acceptance
+remains **NOT RUN / authorization-gated**. No real desktop/XTEST input
+was manually initiated here.
+
+Owner checkout reproducibility command (NOT RUN locally in this
+connector session):
+`cd ~/rdp-server && git switch main && git pull --ff-only origin main && cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure`.
+
+**Next gate:** finish the full current-head push workflow, then only after
+owner authorization use a nominated same-SHA manual candidate for
+independent private original R1/R2/R3/R5/R4 session replacement evidence.
 
 ## macOS protected first-frame size assertion portability failure (2026-11-01)
 

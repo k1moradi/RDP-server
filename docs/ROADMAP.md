@@ -250,49 +250,59 @@ Microsoft-client acceptance NOT RUN/unauthorized.
 
 ## R5 nested implicit X11 held-state teardown chain (2026-11-01)
 
-**Original source parent:** `50be63b0b39ce6e831b3009e07a0020d7bd3b28d`.
-R5 source/CTest publication: `1dbb95d02443df6a2fb4eca2e3f99b39d84d9bb5`.
-**Exact qualified current-descendant source:** `fdca79857b9df684f97c1b32b7dbd709fcab4c6f`,
-hosted Actions `41299381227`. All R5 X11 production blobs remain identical
-to the terminal-no-XTEST implementation at `e453470`.
+**Published R5 source/CTest SHA:** `1dbb95d02443df6a2fb4eca2e3f99b39d84d9bb5`.
+**Exact qualified descendant:** `559a89e1faf67107856fb7efe67284d14a77f4dc`;
+C++23 protocol Actions `41306620036`. The X11 aggregate/header/input
+production blobs still match `e4534704900c4a3ef890e55aa35e91a76653f0ec`
+and the nested source CTest still matches the original R5 publication.
 
-- [x] Dedicated offline production-source CTest proves implicit aggregate
-  destructor -> suppressing cancellation -> held key/button retirement and
-  XCB borrow invalidation -> inert child destructor -> child-before-parent
-  teardown. The isolated positive/mutated-negative CMake fixture passed.
-- [x] Exact descendant Ubuntu Debug executed and passed the new source-chain
-  CTest, existing implicit-destructor source guard, terminal native input
-  failure, held-state RandR bounds update, implicit queued-XDamage replacement,
-  reentrant Damage retirement and in-flight frame-borrow retirement CTests.
-  The independent owner-private original-socket/native-authority and
-  first-frame/write/inbound-ACK/reconnect anti-splice CTests also passed.
-- [x] At that same descendant SHA, hosted R9 ASan/UBSan kept the fixed R5
-  native selector at **45/45 PASS** and separately executed the implicit
-  Xvfb desktop-destructor test **1/1 PASS**. No native test was added to the
-  immutable 45-case census; no production rewrite or new dependency is needed.
-- [ ] Full cross-platform Debug/Release protocol qualification on one current
-  source SHA remains blocked outside R5. Ubuntu Debug executed 1088 CTests
-  with one non-R5 failure in the protected macOS first-frame exact TLS
-  receipt/ACK fixture, so Release was skipped. On the same SHA macOS also
-  failed that first-frame fixture and Windows failed Share/Graphics fixtures.
-  The R9 manual-candidate dependency requires a green protocol matrix and
-  applicable Windows Clang gate; do not treat green R5 sanitizers as the
-  complete global qualification.
-- [ ] Independently obtain aggregate-held keyboard **and** button implicit
-  destructor behavioral zero-native-post/leak evidence. The source-chain
-  guard, direct held-input controller test, and aggregate queued-Damage
-  Xvfb test each cover a different boundary and cannot be spliced into that
-  stronger combined observation. Never fabricate positive R2 native authority.
-- [ ] Obtain a fully green same-SHA R9 manual candidate and explicit owner
-  authorization before any real Linux seat0/R2, client Share, first frame,
-  complete R1 TLS write/inbound client FRAME_ACK, input, RandR, Stop or fresh
-  reconnect acceptance. Owner-private independent pins remain non-authorizing.
+- [x] Current-descendant Ubuntu full Debug **1092/1092 PASS** and full Release
+  **1092/1092 PASS**. The terminal no-XTEST failure, implicit aggregate
+  destructor, nested held-state teardown-chain, RandR held-state,
+  queued-XDamage owner replacement, reentrant authority retirement and
+  in-flight frame-borrow CTests passed. Independent owner-private original
+  accepted-socket/native-authority and frame-write/inbound-ACK/reconnect
+  anti-splice validators both passed.
+- [x] Same-SHA macOS Debug/Release **868/868 PASS** each; Windows MSVC
+  Debug/Release **910/910 PASS** each; Windows Clang23 Debug/Release
+  **967/967 PASS** each. The previously crashing Windows protected
+  Share/Graphics and exact first-frame fixture cases now pass after the
+  fixture-only R3-before-R2 lifetime correction in `e28a8d5`.
+- [x] Same-SHA R9 ASan/UBSan job **PASS**: the immutable **45/45** R5 native
+  X11 selection remains unchanged, and the implicit Xvfb desktop-destructor
+  regression passes **1/1** in a separate sanitizer step. The R2 Linux
+  runtime-security, R7 native/session, GUI parity/round-two/bootstrap,
+  workflow structure and documentation required producer jobs also passed.
+  The Windows MSVC interop artifact reports
+  `interop-matrix-final=COMPLETE_PASS` for the exact source SHA.
+- [ ] The manual `r9-credssp-owner-candidate` path is **NOT RUN**: the
+  candidate job was skipped on the ordinary push because it requires explicit
+  workflow dispatch; the clean-Windows GUI job was still queued at review.
+  Do not confuse synthetic Microsoft SSPI/interop `COMPLETE_PASS` with
+  a physical RDP client, owner approval or desktop admission.
+- [ ] Independently obtain a single aggregate-held keyboard **and** button
+  implicit-destructor behavioral zero-native-post/leak receipt. The
+  static destructor-chain CTest, direct held-state controller test and
+  aggregate queued-Damage Xvfb test are complementary, not one combined
+  observation. Do not fabricate positive R2 authority or create a
+  privileged/native XTEST test without owner authorization.
+- [ ] With a separately authorized owner and an exact-SHA nominated
+  candidate, privately verify original R1 accepted socket; genuine R2
+  session/consent/native lease; R3 Share/GraphicsReady; first physical R5
+  frame; complete R1 TLS write and independent genuine inbound FRAME_ACK;
+  authorized RandR/input; terminal zero-post/zero-frame retirement; and
+  distinct fresh R1/R2 native reconnect. Keep private manifest v3 and
+  independent pin set v4 authoritative and non-spliceable.
 
-**Validation boundary:** The hosted CI runs ephemeral Xvfb under sanitizer;
-this authoring review performed no real desktop/X server session, seat0
-capture, physical XTEST injection, native owner authorization or real-client
-acceptance. Source/CTest/sanitizer evidence PASS at the cited descendant;
-global Debug/Release and physical owner evidence remain BLOCKED / NOT RUN.
+**Review/next gate:** Source and GitHub Actions evidence PASS for R5 and
+the cross-platform automated dependency matrix at the cited exact SHA.
+No measured hot-path regression or correctness defect supports modifying
+the low-frequency terminal/geometry owner code. R10's separately landed
+macOS GraphicsReady native attach does not yet publish real frame pixels
+and creates no R5 X11 authority. This authoring review did not run a
+real desktop/X server session, seat0, physical XTEST injection,
+owner-granted R2 session or external client. The stronger aggregate-held
+receipt and physical owner acceptance remain **NOT RUN/authorization-gated**.
 
 ## R8 fully formed post-Share Clipboard negative packet fixtures (2026-11-01)
 

@@ -1,3 +1,42 @@
+## R3 handoff: real PersonalDesktop licensing to partial Demand Active denial (2026-11-01)
+
+**Source review parent:** `751d9d0a01aabe6c5bd0414b531b199a264da6c9`. Agent 10 has resolved the
+original macOS Client Info -> one-shot PersonalDesktop licensing dependency
+through the original R1/R2/R3 owner and exact STATUS_VALID_CLIENT receipt:
+R3 reaches `AwaitDemandActive`. R2 already exposes protected macOS
+Demand Active/Share wrappers, and R3's Share phase machine is implemented.
+Prior generic early Confirm Active tests and the R8 macOS Share/Clipboard
+test do **not** prove the boundary following real licensing receipts because
+the R8 fixture stages Licensed synthetically.
+
+Agent 3 adds the ordinary
+`security.macos-protected-licensed-share-premature-confirm-partial-demand-denial`
+to the existing production-linked R1 TLS/R2 broker/R3 preauth executable.
+It extends the existing complete PersonalDesktop request/response/Valid
+Client receipt transcript without a second owner or duplicate licensing
+fixture, begins Demand Active using the original protected macOS profile,
+reports zero then a genuine one-byte accepted TLS write, and sends a
+valid Confirm Active before the remaining Demand Active bytes.
+The original R3 session must close, leave Share unactivated, retire the R1
+connection through R2 and deny a stale suffix receipt. The original
+fixed 171-case MCS inventory is unchanged. Owner-local compile/CTest and
+exact-SHA hosted full/security qualification are PENDING/NOT RUN.
+The test's credentials/native evidence remain synthetic.
+
+**Resolved concurrently:** R10 published
+`fc7126dfd4fa1dc1707ff4199fbf09ff9398214c`, continuing the single
+original R1 reader/writer, R2 broker and R3 owner through protected
+Demand/Confirm Active and final Share receipts to genuine
+`McsSessionPhase::ShareActivated`. Its new ordinary test covers the
+real-licensed positive transcript. The Agent-3 regression independently
+tests an early valid Confirm Active while Demand Active has a real partial
+write receipt; no parallel Share owner is added. The **remaining R10
+product dependency** is protected Graphics DVC/capabilities/surfaces
+and R4 readiness; native desktop attachment and first-frame evidence
+remain later, separately authorized gates.
+R9 same-SHA qualification and explicit owner authorization are required
+before physical Windows App/macOS native capture/input/clipboard evidence.
+
 ## R8 protected R2 post-Share CLIPRDR classifier denial (2026-11-01)
 
 At authoring parent `675655a30d47aa9ed389eac77c1ec6e708c0bdfd`, ordinary `security.macos-share-activated-clipboard-r2-classifier-denial` extends the existing real-loopback R1 HYBRID/TLS, concrete macOS R2/R3, joined cliprdr and production Demand/Confirm Active/Share receipt fixture. The only test-staged state is Licensed and the native proof is synthetic. Fresh View and Input remain authorized but no native Clipboard permission exists. For independent FORMAT_LIST and FILECONTENTS packets on a joined static cliprdr channel after ShareActivated, the *R2* View-scoped traffic classifier must reject and terminally revoke the original R1/R2/R3 lifetime; a later activated Clipboard visit, queue, pending write and accepted-byte receipt must all fail. This is separate from the existing R3-only classifier denial and R2 activated-channel denial. No native clipboard owner or file sink is created.

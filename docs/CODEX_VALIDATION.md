@@ -1,3 +1,35 @@
+## R3 licensed-to-Demand early Confirm Active boundary (2026-11-01)
+
+Reviewed parent `751d9d0a01aabe6c5bd0414b531b199a264da6c9`: prior R3 premature Client Licensing denial
+is already hosted-green at `d40728ab`, Agent 10 now composes macOS
+PersonalDesktop licensing through `AwaitDemandActive`, and Agents 1/2/7
+corrected the later mutable password, invalid policy, duplicate link and
+centralized-retirement source-contract blockers. The full Ubuntu/macOS
+protocol suites at `6f10bcce` each failed only the stale allocation
+source-contract CTest; that test was corrected on `751d9d0a`. Existing
+macOS protected Share mechanics still began from test-staged Licensed.
+
+Add one distinct ordinary production-linked R1/R2/R3 denial after **actual
+licensing receipt completion**: borrow Demand Active from the original
+macOS R2 broker, apply zero and positive one-byte TLS accepted receipts,
+then offer a correctly formed Confirm Active before full Demand Active
+delivery. R3 must terminally reject the client PDU; late original
+reply/slice receipts remain rejected. Reuse the original 36-byte
+Confirm Active test fixture instead of duplicating packet bytes.
+No production source or positive API changes, no fixed MCS inventory
+change, and no physical-client/native acceptance.
+
+Agent 10 concurrently landed positive macOS R1/R2/R3 Share activation
+in `fc7126dfd4fa1dc1707ff4199fbf09ff9398214c`. Its new real-licensed
+positive transcript complements, rather than duplicates, this distinct early
+Confirm Active denial. Graphics DVC and physical-client authority remain
+separate pending increments.
+
+Static source and central CTest registration inspection PASS.
+Corrective exact-publication-SHA compile, focused/full CTest, sanitizer
+and real-client evidence NOT RUN/PENDING; owner-authorized physical
+macOS/Windows App acceptance still NOT RUN.
+
 ## R8 protected post-Share R2 classifier audit (2026-11-01)
 
 **Parent reviewed:** `675655a30d47aa9ed389eac77c1ec6e708c0bdfd`. Added one ordinary production-backed synthetic `security.macos-share-activated-clipboard-r2-classifier-denial`, which calls the **concrete R2 post-Share classifier**, not the R3 test-access classifier. Each fresh R1 TLS/R2/R3 ShareActivated fixture has joined cliprdr and View|Input, but no native Clipboard lease; FORMAT_LIST and FILECONTENTS packets must produce an unsupported route, revoke the original owners and reject late activated Clipboard/write/receipt access. No native owner or file destination is created and licensing/native proof remain synthetic. Exact CTest and dispatch registration reviewed; build/focused/full execution and post-publication hosted CI PENDING.

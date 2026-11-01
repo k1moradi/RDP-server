@@ -1,3 +1,18 @@
+## R3 original-licensing-to-Share denial CTest (2026-11-01)
+
+The existing `test_owned_preauth_session` executable and one existing CTest
+registry are reused without third-party dependencies, a second R1/R3
+owner or another build root. Reuse only `~/rdp-server/build/` and run the
+normal Debug configure/build, then:
+
+`ctest --test-dir build -C Debug -R '^security[.]macos-protected-(licensed-share-premature-confirm-partial-demand-denial|personal-desktop-licensing-(receipts|denials))$' --output-on-failure`
+
+Then run full CTest and R9 exact-publication-SHA hosted cross-platform
+protocol/sanitizer jobs. This test opens only existing local loopback TLS;
+it does not request macOS TCC, open a product listener, or perform native
+clipboard, capture or input. Source/CTest inspection PASS; local execution
+NOT RUN; publication-SHA hosted tests PENDING.
+
 ## R8 R2 post-Share classifier permission regression (2026-11-01)
 
 No new executable, dependency, writer, queue or build root. Reuse the one `~/rdp-server/build/` root and `test_owned_preauth_session` target. After canonical Debug configure/build, run `ctest --test-dir build -C Debug -R '^security[.]macos-share-activated-clipboard-(r2-classifier|permission)-denial$' --output-on-failure`, then full Debug/Release CTest and the unchanged fixed 107-case clipboard sanitizer suite. The new case exercises real loopback protocol owners and synthetic licensing/native evidence only. Authoring parent `675655a30d47aa9ed389eac77c1ec6e708c0bdfd`; connector-local build/CTest NOT RUN, new-publication-SHA hosted evidence PENDING.

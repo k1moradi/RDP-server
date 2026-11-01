@@ -1,3 +1,18 @@
+## R3 real-licensed Demand Active receipt fence (2026-11-01)
+
+The R3 PersonalDesktop `AwaitDemandActive` phase must be reached only after
+the original R1 TLS server-request and STATUS_VALID_CLIENT receipt commits,
+not by injecting a synthetic Licensed phase into a product path. Starting
+Demand Active through the same R2 broker and R3 owner does not permit
+Confirm Active to overtake an undelivered Demand Active. Zero accepted bytes
+preserve the exact reply/slice; positive partial bytes advance only the
+unwritten suffix. A valid client Confirm Active received while this original
+Demand Active remains pending must fail closed, retiring R2/R3/R1 and denying
+late suffix receipts. The client Share packet itself must use the original
+joined global I/O channel, current user/share IDs and bounded X.224/MCS
+lengths. No native Share/capture/input/clipboard authority follows from
+the test fixture or from a locally accepted first write byte.
+
 ## R2 pins the original PersonalDesktop licensing service objects (2026-11-01)
 
 Beyond the immutable one-shot deployment-policy pointer, the concrete macOS

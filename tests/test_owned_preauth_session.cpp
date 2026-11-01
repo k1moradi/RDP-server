@@ -8124,6 +8124,14 @@ macProtectedClientInfoTpkt(
 }
 
 
+// Canonical small Confirm Active fixture shared by positive Share and the
+// post-licensing early-Confirm denial. User/share IDs are rebound per session.
+constexpr std::array<std::uint8_t, 36U> kMacProtectedConfirmActive{{
+    0x24,0x00,0x13,0x00,0xef,0x03,0xea,0x03,0x01,0x00,0xea,0x03,
+    0x04,0x00,0x10,0x00,0x52,0x44,0x50,0x00,0x02,0x00,0x34,0x12,
+    0x09,0x00,0x08,0x00,0xea,0x03,0xdc,0xe2,0x0e,0x00,0x04,0x00
+}};
+
 [[nodiscard]] std::vector<std::uint8_t>
 makeMacProtectedClientChannelTpkt(
     std::uint32_t clientUserId,
@@ -9107,7 +9115,8 @@ void testMacProtectedPersonalLicensingContextSubstitutionDenials()
     }
 }
 
-void testMacProtectedPersonalDesktopLicensingReceipts()
+void exerciseMacProtectedPersonalDesktopLicensingReceipts(
+    bool denyPrematureConfirmAfterPartialDemand)
 {
     using rdp_server::server::runtime::RuntimeDeploymentPolicy;
     using rdp_server::server::runtime::RuntimeLicensingContext;
@@ -9256,6 +9265,85 @@ void testMacProtectedPersonalDesktopLicensingReceipts()
         ValidReceipt::Pending, ValidReceipt::Delivered);
     assert(fixture->session->phase() == McsSessionPhase::AwaitDemandActive);
     assert(!fixture->session->firstClientAcceptanceObservability().shareActivated);
+    if (denyPrematureConfirmAfterPartialDemand)
+    {
+        // Unlike the synthetic-licensed Share fixture, this path reaches
+        // Licensed through the original R1 TLS/R2/R3 licensing receipts.
+        assert(fixture->session->licensingPhase() == RdpLicensingPhase::Licensed);
+        const auto profile =
+            fixture->broker.authorizeR3PersonalDesktopMacDemandActiveProfile(
+                *fixture->session, policy, RdpDemandActiveFeature::None);
+        assert(profile);
+        const auto demand =
+            fixture->broker.authorizeR3PersonalDesktopShareActivation(
+                *fixture->session, policy, *profile);
+        assert(demand && demand->kind == RdpShareServerWriteKind::DemandActive);
+        assert(fixture->session->phase() == McsSessionPhase::ShareActivation);
+
+        // A zero-byte receipt is not delivery. The following real R1
+        // positive byte still leaves most of Demand Active uncommitted.
+        assert(fixture->broker.completeR3PersonalDesktopShareActivationWrite(
+            *fixture->session, policy, demand->replySequence,
+            demand->writeSliceSequence, 0U) ==
+            RdpShareActivationWriteOutcome::Pending);
+        const auto retry =
+            fixture->broker.authorizeR3PersonalDesktopShareActivationWrite(
+                *fixture->session, policy);
+        assert(retry && retry->replySequence == demand->replySequence &&
+               retry->writeSliceSequence == demand->writeSliceSequence &&
+               retry->bytes.data() == demand->bytes.data());
+        const auto accepted = writeOneMacProtectedPlaintextByte(
+            *fixture, retry->bytes);
+        assert(accepted == 1U);
+        assert(fixture->broker.completeR3PersonalDesktopShareActivationWrite(
+            *fixture->session, policy, retry->replySequence,
+            retry->writeSliceSequence, accepted) ==
+            RdpShareActivationWriteOutcome::Pending);
+        const auto suffix =
+            fixture->broker.authorizeR3PersonalDesktopShareActivationWrite(
+                *fixture->session, policy);
+        assert(suffix && suffix->replySequence == demand->replySequence &&
+               suffix->writeSliceSequence != demand->writeSliceSequence &&
+               suffix->bytes.size() + accepted == demand->bytes.size());
+        const std::uint64_t staleReplySequence = suffix->replySequence;
+        const std::uint64_t staleSliceSequence = suffix->writeSliceSequence;
+
+        // Use the same well-formed Confirm Active body accepted in the
+        // existing Share regression, with this R3 owner's user/share IDs.
+        auto confirm = kMacProtectedConfirmActive;
+        const auto clientUserId = fixture->session->allocatedUserId();
+        const auto shareId = profile->shareId();
+        confirm[4] = static_cast<std::uint8_t>(clientUserId);
+        confirm[5] = static_cast<std::uint8_t>(clientUserId >> 8U);
+        for (std::size_t byteIndex = 0U; byteIndex < 4U; ++byteIndex)
+            confirm[6U + byteIndex] =
+                static_cast<std::uint8_t>(shareId >> (byteIndex * 8U));
+        assert(parseRdpActivePdu(confirm));
+        const auto packet = makeMacProtectedClientChannelTpkt(
+            clientUserId, confirm, fixture->session->allocatedIoChannelId());
+        assert(parseMcsChannelRequest(packet));
+        writeNativeTlsClientAll(fixture->tls.client.get(), packet);
+        std::vector<std::uint8_t> receivedConfirm(packet.size());
+        readOwnedRuntimeTlsAll(fixture->connection, receivedConfirm);
+        assert(receivedConfirm == packet);
+
+        // Confirm Active cannot overtake even a positively partially
+        // delivered Demand Active. Close the original R2/R3/R1 owner,
+        // and reject the stale suffix receipt after retirement.
+        assert(fixture->broker.authorizeR3PersonalDesktopShareActivationPdu(
+            *fixture->session, policy, receivedConfirm) ==
+            RdpShareActivationClientIntake::Rejected);
+        assert(fixture->session->phase() == McsSessionPhase::Closed);
+        assert(!fixture->session->firstClientAcceptanceObservability()
+                    .shareActivated);
+        assert(fixture->connection.stage() == PreauthStage::Closed);
+        assert(fixture->broker.completeR3PersonalDesktopShareActivationWrite(
+            *fixture->session, policy, staleReplySequence,
+            staleSliceSequence, 1U) ==
+            RdpShareActivationWriteOutcome::Rejected);
+        return;
+    }
+
     // A replay after complete STATUS_VALID_CLIENT cannot re-enter licensing.
     assert(!fixture->broker.authorizeR3PersonalDesktopClientLicensingMessage(
         *fixture->session, policy, *licensing.credential(), received));
@@ -9264,6 +9352,16 @@ void testMacProtectedPersonalDesktopLicensingReceipts()
     fixture->broker.revoke(MacConsoleAdmissionRevocationReason::OwnerStop);
     assert(fixture->session->phase() == McsSessionPhase::Closed);
     assert(fixture->connection.stage() == PreauthStage::Closed);
+}
+
+void testMacProtectedPersonalDesktopLicensingReceipts()
+{
+    exerciseMacProtectedPersonalDesktopLicensingReceipts(false);
+}
+
+void testMacProtectedLicensedSharePrematureConfirmAfterPartialDemandDenial()
+{
+    exerciseMacProtectedPersonalDesktopLicensingReceipts(true);
 }
 
 void testMacProtectedPersonalDesktopLicensingDenials()
@@ -9539,11 +9637,7 @@ void testMacProtectedPersonalDesktopShareActivationReceipts()
 
     flushShare(RdpShareServerWriteKind::DemandActive, ShareReceipt::Delivered);
 
-    std::array<std::uint8_t, 36> confirm{{
-        0x24,0x00,0x13,0x00,0xef,0x03,0xea,0x03,0x01,0x00,0xea,0x03,
-        0x04,0x00,0x10,0x00,0x52,0x44,0x50,0x00,0x02,0x00,0x34,0x12,
-        0x09,0x00,0x08,0x00,0xea,0x03,0xdc,0xe2,0x0e,0x00,0x04,0x00
-    }};
+    auto confirm = kMacProtectedConfirmActive;
     bindShare(confirm);
     sendShare(confirm, ShareIntake::ConfirmActiveAccepted);
 
@@ -9671,11 +9765,7 @@ void activateMacProtectedSyntheticLicensedShare(
     };
 
     flushShare(RdpShareServerWriteKind::DemandActive, Write::Delivered);
-    std::array<std::uint8_t, 36> confirm{{
-        0x24,0x00,0x13,0x00,0xef,0x03,0xea,0x03,0x01,0x00,0xea,0x03,
-        0x04,0x00,0x10,0x00,0x52,0x44,0x50,0x00,0x02,0x00,0x34,0x12,
-        0x09,0x00,0x08,0x00,0xea,0x03,0xdc,0xe2,0x0e,0x00,0x04,0x00
-    }};
+    auto confirm = kMacProtectedConfirmActive;
     bindShare(confirm);
     sendShare(confirm, Read::ConfirmActiveAccepted);
 
@@ -14624,6 +14714,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedChannelJoinClientInfoAfterAttach},
     {"macos-protected-personal-desktop-licensing-receipts",
      &testMacProtectedPersonalDesktopLicensingReceipts},
+    {"macos-protected-licensed-share-premature-confirm-partial-demand-denial",
+     &testMacProtectedLicensedSharePrematureConfirmAfterPartialDemandDenial},
     {"macos-protected-personal-desktop-licensing-denials",
      &testMacProtectedPersonalDesktopLicensingDenials},
     {"macos-protected-personal-desktop-share-activation-receipts",

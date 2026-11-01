@@ -2108,6 +2108,17 @@ function(add_rdp_test source_file suite behavior)
                 PROPERTIES LABELS "protocol;security;transport;tls;licensing;admission;offline" TIMEOUT 60)
         endforeach()
 
+        # Real receipt-complete licensing followed by a partial Demand Active
+        # write must reject early Confirm Active and late original receipts.
+        add_test(NAME security.macos-protected-licensed-share-premature-confirm-partial-demand-denial
+            COMMAND "${test_target}"
+                "macos-protected-licensed-share-premature-confirm-partial-demand-denial")
+        set_tests_properties(
+            security.macos-protected-licensed-share-premature-confirm-partial-demand-denial
+            PROPERTIES
+                LABELS "protocol;security;transport;tls;licensing;share;admission;offline"
+                TIMEOUT 60)
+
         # R10 continues the same protected R1/R2/R3 lifetime from real
         # PersonalDesktop licensing through Demand/Confirm Active and the
         # receipt-complete Share finalization. Native/Graphics stay dormant.

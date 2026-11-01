@@ -1,3 +1,27 @@
+## R3 licensed-to-Share premature Confirm Active denial (2026-11-01)
+
+The ordinary offline
+`security.macos-protected-licensed-share-premature-confirm-partial-demand-denial`
+case reuses `test_owned_preauth_session` and its existing positive original
+R1 HYBRID TLS -> concrete R2 -> production R3 PersonalDesktop licensing
+receipt transcript, without synthetic Licensed-stage injection.
+After full Server License Request and STATUS_VALID_CLIENT accepted-byte
+receipts, assert `Licensed/AwaitDemandActive`, prepare the real macOS Demand
+Active profile, start the R3-owned Demand Active, and report zero then exactly
+one genuine R1 accepted byte. A matching, parser-valid client Confirm Active
+sent through the original loopback TLS channel while Demand Active is only
+partially delivered must be terminally rejected. Require unactivated Share,
+closed original R2/R3/R1, and rejected late original suffix receipt.
+This distinguishes the full licensed-to-Share handoff from existing generic
+Share order denials and the R8 synthetically licensed native Clipboard test.
+Reuse one canonical Confirm Active fixture; do not add to the fixed 171 MCS
+or R9 sanitizer census. Synthetic authentication/native evidence never
+qualifies a real macOS admitted client.
+
+Source and registration review on parent `751d9d0a01aabe6c5bd0414b531b199a264da6c9`: PASS.
+Local compile/focused/full CTest and sanitizers: NOT RUN from the GitHub
+connector. Exact publication-SHA Linux/macOS/Windows hosted CI: PENDING.
+
 ## R8 protected post-Share R2 classifier denial (2026-11-01)
 
 Keep ordinary `security.macos-share-activated-clipboard-r2-classifier-denial` separate from the fixed 107-case clipboard sanitizer labels and the existing R3-only post-Share route/activated-channel denial. Reuse the real accepted R1 HYBRID/TLS and concrete R2/R3 production Share receipt fixture, staging only Licensed and synthetic native evidence; start a new fixture per FORMAT_LIST and FILECONTENTS packet. After all joins and ShareActivated, require View|Input without Clipboard, R2 packet-classification denial and terminal retirement, followed by rejected late R8 route/queue/receipt operations. No product-valid issuer, native clipboard owner, file destination or physical OS side effect. Authoring parent `675655a30d47aa9ed389eac77c1ec6e708c0bdfd`; static source/registry PASS, new case runtime NOT RUN until exact-publication-SHA CI.

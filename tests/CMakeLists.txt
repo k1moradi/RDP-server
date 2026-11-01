@@ -2380,6 +2380,13 @@ set_tests_properties(
     transport.mcs-macos-premature-join-before-attach-confirm-denial
     PROPERTIES LABELS "protocol;transport;security;macos;admission;offline")
 
+# One-shot R3 Client Info requires all Join Confirms. An early/replayed
+# packet must close the existing R3 owner; outside the fixed 171 MCS cases.
+add_test(NAME transport.mcs-macos-client-info-join-replay-denials
+    COMMAND test_macos_r2_mcs_gateway "client-info-join-replay-denials")
+set_tests_properties(transport.mcs-macos-client-info-join-replay-denials
+    PROPERTIES LABELS "protocol;transport;security;macos;admission;offline")
+
 # R3 canonical production Demand Active profile. These cases are pure offline
 # protocol tests and mint no positive R2 admission lease.
 add_executable(test_rdp_demand_active_profile

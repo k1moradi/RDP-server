@@ -1,3 +1,16 @@
+## R3 one-shot Client Info after protected Channel Join (2026-10-31)
+
+Ordinary `transport.mcs-macos-client-info-join-replay-denials` reuses the
+private R2-scoped production R3 test fixture. A valid Unicode Client Info
+after only the user Join (without the I/O/static channel confirmations)
+must retire the entire R3 owner. In a separate fully joined lifecycle,
+the same valid Client Info advances exactly once to
+`AwaitServerLicenseRequest`; replay terminally closes joined channels,
+licensing and Share. This test grants no native OS authority. The actual
+R1 TLS/concrete R2 positive path remains
+`security.macos-protected-channel-join-client-info-after-attach`.
+Keep this new CTest outside the fixed 171 MCS cases and sanitizer selectors.
+
 ## R8 post-Join macOS native Clipboard-scope denial (2026-10-31)
 
 The ordinary `security.macos-post-join-clipboard-view-input-denial` CTest

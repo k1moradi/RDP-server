@@ -151,6 +151,20 @@ public:
         return session.completeChannelJoinConfirmWrite(
             provenance, replySequence, writeSliceSequence, acceptedBytes);
     }
+
+    [[nodiscard]] static std::optional<RdpClientInfoPacketSummary>
+    acceptClientInfo(
+        McsSessionLifecycle &session,
+        std::uint64_t admissionGeneration,
+        std::uint64_t authorizationGeneration,
+        const SecurityNegotiationProvenance &provenance,
+        std::span<const std::uint8_t> completeTpkt) noexcept
+    {
+        session.revokeUnlessAdmissionBindingMatches(
+            admissionGeneration, authorizationGeneration);
+        return session.acceptVerifiedR2ClientInfoPacket(
+            provenance, completeTpkt);
+    }
 };
 } // namespace rdp_server::server::transport
 
@@ -450,6 +464,88 @@ void testPrematureJoinBeforeAttachConfirmDeliveryIsTerminal()
     assertTerminal(session);
 }
 
+void testClientInfoJoinAndReplayDenials()
+{
+    // R3 alone owns channel joins and the one-shot Client Info transition.
+    constexpr std::uint64_t admissionGeneration = 91U;
+    constexpr std::uint64_t authorizationGeneration = 93U;
+    constexpr auto provenance = hybridProvenance();
+    const auto firstMcs = hybridConnectInitial();
+
+    // Exact MCS SendDataRequest on global I/O with SEC_INFO_PKT and a
+    // Unicode TS_INFO_PACKET carrying five empty terminated strings.
+    std::array<std::uint8_t, 46> clientInfo{};
+    clientInfo[0] = 0x03U;
+    clientInfo[3] = static_cast<std::uint8_t>(clientInfo.size());
+    clientInfo[4] = 0x02U;
+    clientInfo[5] = 0xf0U;
+    clientInfo[6] = 0x80U;
+    clientInfo[7] = 0x64U;
+    clientInfo[9] = 0x01U; // initiator 1002 (PER offset 1)
+    clientInfo[10] = 0x03U;
+    clientInfo[11] = 0xebU; // global I/O 1003
+    clientInfo[12] = 0x70U; // high-priority, begin|end
+    clientInfo[13] = 32U; // Basic Security Header + TS_INFO_PACKET
+    clientInfo[14] = 0x40U; // SEC_INFO_PKT
+    clientInfo[22] = 0x10U; // INFO_UNICODE
+
+    const auto confirmJoin = [&](McsSessionLifecycle &session,
+                                 std::uint16_t channelId) {
+        std::array<std::uint8_t, 12> request{
+            0x03U, 0x00U, 0x00U, 0x0cU, 0x02U, 0xf0U,
+            0x80U, 0x38U, 0x00U, 0x01U, 0x00U, 0x00U};
+        request[10] = static_cast<std::uint8_t>(channelId >> 8U);
+        request[11] = static_cast<std::uint8_t>(channelId);
+        assert(MacConsoleAdmissionR3TestAccess::acceptChannelJoin(
+                   session, admissionGeneration, authorizationGeneration,
+                   provenance, request) == McsJoinStartOutcome::ReplyPending);
+        const auto confirmation =
+            MacConsoleAdmissionR3TestAccess::prepareChannelJoinConfirm(
+                session, admissionGeneration, authorizationGeneration,
+                provenance);
+        assert(confirmation && !confirmation->bytes.empty());
+        assert(MacConsoleAdmissionR3TestAccess::completeChannelJoinConfirm(
+                   session, admissionGeneration, authorizationGeneration,
+                   provenance, confirmation->replySequence,
+                   confirmation->writeSliceSequence,
+                   confirmation->bytes.size()) == McsJoinWriteOutcome::Confirmed);
+        assert(session.channelJoinConfirmed(channelId));
+    };
+
+    McsSessionLifecycle premature;
+    advanceToConfirmedAttach(
+        premature, firstMcs, provenance,
+        admissionGeneration, authorizationGeneration);
+    confirmJoin(premature, 1002U);
+    assert(!premature.channelJoinConfirmed(1003U));
+    assert(!MacConsoleAdmissionR3TestAccess::acceptClientInfo(
+        premature, admissionGeneration, authorizationGeneration,
+        provenance, clientInfo));
+    assertTerminal(premature);
+
+    McsSessionLifecycle duplicate;
+    advanceToConfirmedAttach(
+        duplicate, firstMcs, provenance,
+        admissionGeneration, authorizationGeneration);
+    assert(duplicate.allocatedUserId() == 1002U);
+    assert(duplicate.allocatedIoChannelId() == 1003U);
+    confirmJoin(duplicate, 1002U);
+    confirmJoin(duplicate, 1003U);
+    for (const std::uint16_t channelId : duplicate.allocatedStaticChannelIds())
+        confirmJoin(duplicate, channelId);
+    assert(duplicate.firstClientAcceptanceObservability().mcsEstablished);
+    const auto accepted = MacConsoleAdmissionR3TestAccess::acceptClientInfo(
+        duplicate, admissionGeneration, authorizationGeneration,
+        provenance, clientInfo);
+    assert(accepted && accepted->unicode && !accepted->hasExtendedInfo);
+    assert(duplicate.phase() == McsSessionPhase::AwaitServerLicenseRequest);
+    assert(!duplicate.firstClientAcceptanceObservability().shareActivated);
+    assert(!MacConsoleAdmissionR3TestAccess::acceptClientInfo(
+        duplicate, admissionGeneration, authorizationGeneration,
+        provenance, clientInfo));
+    assertTerminal(duplicate);
+}
+
 void testPostAttachJoinRevocationAndLateReceipts()
 {
     // Production R3 is exercised through its existing R2-scoped fixture.
@@ -546,6 +642,12 @@ int main(int argc, char *argv[])
             "premature-join-before-attach-confirm")
     {
         testPrematureJoinBeforeAttachConfirmDeliveryIsTerminal();
+        return 0;
+    }
+    if (argc == 2 && std::string_view{argv[1]} ==
+            "client-info-join-replay-denials")
+    {
+        testClientInfoJoinAndReplayDenials();
         return 0;
     }
     if (argc == 2 && std::string_view{argv[1]} ==

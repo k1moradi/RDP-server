@@ -1,3 +1,22 @@
+## Agent 3: R10 Client Info replay and incomplete-join denial (2026-10-31)
+
+Parent `3ca570272c1bee1072b0a6b5af96a50bb738e529`. Agent 10's first production-linked Channel Join/Confirm
+and Client Info path is present and passed earlier macOS and Windows protocol
+CI. R2 protects each R3 operation; R3 remains the sole join membership,
+Client Info and licensing owner. Newly registered independent private
+`transport.mcs-macos-client-info-join-replay-denials` checks valid Client
+Info after only the user Join and a duplicate after the complete joined
+Client Info was consumed. Neither can grant licensing, Share, native
+graphics, or input. R3 source, CAL SignedData, user range 1001..65536,
+fixed 171-case MCS and sanitizer selections are unmodified.
+
+Agent 5's unrelated stale X11 RandR source-contract failure was addressed
+in `05ea486b`/`5b0e2846`; latest exact-SHA Ubuntu CI remains pending.
+R10's next gate is protected PersonalDesktop licensing and subsequent
+Demand/Confirm Active/Share. Native macOS product admission, client and
+desktop remain NOT RUN/unauthorized. Local connector CTest NOT RUN;
+publication SHA CI PENDING.
+
 ## R8 joined-channel Clipboard denial after current macOS Client Info (2026-10-31)
 
 Reviewed main parent `036f3d826de17cee26e1c8ae91f90dc523d4330b`: R10 now composes protected

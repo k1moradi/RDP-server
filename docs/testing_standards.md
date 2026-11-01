@@ -1,3 +1,29 @@
+## R8 fully formed post-Share Clipboard negative packet fixtures (2026-11-01)
+
+The existing ordinary `security.macos-share-activated-clipboard-scope-classifier-denial`
+previously tested a FILECONTENTS_RESPONSE marker without the required
+stream ID. Strengthen the **same** test, not its CTest registry, by supplying
+one complete short Unicode FORMAT_LIST and one FILECONTENTS_RESPONSE with
+correct CHANNEL_PDU_HEADER and CLIPRDR data lengths, success flags,
+stream ID and one synthetic data byte. Validate both with the production
+CLIPRDR decoder before entering the concrete R2 post-Share classifier.
+Each packet uses a fresh joined-cliprdr, real R1 HYBRID/TLS and protected
+R2/R3 mechanically completed Share fixture; only licensing/native proof
+is synthetic. View/Input stays authorized and native Clipboard absent;
+classification must deny, retire the original R1/R2/R3 and reject late
+activation, writes and receipts. No actual file or OS clipboard operation.
+
+Earlier exact-source `0bf6730c2e0137b49e9b96a52860a8218f1a8c31`
+Actions `41297053601`: Ubuntu Debug and Release full CTest each
+**1081/1081 PASS** including R8 classifier; fixed Clipboard ASan/UBSan
+**107/107 PASS**, separate X11 callback **3/3 PASS**, destination
+finalization **1/1 PASS** and static CLIPRDR **9/9 PASS**.
+These are **pre-fix** runtime receipts, not results for the stronger fixture.
+Authoring parent `79bdcb4e48f690794a82d321c3ca96f726bd2eb6`; source/registry audit PASS, new SHA
+build/focused/full CTest and sanitizers PENDING, local and physical testing
+NOT RUN. The native macOS Clipboard issuer remains unavailable, and
+`kLinuxProductionClipboardActivationApproved` remains false.
+
 ## R7 macOS post-Share status isolation source regression (2026-11-01)
 
 Ordinary `runtime.macos-share-activation-does-not-imply-graphics-status`

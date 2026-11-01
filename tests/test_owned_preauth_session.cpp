@@ -6,6 +6,7 @@
 #include "transport/nonblocking_tcp_adapter.h"
 #include "transport/mcs_connect_response.h"
 #include "transport/mcs_channel_connection.h"
+#include "clipboard/clipboard_protocol.h"
 #include "transport/gcc_conference_create.h"
 #include "transport/tpkt_x224.h"
 #include "security/credssp_tsrequest.h"
@@ -9917,7 +9918,36 @@ void testMacProtectedShareActivatedClipboardR2ClassifierDenial()
 
     // Independently retire the original owner for each wire PDU type; a
     // FORMAT_LIST denial must not mask the FILECONTENTS boundary.
-    for (const std::uint8_t type : {0x02U, 0x09U})
+    // Both complete messages are valid CLIPRDR frames. A malformed
+    // FILECONTENTS packet would let a parser-only denial appear sufficient.
+    constexpr auto formatListChunk = [] {
+        std::array<std::uint8_t, 52> bytes{};
+        bytes[0] = 44U; // Static-channel length: CLIPRDR header + 36 bytes.
+        bytes[4] = 3U;  // FIRST | LAST; no compression.
+        bytes[8] = static_cast<std::uint8_t>(
+            rdp_server::clipboard::kFormatList);
+        bytes[12] = 36U; // One short-format descriptor.
+        bytes[16] = static_cast<std::uint8_t>(
+            rdp_server::clipboard::kFormatUnicodeText);
+        return bytes;
+    }();
+    constexpr auto fileContentsResponseChunk = [] {
+        std::array<std::uint8_t, 21> bytes{};
+        bytes[0] = 13U; // Static-channel length: CLIPRDR header + 5 bytes.
+        bytes[4] = 3U;  // FIRST | LAST; no compression.
+        bytes[8] = static_cast<std::uint8_t>(
+            rdp_server::clipboard::kFileContentsResponse);
+        bytes[10] = static_cast<std::uint8_t>(
+            rdp_server::clipboard::kResponseOk);
+        bytes[12] = 5U; // Stream ID + synthetic single-byte response.
+        bytes[16] = 1U; // Stream ID 1, little endian.
+        bytes[20] = 0x5aU;
+        return bytes;
+    }();
+    const std::array<std::span<const std::uint8_t>, 2> channelPackets{{
+        formatListChunk, fileContentsResponseChunk
+    }};
+    for (const std::span<const std::uint8_t> channelData : channelPackets)
     {
         auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture(
             kConsoleViewPermission | kConsoleInputPermission);
@@ -9934,12 +9964,18 @@ void testMacProtectedShareActivatedClipboardR2ClassifierDenial()
         assert(channels.size() == 3U);
         const std::uint16_t clipboardChannelId = channels[1U];
         assert(fixture->session->channelJoinConfirmed(clipboardChannelId));
-        const std::array<std::uint8_t, 16> channelData{{
-            0x08U, 0x00U, 0x00U, 0x00U,
-            0x03U, 0x00U, 0x00U, 0x00U,
-            type, 0x00U, 0x00U, 0x00U,
-            0x00U, 0x00U, 0x00U, 0x00U,
-        }};
+
+        const auto clipboardPduBytes = channelData.subspan(8U);
+        assert(channelData[0] == clipboardPduBytes.size());
+        rdp_server::clipboard::PduView clipboardPdu{};
+        assert(rdp_server::clipboard::decodePdu(
+            clipboardPduBytes, clipboardPdu));
+        assert(clipboardPdu.type == rdp_server::clipboard::kFormatList ||
+               clipboardPdu.type ==
+                   rdp_server::clipboard::kFileContentsResponse);
+        assert(clipboardPdu.payload.size() ==
+               (clipboardPdu.type == rdp_server::clipboard::kFormatList
+                    ? 36U : 5U));
         const auto packet = makeMacProtectedClientChannelTpkt(
             fixture->session->allocatedUserId(), channelData,
             clipboardChannelId);

@@ -7,7 +7,8 @@ Keep one dedicated ordinary `security.macos-protected-share-finalization-client-
 The POSIX user-preferences helper's empty `FileDescriptor` returns are a
 compile-only correction: use named `FileDescriptor{}` values so GCC
 `-Werror` accepts the existing explicit RAII constructor. Do not add a
-duplicate behavior CTest. Require the existing
+duplicate behavior CTest; keep the existing registry entry co-changed with a
+comment that identifies it as the production compile/behavior gate. Require the existing
 `runtime.user-preferences-owner-private-versioned-roundtrip-denials`, the
 R6 `interop.windows-client-ab-first-error-attempt-provenance-denials`, full
 Debug/Release CTest and applicable sanitizers after the exact-SHA build

@@ -1,3 +1,14 @@
+## R2 documentation-policy registry co-change (2026-11-01)
+
+Hosted SHA `acc77b33f63e19075ce40fda0bfd4ae3d1a953e2` was rejected by
+the documentation-policy gate because the inherited source compile correction
+did not co-change the centralized CTest registry. Keep the existing
+`runtime.user-preferences-owner-private-versioned-roundtrip-denials`
+registration and command unchanged; add only a registry comment identifying
+that strict `-Werror` linked fixture as the compile/behavior gate. Re-run the
+same canonical full build/CTest and focused R2/R6 selectors on the descendant
+SHA; do not create another test or build root.
+
 ## R2 inherited GCC explicit-RAII compile unblock (2026-11-01)
 
 Exact R6 SHA `9e35da1d67b2ad132a39cfa94753fdf10fed07d4` reached hosted

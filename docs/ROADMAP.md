@@ -1,3 +1,13 @@
+## Build qualification follow-up — central CTest registry co-change (2026-11-01)
+
+The named-RAII build fix at `acc77b33` is semantically correct but its
+hosted documentation-policy job denied the commit because
+`tests/CMakeLists.txt` did not co-change with the source. The existing
+preferences round-trip CTest already links the strict production preferences
+target, so annotate that registration rather than adding duplicate coverage.
+No R6 evidence contract or physical-client conclusion changes. Descendant
+exact-SHA Microsoft SSPI and general CI remain required separately.
+
 ## R3 P0 — exact Linux R2→R3 wire handoff and batched Share finalization (2026-11-01)
 
 **Current audit parent:** `acc77b33f63e19075ce40fda0bfd4ae3d1a953e2`. The owner-observed macOS Windows App -> Linux connection still closes about **8.956 ms** after local server NTLM Type-2 delivery with **zero observed post-Type-2 client data and no Type 3**. That attempt never entered R3 MCS. R1/R6 retain direct-NTLM transport and first-party physical-client differential evidence; this R3 work does not claim to fix that peer close.

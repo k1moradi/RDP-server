@@ -457,6 +457,8 @@ else()
     target_compile_options(test_runtime_user_preferences PRIVATE
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
 endif()
+# This existing -Werror-linked fixture is also the compile/behavior gate for
+# the production preferences target, including explicit RAII empty returns.
 add_test(NAME runtime.user-preferences-owner-private-versioned-roundtrip-denials
     COMMAND test_runtime_user_preferences)
 set_tests_properties(runtime.user-preferences-owner-private-versioned-roundtrip-denials

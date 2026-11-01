@@ -1,3 +1,21 @@
+## R2 build-unblock registry co-change after documentation-policy denial (2026-11-01)
+
+Exact descendant `acc77b33f63e19075ce40fda0bfd4ae3d1a953e2`
+contains the two named `FileDescriptor{}` returns, but its hosted
+`documentation-policy` job failed before qualification with fixed message
+`Missing centralized CTest registry co-change`. The source correction
+already reuses the existing strict
+`runtime.user-preferences-owner-private-versioned-roundtrip-denials` target;
+do not add a duplicate test. Co-change `tests/CMakeLists.txt` only by
+documenting that existing registration as the production `-Werror`
+compile/behavior gate, and retain the previously updated canonical standards
+and roadmap.
+
+This policy correction changes no executable, test command, filesystem,
+credential, TLS/NTLM or physical-client behavior. New exact-SHA hosted
+Microsoft SSPI and general CI remain PENDING; the R6 physical first-party
+client evidence blocker is unchanged.
+
 ## R3 P0 ordered client-finalization batch compatibility audit (2026-11-01)
 
 Reviewed current main parent `acc77b33f63e19075ce40fda0bfd4ae3d1a953e2`, the Linux production `LinuxRuntimeHostControl` scheduler, `LinuxRuntimeConnection` R1-owned TLS/TPKT boundaries, concrete R2 protected broker paths, R3 MCS/licensing/Share/Graphics owners, and the newer protected macOS path. Linux enters R3 only after completed CredSSP credentials plus fresh native admission; each post-admission read is bounded to one original R1-owned complete TPKT and each R3 server suffix advances only from actual positive R1 accepted bytes after fresh R2 reauthorization. R3 alone owns MCS joins, Client Info, PersonalDesktop licensing, Demand/Confirm Active, Share and post-Share route state. The observed physical macOS Windows App peer close about 8.956 ms after local NTLM Type-2 delivery still has zero post-Type-2 client data and no Type 3, so it never reaches this R3 path and is not evidence for or against this change.

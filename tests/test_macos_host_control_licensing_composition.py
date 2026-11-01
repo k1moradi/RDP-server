@@ -319,6 +319,26 @@ def main() -> int:
             "terminal socket readiness must be handed to the original R1 owner",
         )
 
+        status_begin = source.find(
+            "RuntimeHostStatus MacRuntimeHostControl::status() const"
+        )
+        status_end = source.find(
+            "RuntimeHostResult MacRuntimeHostControl::configure(", status_begin
+        )
+        require(
+            status_begin >= 0 and status_end > status_begin,
+            "cannot isolate macOS HostControl status projection",
+        )
+        status = source[status_begin:status_end]
+        require(
+            "snapshot.firstLiveGraphicsTrace =" in status,
+            "first-live graphics trace must project to RuntimeHostStatus",
+        )
+        require(
+            "acceptedClientPreauthDiagnostics.firstLiveGraphicsTrace" not in status,
+            "pre-auth diagnostics must not own post-Graphics frame trace",
+        )
+
     # C++ member destruction is reverse declaration order. Service policy and
     # licensing material therefore must be declared before every accepted-client
     # borrower so R2/R3/proof/R1 retire before those borrowed objects.

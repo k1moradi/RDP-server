@@ -1,3 +1,7 @@
+## R10 immediate frame-trace projection correction (2026-11-01)
+
+Post-publication source review of `2e91f7336dafeda7e003bc07c5da94b91fa487bc` caught a compile-only member-target error before claiming CI: `firstLiveGraphicsTrace` is a `RuntimeHostStatus` field and was incorrectly written through `acceptedClientPreauthDiagnostics`. The correction changes only the status assignment and extends the existing `runtime.macos-host-control-native-frame-pump-composition-contract` to require the correct target and forbid the invalid one. No R1/R2/R3/R4/R7 behavior or product visibility state changes. Local build/CTest remains NOT RUN; corrective exact-SHA Actions pending.
+
 ## R5 RandR-held aggregate input lifetime, distinct implicit teardown behavioral CTest (2026-11-01)
 
 **Source parent:** `ff75c65c8d3f7ecc08d4eda3a1a6455868eff2a3`. The previously requested both-held key/button

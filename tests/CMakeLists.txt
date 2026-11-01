@@ -1488,6 +1488,7 @@ set_tests_properties(
 
 # R10 post-GraphicsReady composition reuses R7 observation/native borrow,
 # R2 authority, R3/R4 frame/ACK state and the sole original R1 TLS owner.
+# This gate also pins first-live frame projection to RuntimeHostStatus.
 add_test(NAME runtime.macos-host-control-native-frame-pump-composition-contract
     COMMAND "${Python3_EXECUTABLE}"
         "${PROJECT_SOURCE_DIR}/tests/test_macos_host_control_licensing_composition.py"

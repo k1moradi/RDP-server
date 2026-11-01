@@ -1,3 +1,7 @@
+## R10 corrective status-projection fence after native frame-pump publication (2026-11-01)
+
+Source review of `2e91f7336dafeda7e003bc07c5da94b91fa487bc` found one immediate compile defect before hosted qualification: the descriptive first-live graphics trace was assigned to `RuntimeAcceptedClientPreauthDiagnostics`, while the canonical field is `RuntimeHostStatus::firstLiveGraphicsTrace`. Correct only that target and strengthen the existing centralized frame-pump composition CTest to pin the ownership boundary. No transport, authorization, frame, ACK, resize, native or DesktopVisible semantics change. The native frame-pump implementation remains the active P1 path; exact corrective-SHA CI is required before treating it as build-qualified.
+
 ## R5 P1 — RandR-held keyboard/button implicit retirement composite (2026-11-01)
 
 **Authoring parent:** `ff75c65c8d3f7ecc08d4eda3a1a6455868eff2a3`. The existing production-backed

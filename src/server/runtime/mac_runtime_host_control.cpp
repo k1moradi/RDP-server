@@ -2482,7 +2482,7 @@ RuntimeHostStatus MacRuntimeHostControl::status() const
     {
         const auto acceptance =
             activeMcsSession_->firstClientAcceptanceObservability();
-        snapshot.acceptedClientPreauthDiagnostics.firstLiveGraphicsTrace =
+        snapshot.firstLiveGraphicsTrace =
             projectRuntimeFirstLiveGraphicsTrace(
                 activeFirstFramebufferAvailable_,
                 acceptance.firstClearCodecFramePrepared,

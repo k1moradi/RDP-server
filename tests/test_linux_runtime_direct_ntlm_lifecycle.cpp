@@ -2649,6 +2649,20 @@ int main(int argc, char** argv)
                    RuntimeAcceptedClientTermination::PeerEof);
             assert(diagnostics.preType3Termination ==
                    RuntimeAcceptedClientPreType3Termination::PeerEof);
+            // Every immediate half-close remains an incomplete pre-Type-3
+            // authentication, never a credential rejection. The diagnostic
+            // clocks only establish event ordering; they impose no latency
+            // threshold on this transport boundary.
+            assert(terminal.lastError ==
+                   RuntimeHostError::AuthenticationIncompletePeerClosed);
+            assert(diagnostics.standaloneFailureStage ==
+                   RuntimeAcceptedClientStandaloneFailureStage::NtlmNegotiation);
+            assert(diagnostics.admissionFailureReason ==
+                   RuntimeAcceptedClientAdmissionFailureReason::None);
+            assert(diagnostics.preauthElapsedAtPeerEofAvailable);
+            assert(diagnostics.directNtlmTypeTwoToPeerEofAvailable);
+            assert(diagnostics.directNtlmTypeTwoToPeerEofMicroseconds <=
+                   diagnostics.preauthElapsedAtPeerEofMicroseconds);
             assert(diagnostics.postTypeTwoTcpFinReceived);
             assert(!diagnostics.postTypeTwoTcpResetReceived);
             assert(!diagnostics.postTypeTwoTlsCloseNotifyReceived);

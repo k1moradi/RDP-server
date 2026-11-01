@@ -1569,6 +1569,16 @@ add_test(NAME interop.windows-client-ab-invalid-first-error-redaction-denials
 set_tests_properties(interop.windows-client-ab-invalid-first-error-redaction-denials
     PROPERTIES LABELS "interop;offline;security;evidence" TIMEOUT 15)
 
+# R6 Windows first-client-error invalid UTF-8/nested provider inputs must
+# yield fixed typed FAIL and public unknown without traceback or reflection.
+add_test(NAME interop.windows-client-ab-unicode-first-error-typed-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_windows_app_owner_evidence.py"
+        --script "${PROJECT_SOURCE_DIR}/scripts/macos_windows_app_owner_evidence.py"
+        -k paired_unicode_private_first_error_denials)
+set_tests_properties(interop.windows-client-ab-unicode-first-error-typed-denials
+    PROPERTIES LABELS "interop;offline;security;evidence" TIMEOUT 15)
+
 # R6 malformed macOS collector first-error fields (including invalid
 # UTF-8/lone surrogates) must not reflect private data or exception paths.
 add_test(NAME interop.windows-client-ab-malformed-macos-first-error-projection-denials

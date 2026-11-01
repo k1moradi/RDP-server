@@ -1,3 +1,7 @@
+## R6 escaped UTF-8 and original-record provenance for paired client evidence (2026-11-01)
+
+The privacy-safe, read-only A/B validator treats every original JSON string as untrusted. A Python string can contain a lone surrogate and `encode("utf-8")` can fail; convert that encoding error into a bounded typed private-input denial, without reflecting exception text, provider metadata or credential-bearing paths. When *any* field of the original Windows first-client-error record fails validation, project fixed public `unknown` even if the category token itself belongs to the allowlist. Keep the closed summary schema. A digest may support multiple stages of the same attempt only with consistent client source kind; one Type-3 server source digest cannot establish independent attempts. Hash correlation does not authenticate original source or client-side Type-2 receipt.
+
 ## R7 Qt native desktop labels do not reinterpret R10 targets (2026-11-01)
 
 Preserve Linux X11 prefix and Wayland-only unavailable guidance. On macOS/Windows, display R10's read-only native desktop target directly and use an OS-neutral unavailable message. Compile-platform wording must never become R2 admission, R3 GraphicsReady, native readiness, delivered pixels, input or Clipboard authority.

@@ -71,7 +71,14 @@ def _fields(value: object, required: set[str], name: str) -> dict:
 
 
 def _text(value: object, name: str, maximum: int = 128) -> str:
-    if not isinstance(value, str) or not value or len(value.encode("utf-8")) > maximum:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{name} is missing or exceeds its bound")
+    try:
+        encoded_length = len(value.encode("utf-8"))
+    except UnicodeError as exc:
+        # Escaped JSON lone surrogates are not valid UTF-8 provider text.
+        raise ValueError(f"{name} is not valid UTF-8") from exc
+    if encoded_length > maximum:
         raise ValueError(f"{name} is missing or exceeds its bound")
     return value
 
@@ -242,6 +249,7 @@ def _client_event_failures(stages: object, evidence: object, binding: object,
         return [f"{prefix}_CLIENT_EVENT_BINDING_MISSING"]
 
     failures: list[str] = []
+    record_source_kinds: dict[str, str] = {}
     for stage in CLIENT_SECURITY_STAGES:
         state = stages.get(stage)
         event = evidence[stage]
@@ -260,6 +268,14 @@ def _client_event_failures(stages: object, evidence: object, binding: object,
         if not isinstance(event["source_record_sha256"], str) or not SHA256.fullmatch(
                 event["source_record_sha256"]):
             failures.append(f"{label}_SOURCE_DIGEST_INVALID")
+        elif _is_allowed(event["source_kind"], CLIENT_EVENT_SOURCES):
+            # A single original source record cannot have two source kinds.
+            record_digest = event["source_record_sha256"].lower()
+            previous_source_kind = record_source_kinds.get(record_digest)
+            if previous_source_kind is not None and previous_source_kind != event["source_kind"]:
+                failures.append(f"{prefix}_CLIENT_SOURCE_KIND_CONFLICT")
+            else:
+                record_source_kinds[record_digest] = event["source_kind"]
         for field, code in (
             ("client_application_exact", "APPLICATION"),
             ("client_version_exact", "VERSION"),
@@ -473,7 +489,8 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
     elif warning != macos_warning:
         failures.append("CERTIFICATE_DECISION_NOT_COMPARABLE")
     first_error_record = windows["first_client_error"]
-    failures.extend(_first_error_failures(first_error_record))
+    first_error_failures = _first_error_failures(first_error_record)
+    failures.extend(first_error_failures)
 
     macos_correlation = _private_mapping(macos_manifest.get("linux_correlation"))
     macos_application = _private_mapping(macos_manifest.get("windows_app"))
@@ -542,6 +559,19 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
     failures.extend(_server_type3_failures(
         windows["server_stage_matrix"],
         windows["server_type3_evidence"], windows["source_binding"], "WINDOWS"))
+
+    # One server Type-3 source record cannot represent two different attempts.
+    # This digest is correlation metadata, not client-receipt attestation.
+    macos_type3_source = macos_row["server_type3_evidence"]
+    windows_type3_source = windows["server_type3_evidence"]
+    if isinstance(macos_type3_source, dict) and isinstance(windows_type3_source, dict):
+        macos_type3_digest = macos_type3_source.get("source_record_sha256")
+        windows_type3_digest = windows_type3_source.get("source_record_sha256")
+        if (isinstance(macos_type3_digest, str) and SHA256.fullmatch(macos_type3_digest)
+                and isinstance(windows_type3_digest, str)
+                and SHA256.fullmatch(windows_type3_digest)
+                and macos_type3_digest.lower() == windows_type3_digest.lower()):
+            failures.append("AB_SERVER_TYPE3_SOURCE_RECORD_REUSED")
 
     windows_stage = windows["server_stage_matrix"]
     failures.extend(_stage_failures(
@@ -653,10 +683,12 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
             "app": "mstsc.exe",
             "windows_11_build": _redacted_windows_version(windows["windows_11_build"]),
             "mstsc_file_version": _redacted_windows_version(windows["mstsc_file_version"]),
-            "first_client_error_category": _redacted_stage(
-                first_error_record.get("normalized_category")
-                if isinstance(first_error_record, dict) else None,
-                ERROR_CATEGORIES, "unknown"),
+            "first_client_error_category": (
+                "unknown" if first_error_failures else _redacted_stage(
+                    first_error_record.get("normalized_category")
+                    if isinstance(first_error_record, dict) else None,
+                    ERROR_CATEGORIES, "unknown")
+            ),
             "type3_received": windows_type3,
             "client_security_stages": _redacted_client_stages(
                 windows["client_security_stages"]),

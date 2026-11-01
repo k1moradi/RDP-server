@@ -733,6 +733,21 @@ class OwnerEvidenceTests(unittest.TestCase):
         self.assertNotIn("AB_CLIENT_SOURCE_RECORD_REUSED",
                          corrected_summary["evidence_failures"])
 
+        # The same digest cannot be a provider event and a diagnostic
+        # for two stages of one attempt.
+        pair = self._paired_record(manifest)
+        for stage in ("type2_received", "type2_accepted_by_credssp"):
+            pair["windows"]["client_security_stages"][stage] = "PASS"
+            pair["windows"]["client_stage_evidence"][stage] = self._client_event(
+                pair, "windows")
+        second = pair["windows"]["client_stage_evidence"]["type2_accepted_by_credssp"]
+        second["source_kind"] = "client-provider-event"
+        failures = ab_evidence.validate_pair(manifest, pair)["evidence_failures"]
+        self.assertIn("WINDOWS_CLIENT_SOURCE_KIND_CONFLICT", failures)
+        second["source_record_sha256"] = "a" * 64
+        failures = ab_evidence.validate_pair(manifest, pair)["evidence_failures"]
+        self.assertNotIn("WINDOWS_CLIENT_SOURCE_KIND_CONFLICT", failures)
+
     def test_paired_provenance_local_type2_commit_cannot_substitute_client_event(self):
         manifest = evidence.build_manifest(self.options)
         pair = self._paired_record(manifest)
@@ -751,6 +766,21 @@ class OwnerEvidenceTests(unittest.TestCase):
         pair["windows"]["server_type3_evidence"]["connection_id"] = "previous-connection"
         failures = ab_evidence.validate_pair(manifest, pair)["evidence_failures"]
         self.assertIn("WINDOWS_TYPE3_SOURCE_CONNECTION_MISMATCH", failures)
+
+        # Reusing the same original server transcript across independent
+        # macOS/Windows attempts cannot establish two different Type 3s.
+        manifest["server_stage_matrix"].update(
+            post_type2_client_bytes=128, type3_received="PASS")
+        pair = self._paired_record(manifest)
+        pair["macos"]["server_type3_evidence"] = self._server_type3_event(
+            pair, "macos")
+        pair["windows"]["server_type3_evidence"] = self._server_type3_event(
+            pair, "windows")
+        failures = ab_evidence.validate_pair(manifest, pair)["evidence_failures"]
+        self.assertIn("AB_SERVER_TYPE3_SOURCE_RECORD_REUSED", failures)
+        pair["windows"]["server_type3_evidence"]["source_record_sha256"] = "d" * 64
+        failures = ab_evidence.validate_pair(manifest, pair)["evidence_failures"]
+        self.assertNotIn("AB_SERVER_TYPE3_SOURCE_RECORD_REUSED", failures)
 
     def test_paired_provenance_client_type3_from_neighboring_attempt_is_denied(self):
         manifest = evidence.build_manifest(self.options)
@@ -869,6 +899,62 @@ class OwnerEvidenceTests(unittest.TestCase):
                 self.assertEqual(summary["windows"]["first_client_error_category"],
                                  "unknown")
                 self.assertNotIn(private_marker, json.dumps(summary, sort_keys=True))
+
+    def test_paired_unicode_private_first_error_denials(self):
+        # Escaped Unicode surrogates, nested provider lists/dicts and missing
+        # fields must produce typed FAIL, not exception text or a public type.
+        manifest = evidence.build_manifest(self.options)
+        sentinel = "private-error-field-sentinel"
+        expected = ab_evidence.validate_pair(manifest, self._paired_record(manifest))
+        for field, bad_value in (
+            ("provider_category_exact", chr(0xD800)),
+            ("provider_code_exact", chr(0xD800)),
+            ("event_time_utc", chr(0xD800)),
+            ("provider_category_exact", [sentinel]),
+            ("provider_code_exact", {"detail": sentinel}),
+            ("provider_code_exact", "absent"),
+        ):
+            with self.subTest(field=field, kind=type(bad_value).__name__):
+                pair = self._paired_record(manifest)
+                first_error = pair["windows"]["first_client_error"]
+                first_error["normalized_category"] = "trust"
+                first_error["provider_category_exact"] = "provider-trust"
+                if bad_value == "absent":
+                    del first_error[field]
+                else:
+                    first_error[field] = bad_value
+                summary = ab_evidence.validate_pair(manifest, pair)
+                self.assertEqual(summary["evidence_status"], "FAIL")
+                self.assertIn("WINDOWS_FIRST_ERROR_INVALID",
+                              summary["evidence_failures"])
+                self.assertEqual(summary["windows"]["first_client_error_category"],
+                                 "unknown")
+                self.assertEqual(summary["comparison"], "INCONCLUSIVE")
+                self.assertEqual(set(summary), set(expected))
+                self.assertEqual(set(summary["windows"]), set(expected["windows"]))
+                public_text = json.dumps(summary, ensure_ascii=False)
+                self.assertNotIn(sentinel, public_text)
+                self.assertNotIn(chr(0xD800), public_text)
+
+        # The read-only CLI returns the typed FAIL JSON, not a traceback.
+        pair = self._paired_record(manifest)
+        pair["windows"]["first_client_error"]["normalized_category"] = "trust"
+        pair["windows"]["first_client_error"]["provider_category_exact"] = chr(0xD800)
+        manifest_file = self.root / "private-macos.json"
+        pair_file = self.root / "private-pair.json"
+        manifest_file.write_text(json.dumps(manifest), encoding="utf-8")
+        pair_file.write_text(json.dumps(pair), encoding="utf-8")
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            exit_code = ab_evidence.main([str(manifest_file), str(pair_file)])
+        self.assertEqual(exit_code, 3)
+        self.assertEqual(stderr.getvalue(), "")
+        cli_summary = json.loads(stdout.getvalue())
+        self.assertEqual(cli_summary["evidence_status"], "FAIL")
+        self.assertIn("WINDOWS_FIRST_ERROR_INVALID", cli_summary["evidence_failures"])
+        self.assertEqual(cli_summary["windows"]["first_client_error_category"], "unknown")
+        self.assertNotIn(chr(0xD800), stdout.getvalue())
 
     def test_macos_private_first_error_summary_fields_fail_closed(self):
         # Collector manifests are private, even if generated by a trusted CLI.

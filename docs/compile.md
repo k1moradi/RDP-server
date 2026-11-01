@@ -1,3 +1,7 @@
+## R6 Windows-client first-error Unicode and source provenance (2026-11-01)
+
+No new production C++, Python dependency or test executable, and no additional build root. From `~/rdp-server/`, reconfigure/reuse `build/` per the canonical command; after Debug build run `ctest --test-dir build -C Debug -R '^interop[.]windows-client-ab-(unicode-first-error-typed-denials|invalid-first-error-redaction-denials|stage-provenance-splice-denials|malformed-nested-evidence-denials|malformed-macos-first-error-projection-denials)$' --output-on-failure`, then ordinary full Debug/Release CTest. Run exact publication-SHA hosted Windows MSVC Debug/Release, Windows Clang 23, 60-case native security preflight and applicable sanitizer checks. Local CTest/Windows compilers/sanitizers NOT RUN in connector-only environment; hosted rerun PENDING. Physical client and positive native Windows tests remain disabled.
+
 ## R7 native desktop label Qt offscreen registration fix (2026-11-01)
 
 The new `gui.offscreen-native-desktop-platform-labels` CTest has the

@@ -1,3 +1,39 @@
+## R2 immutable PersonalDesktop licensing policy/receipt review (2026-11-01)
+
+**Inspected source parent:** `e4534704900c4a3ef890e55aa35e91a76653f0ec`.
+Audited the six macOS R2 licensing entry points, `visitPersonalDesktopR3Operation`,
+`visitR3ProtectedOperation`, `RuntimeDeploymentPolicy`, R3 licensing lifecycle,
+R10 macOS HostControl and the service-lifetime `RuntimeLicensingContext`.
+The native visitor rechecks original CredSSP proof/credential generation,
+connection/TLS ownership, consent epoch, native audit session and R3 state.
+PersonalDesktop selection is one-shot and stores the original policy object's
+identity; R3 binds the licensing credential certificate fingerprint and owns
+protocol/receipt progress. Reviewed R10 currently provisions the licensing
+context, but does not yet invoke the six protected macOS licensing methods;
+its first licensing scheduler integration is therefore **NOT PRESENT** at this
+inspected parent, not a tested pass. R10's service-lifetime licensing context
+precedes accepted-client members in declaration order and must never be reset
+while R2 borrows its identity or private key. Existing tests cover cross-thread
+and nested issuer denial; the post-Client-Info policy replacement case was
+missing from the production R1-TLS fixture.
+
+**Added regression:** `security.macos-protected-personal-licensing-policy-retirement-denials`
+uses the existing original R1 loopback HYBRID/TLS, private R2 and R3 Client
+Info route. It checks identical replacement policy, AppServer substitution,
+duplicate selection, consent re-grant, callback audit replacement, Stop,
+native session drift, credential change, R1 cancellation and late receipts.
+Test proof and native observations remain synthetic: **not actual CredSSP
+principal evidence, positive macOS native admission or live Share**.
+
+**Verification:** connector-source and registration inspection PASS;
+local build, focused/full CTest, ASan/UBSan, hosted exact-SHA Actions, owner
+native verification and real-client tests **NOT RUN**. The next gate is the
+specified exact-SHA hosted tests and genuine production CredSSP principal/
+native admission plus Agent 10's licensing scheduler consumption. No new
+public R2 API or production behavior was added.
+
+
+
 ## R5 implicit-destructor queued-Damage replacement boundary (2026-11-01)
 
 Source parent reviewed: `e4534704900c4a3ef890e55aa35e91a76653f0ec`.

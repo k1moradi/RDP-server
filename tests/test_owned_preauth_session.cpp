@@ -8622,6 +8622,144 @@ void testMacProtectedChannelJoinClientInfoAfterAttach()
     assert(fixture->connection.stage() == PreauthStage::Closed);
 }
 
+// Production R1 HYBRID/TLS and native R2/R3 operations; proof/native
+// fixture evidence remains synthetic, never macOS product admission.
+
+void testMacProtectedPersonalLicensingPolicyAndRetirementDenials()
+{
+    using rdp_server::server::runtime::RuntimeDeploymentPolicy;
+    using RequestReceipt = RdpServerLicenseRequestWriteOutcome;
+    using ClientReceipt = RdpPersonalDesktopValidClientWriteOutcome;
+
+    const auto assertRetired = [](const MacProtectedTransportFixture &fixture) {
+        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(fixture.session->phase() == McsSessionPhase::Closed);
+        assert(fixture.session->licensingPhase() == RdpLicensingPhase::Closed);
+        assert(fixture.connection.stage() == PreauthStage::Closed);
+    };
+
+    // The same mode and LAN port cannot replace the original policy identity.
+    {
+        RuntimeDeploymentPolicy policy;
+        RuntimeDeploymentPolicy replacement;
+        assert(policy.configurePersonalDesktopPrivateLan(3389U));
+        assert(replacement.configurePersonalDesktopPrivateLan(3389U));
+        auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture();
+        assert(fixture->broker.authorizeR3PersonalDesktopLicensingMode(
+            *fixture->session, policy));
+        assert(fixture->session->phase() ==
+               McsSessionPhase::AwaitServerLicenseRequest);
+        assert(fixture->session->licensingPhase() == RdpLicensingPhase::NotStarted);
+        assert(!fixture->session->firstClientAcceptanceObservability().shareActivated);
+        RdpServerLicenseIdentity identity;
+        RdpLicensingServiceCredential credential;
+        assert(!fixture->broker.authorizeR3PersonalDesktopServerLicenseRequestWrite(
+            *fixture->session, replacement, identity, credential));
+        assertRetired(*fixture);
+        assert(fixture->broker.completeR3PersonalDesktopServerLicenseRequestWrite(
+                   *fixture->session, policy, 1U, 1U, 1U) ==
+               RequestReceipt::Rejected);
+        assert(!fixture->broker.authorizeR3PersonalDesktopValidClientWrite(
+            *fixture->session, policy));
+        assert(fixture->broker.completeR3PersonalDesktopValidClientWrite(
+                   *fixture->session, policy, 1U, 1U, 1U) ==
+               ClientReceipt::Rejected);
+        assertRetired(*fixture);
+    }
+
+    // AppServer is not an alternative licensing authority for this session.
+    {
+        RuntimeDeploymentPolicy policy;
+        RuntimeDeploymentPolicy appServer;
+        assert(policy.configurePersonalDesktopPrivateLan(3389U));
+        assert(appServer.configureAppServerIssuerBacked());
+        auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture();
+        assert(fixture->broker.authorizeR3PersonalDesktopLicensingMode(
+            *fixture->session, policy));
+        RdpLicensingServiceCredential credential;
+        assert(!fixture->broker.authorizeR3PersonalDesktopClientLicensingMessage(
+            *fixture->session, appServer, credential, {}));
+        assertRetired(*fixture);
+    }
+
+    // Selection remains one-shot even with the original policy object.
+    {
+        RuntimeDeploymentPolicy policy;
+        assert(policy.configurePersonalDesktopPrivateLan(3389U));
+        auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture();
+        assert(fixture->broker.authorizeR3PersonalDesktopLicensingMode(
+            *fixture->session, policy));
+        assert(!fixture->broker.authorizeR3PersonalDesktopLicensingMode(
+            *fixture->session, policy));
+        assertRetired(*fixture);
+    }
+
+    // Same permissions with a different grant epoch revoke old write receipts.
+    {
+        RuntimeDeploymentPolicy policy;
+        assert(policy.configurePersonalDesktopPrivateLan(3389U));
+        auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture();
+        assert(fixture->broker.authorizeR3PersonalDesktopLicensingMode(
+            *fixture->session, policy));
+        assert(fixture->ownerAuthority.requestConsent(
+                   {kConsoleViewPermission, 60'000U}) ==
+               OwnerConsentRequestResult::Granted);
+        assert(fixture->broker.completeR3PersonalDesktopServerLicenseRequestWrite(
+                   *fixture->session, policy, 1U, 1U, 0U) ==
+               RequestReceipt::Rejected);
+        assertRetired(*fixture);
+    }
+
+    // Native evidence is replaced at the visitor postcheck, after R3
+    // selects PersonalDesktop but before R2 may publish the selection.
+    {
+        RuntimeDeploymentPolicy policy;
+        assert(policy.configurePersonalDesktopPrivateLan(3389U));
+        auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture();
+        fixture->nativeEvidence.stableReadsBeforeAuditReplacement = 1U;
+        assert(!fixture->broker.authorizeR3PersonalDesktopLicensingMode(
+            *fixture->session, policy));
+        assertRetired(*fixture);
+    }
+
+    // Independent Stop, audit-session, credential, and original R1 losses
+    // prohibit later licensing completion. Synthetic native/proof observations
+    // never stand in for a genuine macOS authenticated desktop admission.
+    for (std::uint8_t retirement = 0U; retirement < 4U; ++retirement)
+    {
+        RuntimeDeploymentPolicy policy;
+        assert(policy.configurePersonalDesktopPrivateLan(3389U));
+        auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture();
+        assert(fixture->broker.authorizeR3PersonalDesktopLicensingMode(
+            *fixture->session, policy));
+        switch (retirement)
+        {
+        case 0U:
+            fixture->ownerAuthority.revoke(OwnerConsentRevocationReason::Stop);
+            break;
+        case 1U:
+            ++fixture->nativeEvidence.evidence.auditSessionId;
+            break;
+        case 2U:
+        {
+            constexpr std::array<char16_t, 3U> replacementPassword{
+                u'N', u'e', u'w'};
+            assert(fixture->credential.configure(u"Session", replacementPassword));
+            break;
+        }
+        case 3U:
+            fixture->connection.cancel();
+            break;
+        default:
+            assert(false);
+        }
+        assert(fixture->broker.completeR3PersonalDesktopValidClientWrite(
+                   *fixture->session, policy, 1U, 1U, 0U) ==
+               ClientReceipt::Rejected);
+        assertRetired(*fixture);
+    }
+}
+
 // A complete, real R1 TLS/Join/Client Info path still has no independently
 // issued native Clipboard scope. A joined cliprdr channel ID is not a lease.
 void testMacProtectedPostJoinClipboardViewInputDenial()
@@ -13255,6 +13393,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedBufferedErectAfterConnectResponse},
     {"macos-protected-buffered-attach-confirm-after-erect",
      &testMacProtectedBufferedAttachConfirmAfterErect},
+    {"macos-protected-personal-licensing-policy-retirement-denials",
+     &testMacProtectedPersonalLicensingPolicyAndRetirementDenials},
     {"macos-protected-channel-join-client-info-after-attach",
      &testMacProtectedChannelJoinClientInfoAfterAttach},
     {"macos-protected-first-mcs-partial-read-stop-retirement",

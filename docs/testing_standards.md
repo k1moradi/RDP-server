@@ -1,3 +1,21 @@
+## R2 original-policy licensing selection and terminal receipt regression (2026-11-01)
+
+Ordinary `security.macos-protected-personal-licensing-policy-retirement-denials`
+reuses the production HYBRID R1 TLS, native R2 broker and R3 Client Info
+fixture through `AwaitServerLicenseRequest`. It must select the original
+one-shot PersonalDesktop policy, then deny an identically configured replacement,
+AppServer substitution, duplicate selection, owner Stop, same-permission new
+consent epoch, changed native audit session, changed credential generation and
+R1 cancellation. Late Server License Request/Valid Client receipt attempts
+remain rejected and R1/R2/R3 terminal; callback-time native audit replacement
+must not publish even an initially successful mode selection. Keep this
+outside fixed sanitizer counts. The fixture's proof and macOS native observations
+are synthetic: real local TLS is **not** a completed production CredSSP
+principal proof or physical native admission. Full local CTest and hosted
+exact-SHA CI remain NOT RUN until executed; no Share/client acceptance follows.
+
+
+
 ## R5 implicit-destructor native XCB/Damage reconnect regression (2026-11-01)
 
 The dedicated `x11.desktop-resource-implicit-destruction-queued-damage-isolation`

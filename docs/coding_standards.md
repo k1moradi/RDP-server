@@ -1,3 +1,20 @@
+## R2 PersonalDesktop licensing policy lifetime and late receipts (2026-11-01)
+
+The original admitted `MacConsoleAdmissionBroker` may select PersonalDesktop
+only once through the native View issuer. It borrows the **exact** one-shot
+`RuntimeDeploymentPolicy` identity for its lifetime; an identically configured
+replacement or AppServer object is not the selected policy. Before and after
+all R3 licensing transitions, it revalidates the original authenticated proof,
+credential generation, R1 HYBRID/TLS owner, native audit-session evidence,
+owner-thread and original consent epoch. Any mismatch retires R3/R1 rather
+than moving a prepared license or write receipt to a replacement issuer.
+R3 alone owns the license PDU, matched credential fingerprint, accepted-byte
+sequence/suffix and one-shot Valid Client completion. A zero-byte or stale
+receipt does not create Share authority. The R10 service-lifetime licensing
+identity and private-key credential must outlive every synchronous R2 visitor;
+never print PEM, secrets or proof material. View/Input never implies Clipboard.
+
+
 ## R3 PersonalDesktop Client Licensing waits for the exact server write fence (2026-11-01)
 
 After all Channel Joins and one protected Client Info, R3 remains at

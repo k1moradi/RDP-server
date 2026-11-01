@@ -2049,6 +2049,16 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "security;native-authorization;transport;tls;admission;offline"
                 TIMEOUT 20)
 
+        # R2 PersonalDesktop immutable policy and stale licensing receipt denials
+        # through original R1 loopback TLS; synthetic proof/native evidence only.
+        add_test(NAME security.macos-protected-personal-licensing-policy-retirement-denials
+            COMMAND "${test_target}"
+                "macos-protected-personal-licensing-policy-retirement-denials")
+        set_tests_properties(
+            security.macos-protected-personal-licensing-policy-retirement-denials
+            PROPERTIES LABELS "security;native-authorization;transport;tls;licensing;offline"
+                       TIMEOUT 60)
+
         # R8 joined cliprdr remains denied after complete real R1 TLS Join
         # Confirm receipts and protected Client Info with View|Input only.
         add_test(NAME security.macos-post-join-clipboard-view-input-denial

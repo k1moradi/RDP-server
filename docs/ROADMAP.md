@@ -981,6 +981,23 @@ then R10 actual owner composition. CI exact-head PENDING; local canonical
 build/full CTest NOT RUN. Global registry CTest taxonomy conflict is being
 coordinated with R10 in GitHub issue #40.
 
+**R2 licensing review, 2026-11-01:** At inspected source parent
+`e4534704900c4a3ef890e55aa35e91a76653f0ec`, the six existing
+PersonalDesktop licensing operations already use the original R2 native
+visitor and R3 receipt owner. No new public R2 API or production change was
+justified. New ordinary production-linked
+`security.macos-protected-personal-licensing-policy-retirement-denials`
+exercises the genuine original R1 loopback HYBRID/TLS route through joined
+Client Info, then original-policy selection, replacement/AppServer/duplicate
+selection denials, same-permission consent epoch, Stop, audit-session and
+credential changes, R1 cancellation and late receipt denial. Synthetic
+CredSSP proof/native evidence **does not** qualify positive macOS admission.
+Connector source/registration review PASS; local focused/full CTest, hosted
+exact-SHA CI and physical native/client evidence NOT RUN. R10 macOS runtime
+currently owns a one-shot `RuntimeLicensingContext`, but has not yet composed
+these R2 licensing entry points; first real R10 licensing scheduler increment
+and complete CredSSP principal-proof/macOS native authority remain next gates.
+
 ## R8 X11 destroyed-owner claim callback fence (2026-10-31)
 
 **Authoring main parent:** `f4e89610a62470d0f7e6a1f1827ad3af03ba81f4`. Source audit found a distinct claim-time

@@ -1,3 +1,16 @@
+## R2 personal licensing policy-replacement offline CTest (2026-11-01)
+
+No new dependency, executable, build root, runtime reader or listener. Reuse
+`~/rdp-server/build/` with the existing `test_owned_preauth_session`
+target. From the canonical checkout, run the normal Debug configure/build,
+then `ctest --test-dir build -C Debug -R '^security[.]macos-protected-personal-licensing-policy-retirement-denials$' --output-on-failure`, followed by full
+CTest, platform Release and existing sanitizer selectors. The test uses local
+loopback TLS and synthetic native/proof evidence only; it does not open a
+product LAN listener or exercise a physical client. Connector-only source
+review: PASS; local build/CTest and exact-SHA hosted CI: NOT RUN.
+
+
+
 ## R5 implicit XCB/Damage destructor native fixture (2026-11-01)
 
 The existing `test_x11_desktop_resources` binary gains only the behavior

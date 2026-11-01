@@ -1,3 +1,15 @@
+## Protected macOS fixture R2 must retire before its borrowed R3 session (2026-11-01)
+
+A positive `MacConsoleAdmissionBroker` fixture may remain admitted until scope
+exit. Its destructor invokes `revoke()`, which closes the borrowed enrolled
+`McsSessionLifecycle`. Test fixtures must therefore declare/construct R3
+before R2 so reverse destruction destroys the broker first. Do not rely on
+negative tests revoking early to hide an invalid member lifetime. The accepted
+R1 connection, authenticated proof, native evidence and consent authority must
+also outlive R2 as required by the production broker contract. The existing
+positive real-loopback Share and Graphics receipt CTests are the behavioral
+regressions; no duplicate test registration is needed.
+
 ## Original first-error category must be validated before projecting sanitized evidence (2026-11-01)
 
 A redacted upstream summary cannot itself prove an original private category was valid: both genuine `unknown` and a malformed string/list/dict can sanitize to that same public token. In paired validation, validate the original bounded category and check its agreement with the sanitized projection. Exercise this with isolated malformed private source values inside the existing paired regression in addition to the existing upstream malformed-summary CTest, keeping one new dedicated CTest for the newly discovered privacy flaw. Never restore raw private category text just to recover the old assertion.

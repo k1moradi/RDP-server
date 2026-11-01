@@ -7934,8 +7934,8 @@ public:
           ownerAuthority(ownerEvidence),
           proof(credential, connection),
           nativeEvidence(connection),
-          broker(proof, connection, nativeEvidence, ownerAuthority),
-          session(std::make_unique<McsSessionLifecycle>())
+          session(std::make_unique<McsSessionLifecycle>()),
+          broker(proof, connection, nativeEvidence, ownerAuthority)
     {
         assert(SSL_set_max_proto_version(
                    tls.server.get(), TLS1_2_VERSION) == 1);
@@ -7976,8 +7976,10 @@ public:
     StandalonePasswordCredentialOwner credential{};
     MacProtectedTransportProof proof;
     MacProtectedNativeEvidence nativeEvidence;
-    MacConsoleAdmissionBroker broker;
+    // R2 borrows the enrolled R3 session and closes it from its destructor.
+    // Declare R3 first so reverse destruction retires R2 before R3.
     std::unique_ptr<McsSessionLifecycle> session;
+    MacConsoleAdmissionBroker broker;
 };
 
 [[nodiscard]] std::vector<std::uint8_t> macProtectedHybridConnectInitial()

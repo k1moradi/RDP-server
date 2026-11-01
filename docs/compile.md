@@ -1,3 +1,13 @@
+## Windows protected Share/Graphics fixture lifetime correction (2026-11-01)
+
+No production target or dependency changes. Reuse only `~/rdp-server/build/`.
+After canonical Debug configure/build run
+`ctest --test-dir build -C Debug -R '^security[.]macos-protected-personal-desktop-(share-activation|graphics-control)-receipts$' --output-on-failure`,
+then the protected first-frame case and full Debug/Release CTest. Exact
+corrective-SHA Windows MSVC and Clang 23 execution is required because the
+demonstrated failure was a Windows teardown crash. Connector-local compile and
+CTest are NOT RUN; hosted qualification PENDING.
+
 ## R6 offline malformed private first-client-error focused build contract (2026-11-01)
 
 No new dependency or toolchain: the existing Python standard-library R5/R6 scripts, shared evidence fixture, and `tests/CMakeLists.txt` gain one ordinary offline CTest. Reuse the only owner checkout/build root `~/rdp-server/build/`. After the canonical Debug configure/build, run `ctest --test-dir build -C Debug -R '^interop[.]windows-client-ab-(malformed-macos-first-error-projection-denials|invalid-first-error-redaction-denials|malformed-nested-evidence-denials|malformed-source-projection-denials|stage-provenance-splice-denials)$' --output-on-failure`, then full ordinary Debug CTest. Requalify published SHA on Windows MSVC Debug/Release, Clang 23 and sanitizer lanes; do not promote unrelated hosted SHA results. Connector-local configure/CTest/MSVC/Clang/sanitizers NOT RUN because no local GitHub checkout is available; publication-SHA hosted validation PENDING. No capture, native input, client launch, trust or credential change.

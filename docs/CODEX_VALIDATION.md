@@ -1,3 +1,21 @@
+## Windows positive Share/Graphics fixture teardown UAF diagnosis (2026-11-01)
+
+At `fdca79857b9df684f97c1b32b7dbd709fcab4c6f`, Actions
+`41299381227`, Windows MSVC test 470 and Clang 23 test 474 crashed the
+positive PersonalDesktop Share receipt case; the following Graphics-control
+case crashed identically. Ubuntu and macOS passed both. Source inspection
+isolated a deterministic lifetime error in the shared test fixture:
+`MacProtectedTransportFixture` declared `broker` before `session`, but
+`MacConsoleAdmissionBroker::~MacConsoleAdmissionBroker()` calls `revoke()`
+and `revoke()` dereferences/closes `admittedSession_`. Reverse member
+destruction had already destroyed that session.
+
+Correct the fixture declaration and initializer order so R3 outlives R2. This
+is a test-lifetime correction, not a production TLS/Share/Graphics change.
+Static destructor/ownership review PASS. Local build/CTest/sanitizers NOT RUN.
+Exact corrective-SHA Windows MSVC/Clang 23 and full cross-platform CI PENDING;
+do not promote the prior crashing SHA to PASS.
+
 ## R6 original private-category enforcement after redaction (2026-11-01)
 
 GitHub Actions `41304422642` at `357632da729a7d7b156967e5f0e6ff055dd9e2a8` reached Ubuntu full CTest: 1086/1090 PASS, four test registrations failed on the same existing `test_paired_private_malformed_nested_evidence_denials` assertion. The upstream R5 collector now correctly converts an invalid private macOS first-error category to public `unknown`; R6 paired validation had relied on that already-sanitized projection to report `MACOS_FIRST_ERROR_INVALID`. Repair the paired original-source check to require an allowlisted original category equal to its public projection, and extend the existing malformed-private CTest suite with isolated string/list/dictionary original-category sentinels. The new dedicated `interop.windows-client-ab-malformed-macos-first-error-projection-denials`, `interop.windows-client-ab-invalid-first-error-redaction-denials`, and existing anti-splice CTest all PASS at the failing SHA. The R10 first-frame/ACK CTest also PASS on Ubuntu there; the 4 failures are R6 assertions, not R10. Review PASS; exact corrective-SHA full CTest, Windows MSVC/Clang and sanitizers PENDING/NOT RUN at authoring. Preserve no native activation or physical A/B.

@@ -1,3 +1,34 @@
+## R1 Windows Share/Graphics fixture lifetime crash correction (2026-11-01)
+
+**Reviewed parent:** `d241d4947f053227c7d35a02c882f0eca8089d52`. The unresolved Windows failures from
+`fdca79857b9df684f97c1b32b7dbd709fcab4c6f`, Actions `41299381227`,
+were not an R1 TLS write-state defect. Windows MSVC job `124826980686` and
+Clang 23 job `124826980715` both crashed
+`security.macos-protected-personal-desktop-share-activation-receipts` and
+`security.macos-protected-personal-desktop-graphics-control-receipts` after
+their positive protocol path. Linux/macOS completed those two cases.
+
+The shared `MacProtectedTransportFixture` declared its concrete R2
+`MacConsoleAdmissionBroker` before the enrolled R3
+`McsSessionLifecycle`. C++ reverse destruction therefore destroyed R3 first.
+A still-admitted broker destructor calls `revoke()`, and `revoke()` closes
+its borrowed `admittedSession_`, producing a use-after-lifetime at successful
+fixture teardown. Negative fixtures generally revoked before scope exit, which
+masked the ordering defect.
+
+Reorder only the test fixture lifetime: construct/declare R3 before R2 so the
+broker is destroyed and revokes while R3 is still alive. This matches the
+production ownership contract and keeps R1 connection/proof/native evidence
+alive longer than R2. No production R1/R2/R3/R10 behavior, wire bytes, TLS
+policy, CTest registration or native authority changes.
+
+**Next gate:** exact corrective-SHA Windows MSVC and Clang 23 focused
+Share/Graphics tests, full Debug/Release CTest, then ordinary cross-platform
+qualification. The separate first-frame segmented/TLS fixture corrections
+remain independently subject to their exact-SHA runs. Post-Graphics native
+attachment/liveness and physical Microsoft/macOS evidence remain
+NOT RUN / unauthorized.
+
 ## R6 paired original-category validation after upstream redaction (2026-11-01)
 
 **First observed regression:** source-correction SHA `357632da729a7d7b156967e5f0e6ff055dd9e2a8`, Actions `41304422642`, Ubuntu full Debug CTest 1086/1090 PASS / 4 FAIL. All four failures run the same pre-existing `test_paired_private_malformed_nested_evidence_denials`: after the R5 summary correctly redacted an invalid private macOS category to public `unknown`, the paired validator mistakenly trusted that sanitized category and omitted `MACOS_FIRST_ERROR_INVALID`. The newly added dedicated malformed-error CTest and original Windows first-error redaction CTest both PASS; existing stage provenance splice CTest PASS; previously failing R10 Graphics first-frame/ACK CTest now PASS on Ubuntu at that SHA.

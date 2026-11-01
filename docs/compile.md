@@ -1,3 +1,14 @@
+## R3 P0 — make the coalesced Share fixture prove one successful TLS write (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build, run:
+
+```
+ctest --test-dir build -C Debug -R '^security[.]macos-protected-share-confirm-active-finalization-single-tls-write$' --output-on-failure
+ctest --test-dir build -C Debug --output-on-failure
+```
+
+Repeat full Release CTest and the existing applicable security/protocol sanitizer lane. The correction changes only an existing production-linked test helper; no new executable, dependency, build root or benchmark is added. Connector-local build/CTest remains NOT RUN.
+
 ## R10 macOS bounded first-frame service pacing qualification (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. Build the existing desktop/runtime and `test_runtime_host_control` targets, run `runtime.host-control-bounded-service-burst-scheduling` together with `runtime.macos-host-control-native-frame-pump-composition-contract`, `graphics.frame-native-borrow-segmented-receipt-fence`, `security.macos-protected-graphics-first-frame-exact-tls-receipt-client-ack` and the existing post-Graphics revocation/terminal selections, then ordinary full Debug/Release CTest and applicable sanitizers on the exact publication SHA. No new executable, build root or dependency is introduced.

@@ -3472,6 +3472,39 @@ void writeNativeTlsClientAll(
     assert(total == payload.size());
 }
 
+// This stricter helper is for tests whose behavior name promises one client
+// TLS application write. WANT_READ/WANT_WRITE retries are permitted only
+// before any plaintext is accepted; one successful SSL_write_ex must accept
+// the complete payload, so a successful partial write fails the fixture.
+void writeNativeTlsClientSingleApplicationWrite(
+    SSL *client, std::span<const std::uint8_t> payload)
+{
+    assert(client != nullptr);
+    assert(!payload.empty());
+
+    for (int attempt = 0; attempt < 16384; ++attempt)
+    {
+        std::size_t bytes = 0;
+        const int result =
+            SSL_write_ex(client, payload.data(), payload.size(), &bytes);
+        if (result == 1)
+        {
+            assert(bytes == payload.size());
+            return;
+        }
+
+        assert(bytes == 0U);
+        const int error = SSL_get_error(client, result);
+        assert(error == SSL_ERROR_WANT_READ ||
+               error == SSL_ERROR_WANT_WRITE);
+        // Match the bounded loopback retry policy above. Production I/O
+        // remains readiness-driven and never sleeps.
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    assert(false && "single client TLS application write was not accepted");
+}
+
 void readNativeTlsClientAll(
     SSL *client, std::span<std::uint8_t> output)
 {
@@ -10254,8 +10287,16 @@ void runMacProtectedPersonalDesktopShareActivationReceipts(
         appendPacket(fontListPacket);
         assert(clientFinalizationBatch.size() == batchBytes);
 
-        writeNativeTlsClientAll(
-            fixture->tls.client.get(), clientFinalizationBatch);
+        if (coalesceConfirmActiveWithFinalization)
+        {
+            writeNativeTlsClientSingleApplicationWrite(
+                fixture->tls.client.get(), clientFinalizationBatch);
+        }
+        else
+        {
+            writeNativeTlsClientAll(
+                fixture->tls.client.get(), clientFinalizationBatch);
+        }
         if (coalesceConfirmActiveWithFinalization)
         {
             assert(fixture->session->phase() == McsSessionPhase::ShareActivation);

@@ -1,3 +1,7 @@
+## R3 P0 — make the coalesced Share fixture prove one successful TLS write (2026-11-01)
+
+The existing `security.macos-protected-share-confirm-active-finalization-single-tls-write` regression must literally prove the condition named by the test. Its client helper may retry after `SSL_ERROR_WANT_READ` / `SSL_ERROR_WANT_WRITE` only while OpenSSL has accepted **zero** plaintext; the single successful `SSL_write_ex` must accept the entire Confirm Active + Synchronize + Cooperate + Request Control + Font List batch. A successful partial application write is a fixture failure rather than a second successful client write. The ordinary batched-finalization test keeps the general all-bytes helper. No production R1/R2/R3 code or second protocol state owner is introduced.
+
 ## R10 shared bounded owner-service burst regression (2026-11-01)
 
 Keep one ordinary production-backed `runtime.host-control-bounded-service-burst-scheduling` CTest in the existing `test_runtime_host_control` executable. It must prove a successful non-retryable service callback is capped at the common burst limit and requests immediate rescheduling, while a peer-waiting retryable result and a terminal failure both stop after one call and never request a zero-delay continuation. Existing protected native-borrow/segmented-receipt, exact-TLS/ACK, MAP-consent and terminal/revocation tests remain the protocol/lifetime evidence; do not duplicate their state machines merely to test GUI pacing.

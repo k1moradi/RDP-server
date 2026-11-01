@@ -1,3 +1,25 @@
+## R8 dormant native publication receipt and scope fence (2026-11-01)
+
+**Reviewed parent:** `58b5c59111ed3219b84105f7b4f3eb392e7c3877`. The disabled Linux R8 owner could
+publish a remote X11 clipboard offer immediately after merely queueing the
+client's FORMAT_LIST response. A queued R3 reply or partial R1 TLS write is
+not delivery or native Clipboard permission. The prepared owner now requires
+the existing R3 bridge's completed server CAPS, MONITOR_READY and first
+FORMAT_LIST_RESPONSE receipts; no Clipboard write may be pending. A fresh
+R2/R3 Clipboard-scope visit is mandatory immediately before X11 publication.
+Native paste servicing is suppressed before initialization.
+
+Dedicated offline source-contract
+`runtime.linux-clipboard-native-publication-receipt-scope-denial` pins
+these exact boundaries and the literal production activation-off policy,
+outside the fixed 107-case labeled Clipboard sanitizer selector. No new
+TLS writer, R2 permit cache, parser, native owner or transfer queue.
+Production remains dormant, and the R10 owner has not yet composed
+CAPS/MONITOR_READY scheduling. Real Windows App video/input/Stop and macOS
+independent native Clipboard issuance remain separate activation blockers.
+Source/registry check PASS; local compile/CTest/sanitizers NOT RUN;
+publication-SHA hosted CI PENDING. No physical clipboard/file/X11 touched.
+
 ## R7 headless Qt platform-label CTest registration correction (2026-11-01)
 
 Reviewed `922976e59f95e3ef95e8467e73595d3bd187a3c9`: the new `gui.offscreen-native-desktop-platform-labels`

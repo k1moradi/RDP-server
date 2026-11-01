@@ -119,6 +119,19 @@ public:
             return false;
         }
 
+        // A remote Format List is not permission to claim native CLIPBOARD:
+        // require delivered server CAPS, MONITOR_READY, and the initial
+        // Format List Response through the sole R3/R1 accepted-byte owner.
+        // A queued or partially accepted reply cannot publish a source.
+        if (!bridge_->serverInitializationReady() || writePending_)
+            return true;
+
+        // Native publication is a separate Clipboard permission transition;
+        // View-authorized post-Share traffic cannot substitute for this visit.
+        if (!connection.visitPersonalDesktopClipboardChannel(
+                policy, bridge_->channelVisitor()))
+            return false;
+
         // A non-text remote offer is a valid CLIPRDR exchange but must not
         // claim the native clipboard during the first acceptance phase.
         (void)adapter_->publishCurrentRemoteOffer(now);
@@ -128,7 +141,9 @@ public:
     [[nodiscard]] bool serviceNative(
         Connection& connection, const Policy& policy,
         Clock::time_point now, bool mayStartRemoteFetch) noexcept {
-        if (!active()) {
+        // Do not service native paste/INCR before the sole R3/R1 initial
+        // response receipts make this channel generation presentable.
+        if (!active() || !bridge_->serverInitializationReady()) {
             return true;
         }
         if (!adapter_->servicePendingPaste(now)) {

@@ -1,3 +1,19 @@
+## R8 dormant native publication receipt and Clipboard-scope guard (2026-11-01)
+
+At parent `58b5c59111ed3219b84105f7b4f3eb392e7c3877`, source audit exposed a future-enable hazard:
+`LinuxPreparedClipboardOwner` attempted X11 publication immediately after
+queueing initial FORMAT_LIST_RESPONSE, without the bridge's delivered
+initialization receipt or fresh native Clipboard permission. The correction
+requires `serverInitializationReady()`, no outstanding R3/R1 Clipboard
+write, and new R2/R3 Clipboard visit before X11 claim; native paste service
+remains dormant before initialization. One new offline source-contract CTest
+`runtime.linux-clipboard-native-publication-receipt-scope-denial` uses
+non-clipboard labels, preserving the fixed 107 sanitizer census.
+Source and registry review PASS; local CMake/build/CTest/ASan/UBSan NOT RUN;
+publication-SHA hosted CI PENDING. Production activation remains false,
+future initialization scheduling is not yet composed, macOS has no native
+Clipboard issuer and real client/video/input/Stop are NOT RUN/unauthorized.
+
 ## R7 native label regression headless CTest correction (2026-11-01)
 
 At reviewed `922976e59f95e3ef95e8467e73595d3bd187a3c9`, the new Qt behavior test's CTest properties

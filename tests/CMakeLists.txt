@@ -5080,6 +5080,16 @@ set_tests_properties(
     runtime.linux-x11-clipboard-production-linkage PROPERTIES
     LABELS "runtime;clipboard;lifecycle;security;x11;offline;native-linkage")
 
+# A queued Format List response is not yet native Clipboard authority.
+# This offline source guard is outside the fixed 107-case Clipboard selector.
+add_test(NAME runtime.linux-clipboard-native-publication-receipt-scope-denial
+    COMMAND "${CMAKE_COMMAND}"
+        "-DRDP_LINUX_PREPARED_CLIPBOARD_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_prepared_clipboard_owner.h"
+        -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_clipboard_native_publication_gate.cmake")
+set_tests_properties(
+    runtime.linux-clipboard-native-publication-receipt-scope-denial PROPERTIES
+    LABELS "runtime;security;offline;native-linkage")
+
 # R5 R2/R3-authorized XTEST route. These cases use only ephemeral Xvfb and
 # deliberately supply no admission lease. They prove both that native desktop
 # freshness cannot authorize XTEST and that a mismatched geometry generation

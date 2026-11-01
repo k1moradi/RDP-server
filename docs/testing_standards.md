@@ -1,3 +1,14 @@
+## R8 native Clipboard publication requires completed initialization and scope (2026-11-01)
+
+Client FORMAT_LIST intake or queued FORMAT_LIST_RESPONSE is not X11 native
+ownership authority. Require delivered server CAPS/MONITOR_READY and initial
+FORMAT_LIST_RESPONSE receipts from the sole R3/R1 writer, absence of an
+outstanding Clipboard write, and fresh R2/R3 Clipboard permission before
+native publication. No native pending-paste service before initialization.
+Keep the production activation gate false. An offline source contract can
+prove code ordering but not actual OS session authorization or client
+interoperability.
+
 ## R7 offscreen QApplication label CTest environmental precondition (2026-11-01)
 
 Every Qt `test_desktop_gui_offline` case, including

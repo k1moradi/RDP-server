@@ -484,6 +484,7 @@ void initialHandshakeExactReceiptDenials()
     assert(!capabilities.empty() && route.queue(capabilities));
     const auto first = route.pending();
     assert(first && bridge.bindQueuedWrite(first));
+    const std::uint64_t oldRouteGeneration = first.routeGeneration;
     const std::uint64_t oldReplySequence = first.replySequence;
     const std::uint64_t oldSliceSequence = first.writeSliceSequence;
     const std::size_t oldOfferedBytes = first.wireBytes.size();
@@ -495,10 +496,11 @@ void initialHandshakeExactReceiptDenials()
     assert(!bridge.serverInitializationReady());
     assert(route.pending());
     const auto partial = route.onAcceptedBytes(
-        first.routeGeneration, first.replySequence,
-        first.writeSliceSequence, 1U);
+        oldRouteGeneration, oldReplySequence, oldSliceSequence, 1U);
     assert(partial == RdpClipboardWriteOutcome::Pending);
-    assert(bridge.recordAcceptedWrite(first, 1U, partial));
+    assert(bridge.recordAcceptedWriteReceipt(
+        oldRouteGeneration, oldReplySequence, oldSliceSequence,
+        oldOfferedBytes, 1U, partial));
     assert(bridge.serverInitializationStage() ==
            Stage::ServerCapabilitiesWritePending);
 
@@ -527,6 +529,22 @@ void initialHandshakeExactReceiptDenials()
            Stage::MonitorReadyWritePending);
     assert(!bridge.prepareNextServerInitializationPdu());
     assert(route.queue(bridge.pendingApplicationPdu()));
+    const auto monitorWrite = route.pending();
+    assert(monitorWrite && bridge.bindQueuedWrite(monitorWrite));
+    const std::uint64_t monitorRouteGeneration = monitorWrite.routeGeneration;
+    const std::uint64_t monitorReplySequence = monitorWrite.replySequence;
+    const std::uint64_t monitorSliceSequence = monitorWrite.writeSliceSequence;
+    const std::size_t monitorOfferedBytes = monitorWrite.wireBytes.size();
+    const auto partialMonitor = route.onAcceptedBytes(
+        monitorRouteGeneration, monitorReplySequence,
+        monitorSliceSequence, 1U);
+    assert(partialMonitor == RdpClipboardWriteOutcome::Pending);
+    assert(bridge.recordAcceptedWriteReceipt(
+        monitorRouteGeneration, monitorReplySequence, monitorSliceSequence,
+        monitorOfferedBytes, 1U, partialMonitor));
+    assert(bridge.serverInitializationStage() ==
+           Stage::MonitorReadyWritePending);
+    assert(!bridge.serverInitializationReady());
     completeQueuedReply();
     assert(bridge.serverInitializationStage() ==
            Stage::AwaitClientInitialization);

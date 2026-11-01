@@ -102,11 +102,11 @@ source review as a compilation success.
 Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build, run:
 
 ```sh
-ctest --test-dir build -C Debug -R '^(runtime[.]clipboard-initial-handshake-exact-receipt-denials|runtime[.]linux-clipboard-native-publication-receipt-scope-denial|security[.]macos-(post-join-clipboard-view-input-denial|share-activated-clipboard-permission-denial|share-activated-clipboard-scope-classifier-denial))$' --output-on-failure
+ctest --test-dir build -C Debug -R '^(runtime[.]clipboard-(permission-only-route-observation-consumption|initial-handshake-exact-receipt-denials)|runtime[.]linux-clipboard-native-publication-receipt-scope-denial|security[.]macos-(graphics-ready-clipboard-view-input-denial|post-join-clipboard-view-input-denial|share-activated-clipboard-permission-denial|share-activated-clipboard-scope-classifier-denial))$' --output-on-failure
 ctest --test-dir build -C Debug --output-on-failure
 ```
 
-Then full Release CTest and existing cross-platform exact-SHA 107-case Clipboard ASan/UBSan, CLIPRDR static-channel, X11 callback/INCR and native security lanes. No additional executable, dependency or build root. Local build/CTest/benchmarks NOT RUN; hosted exact publication-SHA qualification PENDING. No native Clipboard access or production activation.
+Then run full Release CTest and the existing cross-platform exact-SHA fixed **107-case** Clipboard ASan/UBSan selection plus CLIPRDR static-channel, X11 callback/INCR and native-security lanes. The added macOS case reuses the existing protected preauth executable; the Linux source guard now also reads the production R1 Clipboard writer. No new third-party dependency, executable, build root, native Clipboard access or production activation is introduced. Local build/CTest/benchmarks are NOT RUN in the connector environment; hosted exact publication-SHA qualification is required.
 
 ## R5 combined held-key/button implicit owner destructor Xvfb qualification (2026-11-01)
 

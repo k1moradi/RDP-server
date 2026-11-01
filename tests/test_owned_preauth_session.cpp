@@ -10694,14 +10694,18 @@ void testMacProtectedShareActivatedClipboardR2ClassifierDenial()
 }
 
 void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
-    bool publishFirstFrameAndAcknowledge)
+    bool publishFirstFrameAndAcknowledge,
+    bool denyClipboardAtGraphicsReady)
 {
     using rdp_server::server::runtime::RuntimeDeploymentPolicy;
     using Write = RdpGraphicsDvcWriteOutcome;
     using Intake = RdpGraphicsDvcClientIntake;
 
+    const std::uint32_t permissionMask =
+        kConsoleViewPermission |
+        (denyClipboardAtGraphicsReady ? kConsoleInputPermission : 0U);
     auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture(
-        kConsoleViewPermission, 0U, true);
+        permissionMask, 0U, true);
     RuntimeDeploymentPolicy policy;
     activateMacProtectedSyntheticLicensedShare(
         fixture, policy, RdpDemandActiveFeature::DynamicVirtualChannels);
@@ -10813,6 +10817,26 @@ void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
     assert(!mapped.firstExactFrameWriteCommitted);
     assert(mapped.outstandingFrameAcknowledgements == 0U);
     assert(!mapped.firstGenuineFrameAcknowledge);
+
+    if (denyClipboardAtGraphicsReady)
+    {
+        // Joined CLIPRDR plus completed Share/Graphics control must not borrow
+        // View or Input as Clipboard authority. Original R1/R2/R3 owners are
+        // production instances; licensing/native proof remains synthetic.
+        assert(!publishFirstFrameAndAcknowledge);
+        assert(staticChannelIds.size() == 3U);
+        const std::uint16_t clipboardChannelId = staticChannelIds[1U];
+        assert(fixture->session->channelJoinConfirmed(clipboardChannelId));
+        assert(fixture->broker.revalidate(kConsoleViewPermission));
+        assert(fixture->broker.revalidate(kConsoleInputPermission));
+        assert(!fixture->broker.revalidate(kConsoleClipboardPermission));
+        assert(!fixture->broker.authorizeR3ActivatedClipboardChannel(
+            *fixture->session, policy));
+        assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(fixture->session->phase() == McsSessionPhase::Closed);
+        assert(fixture->connection.stage() == PreauthStage::Closed);
+        return;
+    }
 
     if (publishFirstFrameAndAcknowledge)
     {
@@ -11037,12 +11061,17 @@ void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
 
 void testMacProtectedGraphicsMappedFirstFrameConsentReplacementDenial()
 {
-    exerciseMacProtectedGraphicsMappedFirstFrameTransition(false);
+    exerciseMacProtectedGraphicsMappedFirstFrameTransition(false, false);
 }
 
 void testMacProtectedGraphicsFirstFrameR1ReceiptClientAcknowledge()
 {
-    exerciseMacProtectedGraphicsMappedFirstFrameTransition(true);
+    exerciseMacProtectedGraphicsMappedFirstFrameTransition(true, false);
+}
+
+void testMacProtectedGraphicsReadyClipboardViewInputDenial()
+{
+    exerciseMacProtectedGraphicsMappedFirstFrameTransition(false, true);
 }
 
 void testMacProtectedPostJoinClipboardViewInputDenial()
@@ -15718,6 +15747,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedGraphicsMappedFirstFrameConsentReplacementDenial},
     {"macos-protected-graphics-first-frame-r1-receipt-client-ack",
      &testMacProtectedGraphicsFirstFrameR1ReceiptClientAcknowledge},
+    {"macos-graphics-ready-clipboard-view-input-denial",
+     &testMacProtectedGraphicsReadyClipboardViewInputDenial},
     {"macos-post-join-clipboard-view-input-denial",
      &testMacProtectedPostJoinClipboardViewInputDenial},
     {"macos-transport-admitted-clipboard-permission-denials",

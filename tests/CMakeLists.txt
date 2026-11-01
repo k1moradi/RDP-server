@@ -2448,6 +2448,17 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "protocol;security;native-authorization;transport;tls;mcs;admission;graphics;offline"
                 TIMEOUT 90)
 
+        # R8 View|Input-only scope must remain non-Clipboard even after the
+        # protected Share and Graphics control reach a mapped surface.
+        add_test(NAME security.macos-graphics-ready-clipboard-view-input-denial
+            COMMAND "${test_target}"
+                "macos-graphics-ready-clipboard-view-input-denial")
+        set_tests_properties(
+            security.macos-graphics-ready-clipboard-view-input-denial
+            PROPERTIES
+                LABELS "protocol;security;native-authorization;transport;tls;mcs;admission;graphics;offline"
+                TIMEOUT 90)
+
         # R8 production R2 post-Share classification must retire joined
         # CLIPRDR traffic without independent macOS Clipboard authority.
         # Keep this separate from the fixed 107-case sanitizer census.
@@ -5243,6 +5254,7 @@ add_test(NAME runtime.linux-clipboard-native-publication-receipt-scope-denial
     COMMAND "${CMAKE_COMMAND}"
         "-DRDP_LINUX_PREPARED_CLIPBOARD_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_prepared_clipboard_owner.h"
         "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
+        "-DRDP_LINUX_RUNTIME_CONNECTION_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_connection.cpp"
         -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_clipboard_native_publication_gate.cmake")
 set_tests_properties(
     runtime.linux-clipboard-native-publication-receipt-scope-denial PROPERTIES

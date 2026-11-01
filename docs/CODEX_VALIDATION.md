@@ -1,3 +1,37 @@
+## R5 descendant implicit-X11 teardown and owner-evidence gate verification (2026-11-01)
+
+**Evidence source SHA:** `fdca79857b9df684f97c1b32b7dbd709fcab4c6f`
+(Actions `41299381227`; Ubuntu protocol job `124826980728`;
+R9 ASan/UBSan job `124826980655`). The X11 aggregate/header/input
+production Git blobs match `e4534704900c4a3ef890e55aa35e91a76653f0ec`
+exactly. Ubuntu Debug CTest individually **PASS** for the terminal-failure
+no-XTEST guard, aggregate implicit-destruction guard, nested held-input
+teardown-chain source contract, RandR-held-state, implicit queued-XDamage
+owner replacement, reentrant XDamage loss and in-flight frame borrow loss.
+The owner-private independent connection/native pin and client-frame
+write/ACK/reconnect anti-splice validators also **PASS**.
+
+The same exact SHA's R9 sanitizer job completed successfully: fixed X11 R5
+native **45/45 PASS**, plus separately registered implicit X11 destructor
+Xvfb sanitizer **1/1 PASS**. This is real hosted automated evidence, not a
+physical seat0/R2/XTEST/Windows-client acceptance claim. The new source-only
+chain does not provide an actual aggregate-held keyboard+button native-post
+counter; that combined behavioral receipt remains **NOT RUN**.
+
+The global protocol matrix is **FAIL outside R5** at this source SHA.
+Ubuntu full Debug ran 1088 registered cases but failed one protected macOS
+first-frame exact TLS receipt/ACK test at
+`tests/test_owned_preauth_session.cpp:10509`
+(`acceptedOuterBytes == firstFrameWireBytes`); its Release stage was
+skipped. Hosted macOS timed out waiting for the same frame fixture's
+`delivered` state (`line 10508`); Windows additionally reports
+Share/Graphics fixture failures. R9 manual-candidate prerequisites require
+a green full protocol matrix and Windows Clang qualification and thus remain
+**BLOCKED**. No additional R5 production change or second authority owner
+is warranted; the next gate is cross-road first-frame fixture correction,
+same-SHA CI, independent owner authorization, then private native
+R1/R2/R3/R5/R4 delivery/ACK/terminal/reconnect evidence.
+
 ## macOS protected first-frame size assertion portability failure (2026-11-01)
 
 At `ce1938083ebd02e2bcd1a089173d85a89df9f34b`, macOS test `security.macos-protected-graphics-first-frame-exact-tls-receipt-client-ack` reached the final frame-write loop and then failed `delivered && acceptedOuterBytes > strideBytes * height`. Delivery itself is the relevant R3 result; encoded ClearCodec/DVC PDU bytes are not required to exceed uncompressed BGRA bytes. The correction caches the original prepared frame PDU length and requires exact accepted-byte equality at `Delivered`. Production R1/R2/R3/R4 behavior is unchanged. Local execution NOT RUN; exact corrective-SHA hosted qualification PENDING.

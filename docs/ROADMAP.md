@@ -96,33 +96,49 @@ Microsoft-client acceptance NOT RUN/unauthorized.
 
 ## R5 nested implicit X11 held-state teardown chain (2026-11-01)
 
-**Reviewed main parent:** `50be63b0b39ce6e831b3009e07a0020d7bd3b28d`. The previously landed
-`e453470` aggregate destructor is terminal/no-XTEST; `64732a09`
-covers implicit queued-Damage/XCB retirement and replacement; `59a48ad`
-adds that existing case separately to native sanitizer CI without
-altering the fixed **45-case** selection.
+**Original source parent:** `50be63b0b39ce6e831b3009e07a0020d7bd3b28d`.
+R5 source/CTest publication: `1dbb95d02443df6a2fb4eca2e3f99b39d84d9bb5`.
+**Exact qualified current-descendant source:** `fdca79857b9df684f97c1b32b7dbd709fcab4c6f`,
+hosted Actions `41299381227`. All R5 X11 production blobs remain identical
+to the terminal-no-XTEST implementation at `e453470`.
 
-- [x] Add one independent offline source-chain CTest for aggregate implicit
-  destruction, terminal child state clear, no XTEST posts in terminal
-  controller functions, child-before-XCB parent teardown and inert child
-  destructor. An isolated CMake 3.31.6 source-shaped positive and a
-  deliberately injected XTEST-post negative fixture were checked.
-- [ ] Run the new source CTest, existing destructor/fatal input/RandR CTests
-  and queued-XDamage implicit-destruction Xvfb fixture on its exact
-  publication SHA; then full Linux Debug and Release CTest.
-- [ ] Obtain exact publication-SHA **45/45** R5 ASan/UBSan selector plus
-  separately counted implicit-destructor native sanitizer case.
-- [ ] Independently obtain aggregate-held keyboard/button implicit-destructor
-  behavioral no-post/leak evidence. The new source-only check, direct
-  XTEST-controller held-state tests and Xvfb aggregate teardown without
-  held state do not establish that stronger combined observation.
-- [ ] Obtain R9 exact-SHA/manual-candidate prerequisites and explicit
-  owner authorization before any real Linux seat0/R2, client Share,
-  first-frame/inbound ACK, input, RandR, terminal Stop or reconnect.
+- [x] Dedicated offline production-source CTest proves implicit aggregate
+  destructor -> suppressing cancellation -> held key/button retirement and
+  XCB borrow invalidation -> inert child destructor -> child-before-parent
+  teardown. The isolated positive/mutated-negative CMake fixture passed.
+- [x] Exact descendant Ubuntu Debug executed and passed the new source-chain
+  CTest, existing implicit-destructor source guard, terminal native input
+  failure, held-state RandR bounds update, implicit queued-XDamage replacement,
+  reentrant Damage retirement and in-flight frame-borrow retirement CTests.
+  The independent owner-private original-socket/native-authority and
+  first-frame/write/inbound-ACK/reconnect anti-splice CTests also passed.
+- [x] At that same descendant SHA, hosted R9 ASan/UBSan kept the fixed R5
+  native selector at **45/45 PASS** and separately executed the implicit
+  Xvfb desktop-destructor test **1/1 PASS**. No native test was added to the
+  immutable 45-case census; no production rewrite or new dependency is needed.
+- [ ] Full cross-platform Debug/Release protocol qualification on one current
+  source SHA remains blocked outside R5. Ubuntu Debug executed 1088 CTests
+  with one non-R5 failure in the protected macOS first-frame exact TLS
+  receipt/ACK fixture, so Release was skipped. On the same SHA macOS also
+  failed that first-frame fixture and Windows failed Share/Graphics fixtures.
+  The R9 manual-candidate dependency requires a green protocol matrix and
+  applicable Windows Clang gate; do not treat green R5 sanitizers as the
+  complete global qualification.
+- [ ] Independently obtain aggregate-held keyboard **and** button implicit
+  destructor behavioral zero-native-post/leak evidence. The source-chain
+  guard, direct held-input controller test, and aggregate queued-Damage
+  Xvfb test each cover a different boundary and cannot be spliced into that
+  stronger combined observation. Never fabricate positive R2 native authority.
+- [ ] Obtain a fully green same-SHA R9 manual candidate and explicit owner
+  authorization before any real Linux seat0/R2, client Share, first frame,
+  complete R1 TLS write/inbound client FRAME_ACK, input, RandR, Stop or fresh
+  reconnect acceptance. Owner-private independent pins remain non-authorizing.
 
-No owner native test, real X server, seat0 capture or XTEST injection
-was performed. Publication-SHA CI is PENDING; native behavioral
-acceptance and private session evidence remain NOT RUN/unauthorized.
+**Validation boundary:** The hosted CI runs ephemeral Xvfb under sanitizer;
+this authoring review performed no real desktop/X server session, seat0
+capture, physical XTEST injection, native owner authorization or real-client
+acceptance. Source/CTest/sanitizer evidence PASS at the cited descendant;
+global Debug/Release and physical owner evidence remain BLOCKED / NOT RUN.
 
 ## R8 fully formed post-Share Clipboard negative packet fixtures (2026-11-01)
 

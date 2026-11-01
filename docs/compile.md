@@ -1,3 +1,19 @@
+## R1 protected licensing partial-write/revocation test build scope (2026-11-01)
+
+No new executable or build root is introduced. The existing
+`test_owned_preauth_session` target now links the already-production
+`rdp-server-runtime-licensing` library in addition to its existing R1 TLS,
+R2 macOS admission and standalone authentication dependencies so the test uses
+the real generated licensing identity/private-key owner.
+
+Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build,
+run:
+`ctest --test-dir build -C Debug -R '^security[.]macos-protected-license-request-partial-write-callback-revocation$' --output-on-failure`,
+then the full Debug CTest and applicable existing sanitizer/Release gates.
+Connector-local compile/CTest **NOT RUN**; publication-SHA hosted validation
+**PENDING**. No physical client or native desktop operation belongs in this
+test.
+
 ## R2 personal licensing policy-replacement offline CTest (2026-11-01)
 
 No new dependency, executable, build root, runtime reader or listener. Reuse

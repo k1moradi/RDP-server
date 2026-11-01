@@ -1,3 +1,40 @@
+## R1 protected macOS Server License Request partial-write revocation fence (2026-11-01)
+
+**Source parent:** `2d38df86668283e701fc57b8c3a8c46796016449`. Dependency refresh found that R3's
+premature Client Licensing fence (`d40728ab`) and R2's original-policy/stale
+receipt regression (`6c53bb4b`) have landed. The macOS R10 HostControl still
+stops at `ClientInfoAccepted`; its positive PersonalDesktop licensing scheduler
+is **NOT PRESENT** at this parent. That unresolved R10 composition does not block
+R1 from qualifying the exact transport/receipt boundary it must consume.
+
+R1 production audit found no defect in `writeTlsApplicationData()`,
+`ioInterest()` or terminal SSL/BIO/socket cancellation. Add ordinary
+production-backed
+`security.macos-protected-license-request-partial-write-callback-revocation`
+to the existing R1 loopback HYBRID/TLS + concrete macOS R2 + production R3
+fixture. It uses the production `RuntimeLicensingContext`, forces a 512-byte
+OpenSSL send fragment, requires a **positive short R1 plaintext write**, then
+changes native audit evidence on R2's protected receipt postcheck after R3 has
+seen the exact partial byte count. The callback must return Rejected, close
+licensing/R3 and cancel R1; late original receipts cannot revive the owner. A
+fresh successor connection using the same immutable service policy/licensing
+context must begin from clean `AwaitServerLicenseRequest / NotStarted` state.
+
+No second TLS reader/writer, queue, timeout, certificate, NTLM or socket policy
+is added. The only build-graph change is test-only linkage of the existing
+`test_owned_preauth_session` executable to
+`rdp-server-runtime-licensing`, so the regression consumes the real
+service-lifetime identity/credential rather than fabricating one.
+
+**Verification:** source/dependency/registry review PASS. Connector-local
+configure/build/focused/full CTest and sanitizers **NOT RUN**; exact
+publication-SHA hosted CI **PENDING**. Physical Microsoft client/native desktop
+testing remains **NOT RUN / unauthorized**. **Next dependency:** R10 must land
+the serialized macOS Server License Request -> client licensing TPKT ->
+STATUS_VALID_CLIENT orchestration using these existing R1/R2/R3 contracts;
+Agent 1 then reviews that exact patch for WANT direction, suffix retention,
+coalesced TPKT framing and revocation ordering before Demand/Confirm Active.
+
 ## R5 implicit X11 owner scope-exit / session-replacement gate (2026-11-01)
 
 **Reviewed parent:** `e4534704900c4a3ef890e55aa35e91a76653f0ec`.

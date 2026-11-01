@@ -1,3 +1,27 @@
+## R1 macOS licensing positive-partial receipt / callback revocation review (2026-11-01)
+
+**Source parent:** `2d38df86668283e701fc57b8c3a8c46796016449`. Re-audited R1 application TLS I/O,
+R2 macOS PersonalDesktop wrappers, R3 Server License Request receipt state,
+the current macOS R10 HostControl and CMake target dependencies after R3
+`d40728ab` and R2 `6c53bb4b` landed. R10 still stops at
+`ClientInfoAccepted`; no Agent 10 licensing scheduler was available to review.
+
+No production R1 defect was demonstrated. The missing integration evidence was
+a genuine positive partial R1 TLS write crossing the concrete R2 receipt
+wrapper before callback-time native authority loss. Added
+`security.macos-protected-license-request-partial-write-callback-revocation`
+using the production generated licensing context. It forces a 512-byte TLS
+fragment, requires a positive short R1 plaintext acceptance, then changes native
+audit evidence on the R2 postcheck after the R3 receipt callback. Expected
+result is terminal R2 rejection, closed R3/licensing and canceled R1, with late
+receipt/reborrow denial and a clean fresh successor session.
+
+Static source, dependency and central registry review: **PASS**. Local
+configure/build/focused/full CTest, ASan/UBSan and Release: **NOT RUN** in this
+connector environment. Exact publication-SHA hosted CI: **PENDING**. Physical
+Windows App/mstsc, macOS native desktop, capture, input and clipboard:
+**NOT RUN / unauthorized**.
+
 ## R2 immutable PersonalDesktop licensing policy/receipt review (2026-11-01)
 
 **Inspected source parent:** `e4534704900c4a3ef890e55aa35e91a76653f0ec`.

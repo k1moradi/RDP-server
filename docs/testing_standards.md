@@ -1,3 +1,26 @@
+## R1/R2 protected macOS partial Server License Request callback-revocation CTest (2026-11-01)
+
+Ordinary
+`security.macos-protected-license-request-partial-write-callback-revocation`
+must reuse the existing real loopback R1 HYBRID/TLS owner, concrete macOS R2
+broker and production R3 session through joined Client Info. Configure the
+production service-lifetime `RuntimeLicensingContext` and original immutable
+PersonalDesktop policy, then force a TLS fragment smaller than the generated
+Server License Request. The test must observe a positive short
+`writeTlsApplicationData()` result, never attempted-byte progress.
+
+Before reporting that exact byte count through R2, arrange native audit
+replacement on the protected callback postcheck. R3 may see the partial receipt
+inside the callback, but R2 must reject publication, close licensing/R3 and
+cancel the original R1 SSL/BIO/socket. A late receipt or reborrow is rejected.
+A fresh connection using the same policy/context starts with no inherited
+write slice, licensing decision or Share state. WANT_READ/WANT_WRITE remains
+zero protocol progress and retries the identical R3-owned view.
+
+The fixture's authentication/native evidence is synthetic and cannot qualify a
+physical macOS admission. Keep this ordinary regression outside fixed sanitizer
+censuses; it adds no listener, desktop, clipboard or input operation.
+
 ## R2 original-policy licensing selection and terminal receipt regression (2026-11-01)
 
 Ordinary `security.macos-protected-personal-licensing-policy-retirement-denials`

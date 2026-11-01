@@ -2068,6 +2068,18 @@ function(add_rdp_test source_file suite behavior)
             PROPERTIES LABELS "security;native-authorization;transport;tls;licensing;offline"
                        TIMEOUT 60)
 
+        # R1/R2/R3 licensing receipt fence: a real positive partial TLS
+        # Server License Request write followed by callback-time native
+        # revocation must retire the original session and reject late receipts.
+        add_test(NAME security.macos-protected-license-request-partial-write-callback-revocation
+            COMMAND "${test_target}"
+                "macos-protected-license-request-partial-write-callback-revocation")
+        set_tests_properties(
+            security.macos-protected-license-request-partial-write-callback-revocation
+            PROPERTIES
+                LABELS "protocol;security;transport;tls;licensing;admission;offline"
+                TIMEOUT 60)
+
         # R8 joined cliprdr remains denied after complete real R1 TLS Join
         # Confirm receipts and protected Client Info with View|Input only.
         add_test(NAME security.macos-post-join-clipboard-view-input-denial
@@ -2619,11 +2631,13 @@ add_rdp_test(test_owned_gcc_conference_create.cpp transport gcc-conference-creat
 add_rdp_test(test_owned_preauth_session.cpp transport preauth-session)
 # Test-only cross-road composition: R1 remains in the exported protocol target;
 # this existing executable additionally consumes R10's noninstalled runtime TLS
-# owner and the portable standalone NTLM implementation used by its Type-2
-# delivery-receipt fixture. Link the producer directly on every platform rather
-# than relying on Linux-only transitive runtime-security composition.
+# owner, service-lifetime licensing identity/credential and the portable
+# standalone NTLM implementation used by its Type-2 delivery-receipt fixture.
+# Link the producers directly on every platform rather than relying on
+# Linux-only transitive runtime-security composition.
 target_link_libraries(test_owned_preauth_session PRIVATE
     rdp-server-runtime-tls
+    rdp-server-runtime-licensing
     rdp-server-standalone-ntlmv2
     rdp-server-mac-console-admission)
 if(TARGET rdp-server-linux-gssapi)

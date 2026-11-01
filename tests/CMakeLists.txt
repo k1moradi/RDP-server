@@ -1527,6 +1527,7 @@ set_tests_properties(interop.windows-client-ab-stage-provenance-splice-denials P
     LABELS "interop;offline;security;evidence" TIMEOUT 15)
 
 # R6 private invalid values must not leak even from a FAIL summary.
+# Paired validation also checks the original category after upstream redaction.
 add_test(NAME interop.windows-client-ab-invalid-private-summary-redaction
     COMMAND "${Python3_EXECUTABLE}"
         "${PROJECT_SOURCE_DIR}/tests/test_macos_windows_app_owner_evidence.py"

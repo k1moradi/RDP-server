@@ -945,6 +945,25 @@ class OwnerEvidenceTests(unittest.TestCase):
         )
         self.assertNotIn(private_marker, stderr.getvalue())
 
+    def test_paired_private_original_macos_category_invalid_after_redaction(self):
+        # Redacting a malformed private category to public "unknown" must not
+        # obscure the typed original-source denial in the paired validator.
+        private_marker = "private-session-password-sentinel"
+        for private_category in (
+            private_marker, [private_marker], {"detail": private_marker}
+        ):
+            with self.subTest(category_type=type(private_category).__name__):
+                manifest = evidence.build_manifest(self.options)
+                pair = self._paired_record(manifest)
+                manifest["first_client_error"]["normalized_category"] = private_category
+                summary = ab_evidence.validate_pair(manifest, pair)
+                self.assertEqual(summary["evidence_status"], "FAIL")
+                self.assertIn("MACOS_R5_EVIDENCE_INVALID", summary["evidence_failures"])
+                self.assertIn("MACOS_FIRST_ERROR_INVALID", summary["evidence_failures"])
+                self.assertEqual(summary["macos"]["first_client_error_category"],
+                                 "unknown")
+                self.assertNotIn(private_marker, json.dumps(summary, sort_keys=True))
+
     def test_paired_private_malformed_nested_evidence_denials(self):
         manifest = evidence.build_manifest(self.options)
         private_marker = "private-session-password-sentinel"

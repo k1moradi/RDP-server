@@ -1,3 +1,7 @@
+## Original first-error category must be validated before projecting sanitized evidence (2026-11-01)
+
+A redacted upstream summary cannot itself prove an original private category was valid: both genuine `unknown` and a malformed string/list/dict can sanitize to that same public token. In paired validation, validate the original bounded category and check its agreement with the sanitized projection. Exercise this with isolated malformed private source values inside the existing paired regression in addition to the existing upstream malformed-summary CTest, keeping one new dedicated CTest for the newly discovered privacy flaw. Never restore raw private category text just to recover the old assertion.
+
 ## Escaped surrogate provider fields are malformed private evidence (2026-11-01)
 
 When validating redacted first-client-error summaries, a JSON string containing a lone UTF-16 surrogate is not valid UTF-8 provider text. Catch encoding failures and issue the same fixed typed FAIL as other malformed nested provider fields. The existing offline malformed-first-error CTest must cover this alongside string/list/dictionary sentinels; public provider-present flags must become false for invalid records. Do not create additional public schema fields or a second CTest.

@@ -588,6 +588,12 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
     if (not _is_allowed(macos_error_category, ERROR_CATEGORIES)
             or not isinstance(macos_first_error, dict)
             or set(macos_first_error) != MACOS_FIRST_ERROR_FIELDS
+            # The upstream redacted summary may replace an invalid original
+            # category with "unknown". Validate private provenance separately
+            # so that public sanitization never conceals its typed denial.
+            or not _is_allowed(
+                macos_first_error.get("normalized_category"), ERROR_CATEGORIES)
+            or macos_first_error.get("normalized_category") != macos_error_category
             or not _is_allowed(macos_first_error.get("source"), ERROR_SOURCES)):
         failures.append("MACOS_FIRST_ERROR_INVALID")
     else:

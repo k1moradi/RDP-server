@@ -1,3 +1,14 @@
+## R7 macOS pre-Share GUI GraphicsReady isolation (2026-11-01)
+
+Before R10 composes genuine R3 Share activation, Graphics DVC and surface
+readiness, `MacRuntimeHostControl::status().graphicsReady` must remain false.
+It must not mirror `RuntimePlatformNativeDesktop::ready()`: that member only
+describes native resources and cannot prove a client-negotiated RDP Graphics
+channel. Keep `nativeDesktopReady` independent, and do not infer client-visible
+frames from either value. When R10 lands real graphics, replace this explicit
+fail-closed projection only with original R2-protected R3 graphics/presentation
+observations, preserving native-borrow lifetime and one R1 owner.
+
 ## R7/R10 accepted-client native retirement has one owner (2026-11-01)
 
 `MacRuntimeHostControl::retireAcceptedClient()` is the sole owner of native

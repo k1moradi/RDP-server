@@ -1,3 +1,14 @@
+## R7 macOS pre-Share GUI status projection qualification (2026-11-01)
+
+Use only `~/rdp-server/build/`, after canonical Debug configure/build:
+`ctest --test-dir build -C Debug -R '^runtime[.]macos-host-control-pre-share-graphics-status-denials$' --output-on-failure`.
+Then full Debug/Release CTest and unchanged native lifecycle/sanitizer gates.
+This reuses `test_macos_runtime_host_control` on macOS; no additional
+target, dependency, listener, native permission or fixed sanitizer selection.
+At authoring, local macOS execution NOT RUN and exact publication-SHA CI
+PENDING. Future R10 real Graphics activation requires a separate positive
+R2-protected readiness/delivered-frame behavior CTest.
+
 ## R7 allocation-failure source-contract corrective check (2026-11-01)
 
 At `6f10bcce0ddbf5cd18f41113e811977d2992a782`, hosted Ubuntu and macOS Debug builds succeeded but full

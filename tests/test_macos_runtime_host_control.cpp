@@ -975,6 +975,52 @@ void testInitialProductProjection()
     assert(snapshot.product.state == RuntimeProductHostState::Stopped);
 }
 
+// R10 has licensing but no Share/Graphics scheduler. A local owner consent
+// grant and host prerequisites must never make the GUI claim GraphicsReady.
+void testPreShareGraphicsStatusDenied()
+{
+    PortableBootstrapEvidence evidence(501U);
+    MacRuntimeHostControl control(evidence);
+    const auto initial = control.status();
+    assert(!initial.graphicsReady);
+    assert(!initial.nativeDesktopReady);
+    assert(!initial.nativeDesktopInitializing);
+    assert(!initial.listenerAvailable);
+
+    auto password = standalonePassword();
+    assert(control.configureStandaloneApplicationPassword(u"testuser", password));
+    const auto configured = control.status();
+    assert(configured.credentialsConfigured);
+    assert(!configured.graphicsReady);
+    assert(!configured.nativeDesktopReady);
+
+    RuntimeHostPermissionRequest permission;
+    permission.allowInput = true;
+    permission.allowClipboard = false;
+    permission.requestedLifetimeMilliseconds = 60'000U;
+    assert(control.requestHostPermissionSetup(permission).succeeded());
+    const auto authorized = control.status();
+    assert(authorized.hostOwnerAuthorized);
+    assert(!authorized.graphicsReady);
+    assert(!authorized.nativeDesktopReady);
+    assert(!authorized.nativeDesktopInitializing);
+    assert(!authorized.listenerAvailable);
+    assert(authorized.activeClients.empty());
+
+    assert(control.serviceOnce().succeeded());
+    const auto serviced = control.status();
+    assert(!serviced.graphicsReady);
+    assert(!serviced.nativeDesktopReady);
+    assert(!serviced.listenerAvailable);
+
+    assert(control.revokeSharing().succeeded());
+    const auto revoked = control.status();
+    assert(revoked.stage == RuntimeHostStage::Revoked);
+    assert(!revoked.graphicsReady);
+    assert(!revoked.nativeDesktopReady);
+    assert(revoked.activeClients.empty());
+}
+
 void testAutomaticLicensingPrestartNoListener()
 {
     MacRuntimeHostControl control;
@@ -1881,6 +1927,10 @@ int main(int argc, char** argv)
     else if (selected == "macos-host-control-automatic-licensing-prestart-no-listener")
     {
         testAutomaticLicensingPrestartNoListener();
+    }
+    else if (selected == "macos-host-control-pre-share-graphics-status-denials")
+    {
+        testPreShareGraphicsStatusDenied();
     }
     else if (selected == "macos-host-control-standalone-password-lifecycle")
     {

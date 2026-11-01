@@ -1,3 +1,26 @@
+## R7 fail-closed macOS GUI GraphicsReady before Share (2026-11-01)
+
+Authoring parent `751d9d0a01aabe6c5bd0414b531b199a264da6c9`. GitHub production source confirms R10
+`ValidClientDelivered` / `McsSessionPhase::AwaitDemandActive` is the terminal
+macOS host-scheduler phase; no path to R3 `ShareActivated`, Graphics DVC
+CAPS/CREATE/MAP or native attachment is composed. Yet the read-only
+`MacRuntimeHostControl::status()` still equated
+`snapshot.graphicsReady = nativeDesktop_.ready()` before checking any R3
+graphics state. Correct the projection now to fail-closed `false`, keeping
+`nativeDesktopReady` independently sourced. Reuse the actual macOS
+HostControl production-linked test executable with one new ordinary
+`runtime.macos-host-control-pre-share-graphics-status-denials` covering
+initial, credential-configured, consent-granted, serviced and revoked states.
+It opens no listener and never calls native attachment.
+
+Source and CTest dispatch inspection PASS; connector-local Debug/Release,
+full CTest, ASan/UBSan and owner macOS 27 NOT RUN; exact publication-SHA hosted
+CI PENDING. A future R10 Share/Graphics integration must replace the
+fail-closed value only with fresh R2-protected R3 graphics observations and
+add the separate real GraphicsReady/native-only/prepared-vs-delivered behavior
+test. No native capture, input, Clipboard, permission prompt, Qt warning
+suppression or profile change.
+
 ## Exact-head protocol CI first failure: stale allocation-retirement source contract (2026-11-01)
 
 Reviewed `6f10bcce0ddbf5cd18f41113e811977d2992a782` after R10 licensing and R7 retirement cleanup. Actions

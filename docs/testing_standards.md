@@ -1,3 +1,14 @@
+## R7 macOS pre-Share graphics status denial (2026-11-01)
+
+The ordinary macOS production-linked
+`runtime.macos-host-control-pre-share-graphics-status-denials` CTest checks
+`RuntimeHostStatus` across no-argument startup, configured memory-only
+Session Password, owner View/Input consent, idle service and revocation.
+All stages must keep GraphicsReady false and native state uninitialized,
+with no socket/listener, actual capture, input or TCC request. This is not
+a simulated post-Share positive test and does not replace the later
+four-state R3-native readiness/first-frame regression.
+
 ## Allocation-failure source contract must follow the single accepted-client retirement owner (2026-11-01)
 
 When `MacRuntimeHostControl::retireAcceptedClient()` is the canonical owner of

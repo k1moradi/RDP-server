@@ -17336,14 +17336,19 @@ revocation funnel through it without a second native retirement. No actual
 native attachment, client frame, input, TCC prompt or clipboard access is
 authorized.
 
-**Deferred narrow status correction:** `snapshot.graphicsReady` currently
-mirrors `nativeDesktop_.ready()` in macOS HostControl. When R10 owns real
-Graphics activation, project `graphicsReady` only from the current
-R2-protected R3 graphics/presentation state; keep `nativeDesktopReady`
-separate. Add one behavior-named production-backed CTest that independently
-tests native-only, R3-only, both and revoked states, plus first-frame
-delivery versus merely prepared frames. Never use GUI flags for authority.
-No speculative runtime or QColorSpace correction is justified now.
+**R7 fail-closed status correction:** While the macOS R10 scheduler stops at
+`ValidClientDelivered` / `AwaitDemandActive`, its GUI projection now keeps
+`graphicsReady=false` rather than falsely equating native resource readiness
+to R3 GraphicsReady. `nativeDesktopReady` remains independent. The
+production macOS `runtime.macos-host-control-pre-share-graphics-status-denials`
+CTest covers credential setup, owner permission, idle service and revocation
+without opening a listener. New publication-SHA hosted CI PENDING and owner
+macOS 27 CTest NOT RUN. Once R10 composes real Share/Graphics activation,
+replace the fail-closed value only with fresh R2-protected R3
+graphics/presentation observations and add a production-backed behavior CTest
+that independently tests native-only, R3-only, both and revoked states,
+plus delivered-first-frame versus merely prepared frames. GUI flags
+remain non-authorizing; no QColorSpace workaround is justified.
 
 **Owner-only warning attribution:** Without enabling Sharing, capture or any
 permission prompt, start the extracted app under LLDB with symbols for the

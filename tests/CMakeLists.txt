@@ -1108,6 +1108,14 @@ if(TARGET rdp-server-macos-host-control)
             SKIP_RETURN_CODE 77)
     endforeach()
 
+    # R7 native readiness is not R3 GraphicsReady. Use the production macOS
+    # HostControl to prove no graphics or listener from credential/consent alone.
+    add_test(NAME runtime.macos-host-control-pre-share-graphics-status-denials
+        COMMAND test_macos_runtime_host_control
+            macos-host-control-pre-share-graphics-status-denials)
+    set_tests_properties(runtime.macos-host-control-pre-share-graphics-status-denials
+        PROPERTIES LABELS "runtime;macos;security;graphics;gui;offline" TIMEOUT 20)
+
     # R10 production macOS pre-admission path with a synthetic local TCP peer.
     # No real RDP client, R2 native admission, TCC, capture or input is used.
     # Network/interface unavailable is an explicit skip, not an offline pass.

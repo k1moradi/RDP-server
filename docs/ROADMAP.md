@@ -1,3 +1,17 @@
+## R5 policy-registry co-change follow-up (2026-10-31)
+
+The prior `05ea486bb8f16a479a0924013b4f7f39b04c574f` changed X11
+source comments while fixing the stale no-XTEST source guard, but did not
+touch the centralized `tests/CMakeLists.txt` registry. The project
+commit-by-commit policy mechanically requires this even for comment-only
+production file edits; its `documentation-policy` job is **FAIL**.
+Update that existing source-guard CTest registration comment to record the
+new RandR no-release invariant without modifying test count, labels,
+runtime behavior or permission. No history rewrite, force or alternate
+branch; the predecessor's policy violation remains explicitly documented.
+Current head guard/policy qualification **PENDING**, owner-local full CTest
+**NOT RUN**.
+
 ## R5 RandR no-XTEST source guard reconciliation (2026-10-31)
 
 Exact parent `c43d883367ab9dd1e54a56994e7f44fce0806940` Actions `41252273117` ran Ubuntu full CTest

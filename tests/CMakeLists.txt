@@ -3025,8 +3025,11 @@ if(TARGET rdp-server-linux-runtime-security)
         LABELS "runtime;security;native;linux;x11;native-desktop;session;offline")
 
     # The R5 aggregate's terminal XCB/XShm/input failure cleanup must not
-    # post held-key/button releases; the Xvfb native controller fixture
-    # separately exercises actual no-XTEST retirement.
+    # post held-key/button releases. The source guard also pins same-owner
+    # RandR's geometry-only teardown: retain XTEST input and update bounds,
+    # never gracefully release held state on resize. The separate ephemeral
+    # Xvfb native controller fixture exercises actual no-XTEST retirement
+    # and held-state continuity.
     add_test(NAME x11.input-native-failure-terminal-retirement-no-xtest
         COMMAND "${CMAKE_COMMAND}"
             "-DRDP_R5_NATIVE_HEADER=${PROJECT_SOURCE_DIR}/src/x11/x11_desktop_resources.h"

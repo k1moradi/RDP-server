@@ -1,3 +1,18 @@
+## R5 CTest registry policy follow-up for comment-only X11 repair (2026-10-31)
+
+The `05ea486bb8f16a479a0924013b4f7f39b04c574f` test-only semantics
+repair also edited explanatory comments in `src/x11/x11_desktop_resources.h`
+and `.cpp`. Project `scripts/check_documentation_cochange.py` applies a
+strict file-extension rule to **every** source co-change regardless of whether
+it is comment-only; the prior commit omitted `tests/CMakeLists.txt` and its
+`documentation-policy` CI therefore **FAIL** on Actions `41276538910`.
+This follow-up explicitly updates the existing behavior-named centralized
+CTest registration comments to describe the strengthened same-owner RandR
+no-XTEST check. No new CTest, altered labels or native runtime behavior.
+This fast-forward follow-up can restore current-head policy compliance but
+does not retroactively rewrite the predecessor, which is prohibited.
+Owner-local build/CTest **NOT RUN**, exact-head CI **PENDING**.
+
 ## R5 Ubuntu stale RandR source contract correction (2026-10-31)
 
 Reviewed current head `c43d883367ab9dd1e54a56994e7f44fce0806940`, Actions `41252273117`.

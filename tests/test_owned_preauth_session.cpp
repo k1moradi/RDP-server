@@ -9979,8 +9979,10 @@ void testMacProtectedPersonalDesktopLicensingDenials()
 
 
 void runMacProtectedPersonalDesktopShareActivationReceipts(
-    bool continueThroughGraphics, bool batchClientFinalization)
+    bool continueThroughGraphics, bool batchClientFinalization,
+    bool coalesceConfirmActiveWithFinalization)
 {
+    assert(!coalesceConfirmActiveWithFinalization || batchClientFinalization);
     using rdp_server::server::runtime::RuntimeDeploymentPolicy;
     using rdp_server::server::runtime::RuntimeLicensingContext;
     using RequestReceipt = RdpServerLicenseRequestWriteOutcome;
@@ -10182,7 +10184,8 @@ void runMacProtectedPersonalDesktopShareActivationReceipts(
 
     auto confirm = kMacProtectedConfirmActive;
     bindShare(confirm);
-    sendShare(confirm, ShareIntake::ConfirmActiveAccepted);
+    if (!coalesceConfirmActiveWithFinalization)
+        sendShare(confirm, ShareIntake::ConfirmActiveAccepted);
 
     if (!batchClientFinalization)
     {
@@ -10227,7 +10230,10 @@ void runMacProtectedPersonalDesktopShareActivationReceipts(
             clientUserId, requestControl, ioChannelId);
         const auto fontListPacket = makeMacProtectedClientChannelTpkt(
             clientUserId, fontList, ioChannelId);
+        const auto confirmPacket = makeMacProtectedClientChannelTpkt(
+            clientUserId, confirm, ioChannelId);
         const std::size_t batchBytes =
+            (coalesceConfirmActiveWithFinalization ? confirmPacket.size() : 0U) +
             synchronizePacket.size() + cooperatePacket.size() +
             requestControlPacket.size() + fontListPacket.size();
         std::vector<std::uint8_t> clientFinalizationBatch;
@@ -10238,6 +10244,10 @@ void runMacProtectedPersonalDesktopShareActivationReceipts(
             clientFinalizationBatch.insert(
                 clientFinalizationBatch.end(), packet.begin(), packet.end());
         };
+        // A client may coalesce Confirm Active and the ordered finalization
+        // packets in one TLS application write. R1 still yields original TPKTs.
+        if (coalesceConfirmActiveWithFinalization)
+            appendPacket(confirmPacket);
         appendPacket(synchronizePacket);
         appendPacket(cooperatePacket);
         appendPacket(requestControlPacket);
@@ -10246,6 +10256,14 @@ void runMacProtectedPersonalDesktopShareActivationReceipts(
 
         writeNativeTlsClientAll(
             fixture->tls.client.get(), clientFinalizationBatch);
+        if (coalesceConfirmActiveWithFinalization)
+        {
+            assert(fixture->session->phase() == McsSessionPhase::ShareActivation);
+            assert(!fixture->session->firstClientAcceptanceObservability()
+                        .shareActivated);
+            receiveSharePacket(
+                confirmPacket, ShareIntake::ConfirmActiveAccepted);
+        }
         receiveSharePacket(
             synchronizePacket, ShareIntake::SynchronizeAccepted);
         receiveSharePacket(
@@ -10408,17 +10426,22 @@ void runMacProtectedPersonalDesktopShareActivationReceipts(
 
 void testMacProtectedPersonalDesktopShareActivationReceipts()
 {
-    runMacProtectedPersonalDesktopShareActivationReceipts(false, false);
+    runMacProtectedPersonalDesktopShareActivationReceipts(false, false, false);
 }
 
 void testMacProtectedShareFinalizationClientBatchTlsReceipts()
 {
-    runMacProtectedPersonalDesktopShareActivationReceipts(false, true);
+    runMacProtectedPersonalDesktopShareActivationReceipts(false, true, false);
 }
 
 void testMacProtectedPersonalDesktopGraphicsControlReceipts()
 {
-    runMacProtectedPersonalDesktopShareActivationReceipts(true, false);
+    runMacProtectedPersonalDesktopShareActivationReceipts(true, false, false);
+}
+
+void testMacProtectedConfirmActiveAndFinalizationSingleTlsWrite()
+{
+    runMacProtectedPersonalDesktopShareActivationReceipts(false, true, true);
 }
 
 
@@ -15733,6 +15756,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedPersonalDesktopShareActivationReceipts},
     {"macos-protected-share-finalization-client-batch-tls-receipts",
      &testMacProtectedShareFinalizationClientBatchTlsReceipts},
+    {"macos-protected-share-confirm-active-finalization-single-tls-write",
+     &testMacProtectedConfirmActiveAndFinalizationSingleTlsWrite},
     {"macos-protected-personal-desktop-graphics-control-receipts",
      &testMacProtectedPersonalDesktopGraphicsControlReceipts},
     {"macos-protected-first-mcs-partial-read-stop-retirement",

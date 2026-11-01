@@ -1,3 +1,7 @@
+## R3 cross-phase Confirm Active plus finalization client TLS batch (2026-11-01)
+
+The dedicated `security.macos-protected-share-confirm-active-finalization-single-tls-write` CTest must reuse the real R1 SSL/BIO / R2-broker / R3 PersonalDesktop-licensed Share fixture, not synthesize a licensed Share stage or add another parser. Its one client TLS write contains five complete TPKTs: Confirm Active, Synchronize, Cooperate, Request Control, Font List. R1 reads exactly one original TPKT per protected R3 visit; only actual accepted R1 server bytes complete R3 reply/slice receipts. Check Share remains unactivated until Font Map completes. This differs from the existing separate Confirm Active + batched finalization, batched MCS Joins, licensing-partial/replay and premature-Confirm negative tests. It establishes no native OS admission or physical Windows App acceptance. Authoring parent `55aa4a1a913578b45d4b7e5de147c18762f24e7b`; local build/CTest/sanitizers NOT RUN, exact-SHA hosted CI pending.
+
 ## Exact-run negative fixtures must vary one validated dimension (2026-11-01)
 
 When a metadata classifier strengthens its baseline schema, each negative fixture must continue satisfying every unrelated required field and vary only the dimension under test. In particular, an exact-SHA mismatch fixture for the R9 Actions classifier must retain a valid positive outer `run.id`; otherwise it tests malformed-run rejection instead of SHA attribution and can mask the intended assertion. Keep separate fixtures for missing/foreign run provenance.

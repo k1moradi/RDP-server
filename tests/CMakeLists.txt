@@ -2357,6 +2357,19 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "protocol;security;transport;tls;mcs;licensing;share;admission;offline"
                 TIMEOUT 30)
 
+        # One original R1 TLS application write carries Confirm Active and
+        # the entire ordered finalization batch after real licensed Demand Active.
+        # R2/R3 still consume only R1-complete TPKTs and exact server receipts.
+        add_test(
+            NAME security.macos-protected-share-confirm-active-finalization-single-tls-write
+            COMMAND "${test_target}"
+                "macos-protected-share-confirm-active-finalization-single-tls-write")
+        set_tests_properties(
+            security.macos-protected-share-confirm-active-finalization-single-tls-write
+            PROPERTIES
+                LABELS "protocol;security;transport;tls;licensing;share;admission;offline"
+                TIMEOUT 60)
+
         # One real licensed R1/R2/R3 owner continues from Share activation
         # through DRDYNVC CAPS/CREATE, graphics CAPS_CONFIRM and mapped surface.
         add_test(

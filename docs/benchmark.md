@@ -1,3 +1,9 @@
+## R4 ACK retirement/backpressure evidence is correctness, not a performance result (2026-11-01)
+
+The 64-outstanding-frame preflight is a correctness/backpressure boundary: when R4 reports no credit, R10 must perform no native frame borrow, ClearCodec encode/reservation or TLS frame write. Likewise, rejecting a delayed ACK consume after generation retirement is lifecycle correctness. The new `graphics.frame-ack-intake-session-retirement-before-consume` regression and existing credit/segmented-receipt tests do not measure encode cost, bandwidth, latency, FPS or ACK turnaround and must not be reported as benchmark evidence.
+
+No benchmark was run for this change. A future performance claim still requires the standard real workload measurements from native observation/damage through encode, queue, wire and genuine client ACK/visibility; GraphicsReady, native readiness, local preparation, complete local TLS write or synthetic ACK are not visibility/performance proof.
+
 ## Pre-TLS readiness dwell is diagnostic attribution, not a benchmark (2026-10-29)
 
 Accepted-to-TLS Read/Write dwell describes how long the existing R1 owner

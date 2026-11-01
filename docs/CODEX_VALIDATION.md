@@ -1,3 +1,13 @@
+## R4 P1 pending FRAME_ACK retirement fence (2026-11-01)
+
+Reviewed current-main parent `986b5886b3e3ae20796dc817aefb87e6d803643e` plus AGENTS, VISION, ROADMAP, all four standards, CODEX_VALIDATION, R7 macOS mailbox/frame observation, R10 `serviceAcceptedClientGraphicsOnce`, R3 graphics segmentation/receipt handling, R4 ClearCodec/presentation/ACK window and the two existing retirement regressions before editing. The dependency review shows R10 `2e91f7336dafeda7e003bc07c5da94b91fa487bc` and subsequent first-frame/fairness/callback corrections are already ancestors of this parent; no R10 integration blocker remains for this R4 correction.
+
+Found one uncovered retirement edge: a valid-shaped FRAME_ACK may already be accepted into the current R3 DVC buffer while one fully delivered frame owns ACK credit, then the session retires before the separate R4 consume. `close()` correctly clears the client buffer and R4 window, but a later direct `consumePendingClientFrameAcknowledge()` previously called `fail()` solely because the phase was no longer Ready, rewriting the absorbing `Closed` state to `Failed`. The production correction special-cases `Closed` to return `Rejected` without mutation; live invalid/stale/malformed cases still fail closed.
+
+The new ordinary `graphics.frame-ack-intake-session-retirement-before-consume` test reuses `test_owned_mcs_connect_initial`, completes all segmented DATA before establishing one outstanding ACK, accepts but does not consume the ACK, retires, proves pending bytes/credit are cleared, then proves delayed consume is rejected while phase remains Closed. It is outside the fixed 23-case DVC sanitizer census; the two separately selected R4 retirement sanitizer cases are unchanged. Existing 64-credit, native-borrow segmented receipt and resize/premature-ACK tests cover the other requested boundaries.
+
+Validation at authoring: source/CMake/ownership audit PASS. A direct repository clone attempt in this execution environment failed at DNS resolution, so canonical configure/build, focused/full CTest, ASan/UBSan and benchmarks are NOT RUN locally. Exact publication-SHA hosted CI is PENDING. No physical native capture/client test, real client-visible frame or genuine physical FRAME_ACK was performed; no visibility claim is made from GraphicsReady, native readiness, local preparation, local TLS completion or synthetic ACK.
+
 ## R2 P0 atomic preference retention and R7 API handoff (2026-11-01)
 
 Reviewed refreshed `main` parent `c8510284251d5b273654909f5c26c3599745b93f` together with

@@ -6056,6 +6056,67 @@ void testGraphicsNativeBorrowSegmentedReceiptFence()
     assert(dvc.outstandingGraphicsFrames() == 0U);
 }
 
+
+void testGraphicsFrameAcknowledgeIntakeSessionRetirementBeforeConsume()
+{
+    constexpr RdpDynamicVirtualChannelAllocation allocation{16U, 217U};
+    constexpr std::uint32_t frameId = 110U;
+
+    RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+    completeGraphicsDynamicVirtualChannelReady(
+        dvc, allocation, 1007U, 1005U);
+
+    rdp_server::rdp::GfxAvc420SegmentedFrame frame;
+    prepareTestClearCodecFrame(dvc, frameId, frame);
+    assert(dvc.beginFramePublication(
+        std::move(frame), RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+
+    RdpGraphicsDvcWriteOutcome completion =
+        RdpGraphicsDvcWriteOutcome::Pending;
+    for (std::size_t attempt = 0U;
+         attempt < 256U &&
+             completion == RdpGraphicsDvcWriteOutcome::Pending;
+         ++attempt)
+    {
+        const auto write = dvc.pendingServerWrite();
+        assert(write &&
+               write.kind == RdpGraphicsDvcWriteKind::GraphicsFrameData);
+        completion = dvc.onServerBytesWritten(
+            write.channelGeneration, write.replySequence,
+            write.writeSliceSequence, write.bytes.size());
+    }
+    assert(completion == RdpGraphicsDvcWriteOutcome::Delivered);
+    assert(dvc.outstandingGraphicsFrames() == 1U);
+
+    const auto acknowledge = makeR3GraphicsFrameAcknowledgeTpkt(
+        allocation.channelId, frameId, 4096U, 1U);
+    assert(dvc.onClientTpkt(
+               allocation.generation, acknowledge) ==
+           RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+    assert(dvc.pendingClientGraphicsData().size() ==
+           rdp_server::rdp::kGfxFrameAcknowledgePduBytes);
+    // Receiving/classifying client input alone must not release R4 credit.
+    assert(dvc.outstandingGraphicsFrames() == 1U);
+
+    // Retirement wins over an ACK that reached R3 but has not yet been
+    // separately consumed by R4. Both pending client bytes and ACK membership
+    // belong to the retired generation and are cleared together.
+    dvc.close();
+    assert(dvc.phase() == RdpGraphicsDvcPhase::Closed);
+    assert(!dvc.presentationMapped());
+    assert(dvc.pendingClientGraphicsData().empty());
+    assert(dvc.outstandingGraphicsFrames() == 0U);
+
+    // A delayed consumer callback after close is side-effect free. Closed is
+    // an absorbing terminal state, not a reason to rewrite retirement as fail.
+    assert(dvc.consumePendingClientFrameAcknowledge(
+               allocation.generation) ==
+           RdpGraphicsFrameAcknowledgeIntake::Rejected);
+    assert(dvc.phase() == RdpGraphicsDvcPhase::Closed);
+    assert(dvc.outstandingGraphicsFrames() == 0U);
+}
+
 void testGraphicsFrameDeliveredSessionRetirementBeforeAcknowledge()
 {
     constexpr RdpDynamicVirtualChannelAllocation allocation{13U, 209U};
@@ -13376,6 +13437,7 @@ int main(int argc, char **argv)
         // R4 assurance CTest still executes in an all-cases invocation.
         testGraphicsFrameDeliveredSessionRetirementBeforeAcknowledge();
         testGraphicsFramePartialDataRetirementSuccessorGeneration();
+        testGraphicsFrameAcknowledgeIntakeSessionRetirementBeforeConsume();
         testGraphicsNativeBorrowSegmentedReceiptFence();
         return 0;
     }
@@ -13391,6 +13453,12 @@ int main(int argc, char **argv)
         "dvc-graphics-frame-partial-data-retirement-successor-generation")
     {
         testGraphicsFramePartialDataRetirementSuccessorGeneration();
+        return 0;
+    }
+    if (std::string_view{argv[1]} ==
+        "dvc-graphics-frame-ack-intake-session-retirement-before-consume")
+    {
+        testGraphicsFrameAcknowledgeIntakeSessionRetirementBeforeConsume();
         return 0;
     }
     if (std::string_view{argv[1]} ==

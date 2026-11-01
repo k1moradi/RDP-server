@@ -3747,6 +3747,10 @@ consumePendingClientFrameAcknowledge(
 {
     using Intake = RdpGraphicsFrameAcknowledgeIntake;
     using AckResult = rdp_server::rdp::GfxFrameAckWindowResult;
+    // Session retirement is absorbing. A delayed ACK consumer must not
+    // rewrite a deliberately closed generation as a protocol failure.
+    if (phase_ == RdpGraphicsDvcPhase::Closed)
+        return Intake::Rejected;
     if (phase_ != RdpGraphicsDvcPhase::Ready ||
         channelGeneration == 0U ||
         allocation_.generation != channelGeneration ||

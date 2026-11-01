@@ -2090,6 +2090,15 @@ function(add_rdp_test source_file suite behavior)
         set_tests_properties(
             graphics.frame-partial-data-retirement-successor-generation
             PROPERTIES LABELS "protocol;graphics;transport;offline")
+        # ACK bytes may already be classified when the owning session retires.
+        # Keep this outside the fixed 23-case DVC sanitizer census and preserve
+        # the two independently selected R4 retirement sanitizer regressions.
+        add_test(NAME graphics.frame-ack-intake-session-retirement-before-consume
+            COMMAND "${test_target}"
+                "dvc-graphics-frame-ack-intake-session-retirement-before-consume")
+        set_tests_properties(
+            graphics.frame-ack-intake-session-retirement-before-consume
+            PROPERTIES LABELS "protocol;graphics;transport;offline")
         # Original native framebuffer borrow and early ACK over segmented DATA.
         # The 23-case Graphics DVC sanitizer census is intentionally unchanged.
         add_test(NAME graphics.frame-native-borrow-segmented-receipt-fence

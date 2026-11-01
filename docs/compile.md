@@ -1,3 +1,9 @@
+## R4 ACK-intake retirement focused qualification (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build, run `ctest --test-dir build -C Debug -R '^graphics[.]frame-(ack-intake-session-retirement-before-consume|delivery-session-retirement-before-ack|partial-data-retirement-successor-generation|native-borrow-segmented-receipt-fence)$' --output-on-failure`, then ordinary full Debug CTest. Reconfigure the same root for Release, run complete CTest and preserve the existing Graphics sanitizer lane exactly: 23 fixed DVC cases plus the two separately selected R4 retirement regressions. No new executable, dependency, queue, codec, ACK owner or build root is introduced.
+
+Authoring parent `986b5886b3e3ae20796dc817aefb87e6d803643e`: source/CMake ownership review PASS. This connector environment has no canonical checkout and outbound clone DNS is unavailable, so compile/focused/full CTest and ASan/UBSan are NOT RUN locally; publication-SHA hosted qualification is required. This is offline correctness only and does not authorize or perform a physical client test.
+
 ## R2 deterministic atomic preference replacement qualification (2026-11-01)
 
 The existing `runtime.user-preferences-owner-private-versioned-roundtrip-denials`

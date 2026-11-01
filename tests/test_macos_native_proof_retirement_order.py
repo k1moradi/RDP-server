@@ -128,8 +128,20 @@ def main() -> int:
         if status_start < 0 or status_stop <= status_start:
             raise SystemExit("cannot isolate macOS HostControl status projection")
         status = text[status_start:status_stop]
-        if status.count("snapshot.graphicsReady = false;") != 1:
-            raise SystemExit("Share without Graphics DVC must not report GraphicsReady")
+        # A completed Share alone cannot create GraphicsReady. R10 now
+        # permits the positive projection only after the original mapped
+        # R3 Graphics control transcript and its pinned R2 authorization.
+        if (
+            "activeAdmissionStage_ == AcceptedClientAdmissionStage::GraphicsReady"
+            not in status or
+            "snapshot.graphicsReady = proof.shareActivated" not in status or
+            "proof.graphicsDynamicVirtualChannelActivated" not in status or
+            "proof.graphicsControlReady" not in status or
+            "proof.surfaceCreated" not in status or
+            "proof.surfaceMapped" not in status
+        ):
+            raise SystemExit(
+                "Share without mapped R3 Graphics control must not report GraphicsReady")
         if status.count("snapshot.nativeDesktopReady = nativeDesktop_.ready();") != 1:
             raise SystemExit("native desktop status must remain independent")
 

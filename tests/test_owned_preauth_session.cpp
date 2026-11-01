@@ -9555,7 +9555,7 @@ void testMacProtectedPersonalDesktopLicensingDenials()
 }
 
 
-void testMacProtectedPersonalDesktopShareActivationReceipts()
+void runMacProtectedPersonalDesktopShareActivationReceipts(bool continueThroughGraphics)
 {
     using rdp_server::server::runtime::RuntimeDeploymentPolicy;
     using rdp_server::server::runtime::RuntimeLicensingContext;
@@ -9796,6 +9796,125 @@ void testMacProtectedPersonalDesktopShareActivationReceipts()
     assert(!acceptance.graphicsControlReady);
     assert(!acceptance.surfaceCreated);
     assert(!acceptance.surfaceMapped);
+
+    if (!continueThroughGraphics)
+        return;
+
+    // The same real-licensed, ShareActivated TLS/R2/R3 owner completes
+    // the protected Graphics DVC/capability/surface negotiation.
+    using GraphicsKind = RdpGraphicsDvcWriteKind;
+    using GraphicsReceipt = RdpGraphicsDvcWriteOutcome;
+    using GraphicsIntake = RdpGraphicsDvcClientIntake;
+    const auto channels = fixture->session->allocatedStaticChannelIds();
+    assert(channels.size() == 3U && fixture->session->channelJoinConfirmed(channels[2U]));
+    const std::uint16_t dynamicChannelId = channels[2U];
+    const auto firstGraphics =
+        fixture->broker.authorizeR3GraphicsDynamicVirtualChannel(
+            *fixture->session, policy);
+    assert(firstGraphics && *firstGraphics &&
+           firstGraphics->kind == GraphicsKind::CapabilitiesRequest &&
+           firstGraphics->dynamicChannelId > 0U &&
+           firstGraphics->dynamicChannelId <= 0xffU);
+    const std::uint32_t graphicsChannelId = firstGraphics->dynamicChannelId;
+
+    // A zero-byte receipt preserves the exact R3 owned reply and slice.
+    assert(fixture->broker.completeR3GraphicsDynamicVirtualChannelWrite(
+               *fixture->session, policy, firstGraphics->replySequence,
+               firstGraphics->writeSliceSequence, 0U) ==
+           GraphicsReceipt::Pending);
+    const auto unchanged =
+        fixture->broker.pendingR3GraphicsDynamicVirtualChannelWrite(
+            *fixture->session, policy);
+    assert(unchanged && *unchanged &&
+           unchanged->replySequence == firstGraphics->replySequence &&
+           unchanged->writeSliceSequence == firstGraphics->writeSliceSequence &&
+           unchanged->bytes.size() == firstGraphics->bytes.size() &&
+           unchanged->bytes.data() == firstGraphics->bytes.data());
+
+    const auto flushGraphics = [&](GraphicsKind kind, GraphicsReceipt final)
+    {
+        const auto initial =
+            fixture->broker.pendingR3GraphicsDynamicVirtualChannelWrite(
+                *fixture->session, policy);
+        assert(initial && *initial && initial->kind == kind);
+        const std::size_t totalBytes = initial->bytes.size();
+        for (std::size_t accepted = 0U; accepted < totalBytes; ++accepted)
+        {
+            const auto pending =
+                fixture->broker.pendingR3GraphicsDynamicVirtualChannelWrite(
+                    *fixture->session, policy);
+            assert(pending && *pending && pending->kind == kind &&
+                   pending->bytes.size() == totalBytes - accepted);
+            const std::size_t bytes =
+                writeOneMacProtectedPlaintextByte(*fixture, pending->bytes);
+            assert(bytes == 1U);
+            const auto receipt =
+                fixture->broker.completeR3GraphicsDynamicVirtualChannelWrite(
+                    *fixture->session, policy, pending->replySequence,
+                    pending->writeSliceSequence, bytes);
+            assert(receipt == (accepted + 1U == totalBytes
+                ? final : GraphicsReceipt::Pending));
+        }
+    };
+    const auto sendGraphics =
+        [&](std::span<const std::uint8_t> data, GraphicsIntake expected)
+    {
+        const auto packet = makeR1GraphicsClientDynamicVirtualChannelTpkt(
+            clientUserId, dynamicChannelId, data);
+        writeNativeTlsClientAll(fixture->tls.client.get(), packet);
+        std::vector<std::uint8_t> receivedPacket(packet.size());
+        readOwnedRuntimeTlsAll(fixture->connection, receivedPacket);
+        assert(receivedPacket == packet);
+        assert(fixture->broker.authorizeR3GraphicsDynamicVirtualChannelPdu(
+                   *fixture->session, policy, receivedPacket) == expected);
+    };
+
+    flushGraphics(GraphicsKind::CapabilitiesRequest, GraphicsReceipt::Delivered);
+    constexpr std::array<std::uint8_t, 4U> capabilitiesResponse{
+        0x50U,0x00U,0x01U,0x00U};
+    sendGraphics(capabilitiesResponse, GraphicsIntake::CapabilitiesAccepted);
+
+    flushGraphics(GraphicsKind::CreateRequest, GraphicsReceipt::Delivered);
+    const std::array<std::uint8_t, 6U> createResponse{
+        0x10U, static_cast<std::uint8_t>(graphicsChannelId),
+        0x00U,0x00U,0x00U,0x00U};
+    sendGraphics(createResponse, GraphicsIntake::CreateAccepted);
+
+    constexpr std::array<std::uint8_t, 22U> clearCodecAdvertisement{
+        0x12U,0x00U,0x00U,0x00U,0x16U,0x00U,0x00U,0x00U,
+        0x01U,0x00U,0x04U,0x00U,0x08U,0x00U,0x04U,0x00U,
+        0x00U,0x00U,0x00U,0x00U,0x00U,0x00U};
+    std::vector<std::uint8_t> graphicsCapabilities{
+        0x30U, static_cast<std::uint8_t>(graphicsChannelId)};
+    graphicsCapabilities.insert(
+        graphicsCapabilities.end(),
+        clearCodecAdvertisement.begin(), clearCodecAdvertisement.end());
+    sendGraphics(graphicsCapabilities, GraphicsIntake::GraphicsCapabilitiesAccepted);
+
+    flushGraphics(GraphicsKind::GraphicsCapabilitiesConfirm, GraphicsReceipt::Pending);
+    flushGraphics(GraphicsKind::GraphicsCreateSurface, GraphicsReceipt::Pending);
+    flushGraphics(GraphicsKind::GraphicsMapSurfaceToOutput, GraphicsReceipt::Delivered);
+
+    const auto mapped = fixture->session->firstClientAcceptanceObservability();
+    assert(mapped.shareActivated && mapped.graphicsDynamicVirtualChannelActivated);
+    assert(mapped.graphicsControlReady && mapped.surfaceCreated &&
+           mapped.surfaceMapped);
+    assert(!mapped.firstClearCodecFramePrepared &&
+           !mapped.firstExactFrameWriteCommitted &&
+           !mapped.firstGenuineFrameAcknowledge);
+    assert(fixture->broker.authorizeR3ApplicationTrafficReady(
+        *fixture->session, policy));
+}
+
+
+void testMacProtectedPersonalDesktopShareActivationReceipts()
+{
+    runMacProtectedPersonalDesktopShareActivationReceipts(false);
+}
+
+void testMacProtectedPersonalDesktopGraphicsControlReceipts()
+{
+    runMacProtectedPersonalDesktopShareActivationReceipts(true);
 }
 
 
@@ -15030,6 +15149,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedPersonalDesktopClientLicensingReplayDuringPartialValidClientDenial},
     {"macos-protected-personal-desktop-share-activation-receipts",
      &testMacProtectedPersonalDesktopShareActivationReceipts},
+    {"macos-protected-personal-desktop-graphics-control-receipts",
+     &testMacProtectedPersonalDesktopGraphicsControlReceipts},
     {"macos-protected-first-mcs-partial-read-stop-retirement",
      &testMacProtectedFirstMcsPartialReadStopRetirement},
     {"macos-protected-post-mcs-semantic-audit-loss",

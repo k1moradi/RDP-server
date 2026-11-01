@@ -1,3 +1,9 @@
+## R10 real-licensed macOS Graphics negotiation and guarded status CTests (2026-11-01)
+
+Ordinary production-linked `security.macos-protected-personal-desktop-graphics-control-receipts` reuses the existing genuine R1 HYBRID/TLS + R2/R3 and completed PersonalDesktop licensing-to-Share transcript. After actual ShareActivated, it checks a zero-byte borrowed DVC receipt, one-byte positive exact-suffix CAPS/CREATE, genuine client DRDYNVC CAPS/CREATE responses, RDP Graphics CAPS and exact CAPS_CONFIRM/CreateSurface/MapSurface receipts. Verify R3's mapped-surface/control-ready evidence while first-frame write and genuine ACK remain absent. The fixture's credential/native proof is synthetic security test input, not product-valid macOS Admission.
+
+Ordinary `runtime.macos-host-control-graphics-control-composition-contract` checks the real HostControl's original R2-only DVC operations, one bounded R1 reader/writer, separate mapped GraphicsReady and nativeDesktopReady projections, the 30-second graphics negotiation deadline, and no direct R3 mutation or native attachment. Keep the existing pre-Share R7 GUI and R4 mapped-frame consent-denial tests. Do not count a prepared frame or local OS readiness as graphics acceptance.
+
 ## R2 PersonalDesktop credential-substitution regression phase correction (2026-11-01)
 
 Reviewed `0bf6730c2e0137b49e9b96a52860a8218f1a8c31` after the CTest registry taxonomy unblock. The new

@@ -1,3 +1,9 @@
+## R10 protected macOS Graphics control is distinct from desktop authority (2026-11-01)
+
+After a genuinely R3-receipt-committed ShareActivated transition, R10 may begin the sole original R2-protected Graphics DVC. It must use the existing R1 SSL/BIO application reader/writer, bounded reused TPKT buffer, and R2 visitors for every DRDYNVC CAPS/CREATE, Graphics CAPS, CAPS_CONFIRM, CreateSurface and MapSurfaceToOutput message/receipt. Zero accepted bytes and WANT_READ/WRITE do not commit progress; positive accepted bytes commit only the exact R3 reply/slice. Confirm/Map completion may publish protocol GraphicsReady only from R3's original mapped surface observability and current pinned R2 owner/scope, never nativeDesktop.ready() or a prepared framebuffer. A separate 30-second bounded graphics-control exchange prevents an indefinitely pending negotiated channel from retaining its accepted-client borrow. ShareActivated does not imply GraphicsReady; GraphicsReady does not imply native attachment, delivered pixels, input or Clipboard.
+
+The same accepted-owner teardown remains R2/R3 -> native -> proof/R1. No new buffer ownership, graphics channel allocator, issuer, service socket or native input path may be introduced. Native attachment and first-frame/ACK activation remain separate independent consent/session and delivery gates; the presently dormant after-GraphicsReady socket liveness/application pump must be integrated before treating a physical client as connected.
+
 ## R7 macOS ShareActivated is not GraphicsReady (2026-11-01)
 
 The macOS R10 owner now advances its original R1/R2/R3 connection through

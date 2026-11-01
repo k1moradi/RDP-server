@@ -155,6 +155,9 @@ private:
         ShareActivationWritePending,
         ShareActivationClientExpected,
         ShareActivated,
+        GraphicsControlWritePending,
+        GraphicsControlClientExpected,
+        GraphicsReady,
     };
 
     const std::thread::id ownerThread_;
@@ -213,6 +216,8 @@ private:
     bool activeCredentialsVerified_{};
     RuntimeAcceptedClientPreauthDiagnostics acceptedClientDiagnostics_{};
     std::chrono::steady_clock::time_point activeClientDeadline_{};
+    // Bounded DRDYNVC/CAPS/CREATE/MAP exchange, separate from pre-auth.
+    std::chrono::steady_clock::time_point activeGraphicsControlDeadline_{};
 };
 
 class MacPortableDesktopRuntime final

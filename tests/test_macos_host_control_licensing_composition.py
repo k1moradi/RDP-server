@@ -17,6 +17,7 @@ def main() -> int:
     parser.add_argument("--source", required=True, type=Path)
     parser.add_argument("--header", required=True, type=Path)
     parser.add_argument("--check-share-activation", action="store_true")
+    parser.add_argument("--check-graphics-control", action="store_true")
     args = parser.parse_args()
 
     source = args.source.read_text(encoding="utf-8")
@@ -160,6 +161,46 @@ def main() -> int:
             "authorizeR3Graphics" not in scheduler,
             "Share scheduler must not start Graphics",
         )
+
+    if args.check_graphics_control:
+        for token in (
+            "authorizeR3GraphicsDynamicVirtualChannel(",
+            "pendingR3GraphicsDynamicVirtualChannelWrite(",
+            "completeR3GraphicsDynamicVirtualChannelWrite(",
+            "authorizeR3GraphicsDynamicVirtualChannelPdu(",
+        ):
+            require(
+                scheduler.count(token) == 1,
+                f"macOS Graphics control call count changed: {token}",
+            )
+        for forbidden in (
+            "beginVerifiedR2GraphicsDynamicVirtualChannel(",
+            "completeVerifiedR2GraphicsDynamicVirtualChannelWrite(",
+            "acceptVerifiedR2GraphicsDynamicVirtualChannelPdu(",
+            "beginR3GraphicsClearCodecFramePublication(",
+        ):
+            require(
+                forbidden not in scheduler,
+                f"Graphics control bypassed R2 or published pixels: {forbidden}",
+            )
+        for required in (
+            "GraphicsControlWritePending",
+            "GraphicsControlClientExpected",
+            "AcceptedClientAdmissionStage::GraphicsReady",
+            "RdpGraphicsDvcWriteKind::CapabilitiesRequest",
+            "RdpGraphicsDvcWriteKind::CreateRequest",
+            "RdpGraphicsDvcWriteKind::GraphicsMapSurfaceToOutput",
+            "activeGraphicsControlDeadline_",
+            "observed.surfaceMapped",
+        ):
+            require(required in scheduler, f"macOS Graphics contract missing: {required}")
+        require("nativeDesktop_" not in scheduler,
+                "Graphics control must not borrow the macOS desktop")
+        status = source[source.find("RuntimeHostStatus MacRuntimeHostControl::status()"): ]
+        require("snapshot.graphicsReady = proof.shareActivated" in status,
+                "GraphicsReady status requires mapped R3 evidence")
+        require("snapshot.nativeDesktopReady = nativeDesktop_.ready()" in status,
+                "nativeDesktopReady must remain separate")
 
     # C++ member destruction is reverse declaration order. Service policy and
     # licensing material therefore must be declared before every accepted-client

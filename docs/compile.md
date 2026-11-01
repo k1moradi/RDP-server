@@ -1,3 +1,7 @@
+## R10 protected Graphics control focused validation (2026-11-01)
+
+Use only the existing `~/rdp-server/build/` per AGENTS. After the canonical Debug configure/build, run `ctest --test-dir build -C Debug -R '^security[.]macos-protected-personal-desktop-(licensing-(receipts|denials)|share-activation-receipts|graphics-control-receipts)$|^runtime[.]macos-host-control-(personal-licensing|share-activation|graphics-control)-composition-contract$|^runtime[.]macos-host-control-pre-share-graphics-status-denials$' --output-on-failure`. Then rerun ordinary full Debug/Release CTest and existing ASan/UBSan/Windows Clang 23 qualification. No new external dependency, executable or build root; real macOS owner/session/client validation is separate and not authorized by the fixture. Connector-local compile, full tests and sanitizers NOT RUN; exact-publication-SHA CI PENDING.
+
 ## R5 implicit held-input nested teardown offline check (2026-11-01)
 
 No new dependency or executable. Reuse the sole `~/rdp-server/build/`

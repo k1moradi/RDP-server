@@ -262,6 +262,8 @@ struct MacRuntimeCredSspState final
     bool serverLicenseRequestWriteNeedsRead{};
     bool validClientWriteNeedsRead{};
     bool shareActivationWriteNeedsRead{};
+    // One R1 WANT direction hint; R3 owns graphics replies and slices.
+    bool graphicsControlWriteNeedsRead{};
 
     [[nodiscard]] bool prepareChallenge() noexcept
     {
@@ -493,6 +495,23 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
             return {RuntimeHostError::None, false};
         }
 
+        if (activeAdmissionStage_ ==
+            AcceptedClientAdmissionStage::ShareActivated)
+        {
+            if (activeMcsSession_ == nullptr || !deploymentPolicy_ ||
+                activeMcsSession_->phase() !=
+                    transport::McsSessionPhase::ShareActivated ||
+                !activeAdmissionBroker_->
+                    authorizeR3GraphicsDynamicVirtualChannel(
+                        *activeMcsSession_, *deploymentPolicy_) ||
+                !activeAdmissionBroker_->revalidate(
+                    activeAdmissionPermissionMask_))
+                return rejectAdmission();
+            activeAdmissionStage_ =
+                AcceptedClientAdmissionStage::GraphicsControlWritePending;
+            return {RuntimeHostError::None, false};
+        }
+
         const bool readingFirstMcs =
             activeAdmissionStage_ == AcceptedClientAdmissionStage::TransportAdmitted;
         const bool writingConnectResponse =
@@ -530,19 +549,25 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
         const bool readingShareActivation =
             activeAdmissionStage_ ==
                 AcceptedClientAdmissionStage::ShareActivationClientExpected;
+        const bool writingGraphicsControl =
+            activeAdmissionStage_ ==
+                AcceptedClientAdmissionStage::GraphicsControlWritePending;
+        const bool readingGraphicsControl =
+            activeAdmissionStage_ ==
+                AcceptedClientAdmissionStage::GraphicsControlClientExpected;
         if (!readingFirstMcs && !writingConnectResponse &&
             !readingErectDomain && !readingAttachUser &&
             !writingAttachConfirm && !readingChannelJoin &&
             !writingChannelJoinConfirm && !readingClientInfo &&
             !writingServerLicenseRequest && !readingClientLicenseResponse &&
             !writingValidClient && !writingShareActivation &&
-            !readingShareActivation)
+            !readingShareActivation && !writingGraphicsControl &&
+            !readingGraphicsControl)
         {
-            // Share activation is still not GraphicsReady, native desktop,
-            // input dispatch or Clipboard authority. A later increment owns
-            // those separately protected transitions.
+            // R3 mapped Graphics control is not native desktop, frame,
+            // input dispatch or Clipboard authority.
             return activeAdmissionStage_ ==
-                           AcceptedClientAdmissionStage::ShareActivated
+                           AcceptedClientAdmissionStage::GraphicsReady
                 ? RuntimeHostResult{RuntimeHostError::None, true}
                 : rejectAdmission();
         }
@@ -554,7 +579,8 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
         auto& session = *activeMcsSession_;
         if ((writingServerLicenseRequest || readingClientLicenseResponse ||
              writingValidClient || writingShareActivation ||
-             readingShareActivation) &&
+             readingShareActivation || writingGraphicsControl ||
+             readingGraphicsControl) &&
             (!deploymentPolicy_ || !licensingContext_.configured() ||
              licensingContext_.identity() == nullptr ||
              licensingContext_.credential() == nullptr ||
@@ -570,18 +596,21 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
         const bool readingMcsTpkt =
             readingFirstMcs || readingErectDomain || readingAttachUser ||
             readingChannelJoin || readingClientInfo ||
-            readingClientLicenseResponse || readingShareActivation;
+            readingClientLicenseResponse || readingShareActivation ||
+            readingGraphicsControl;
         const bool writeNeedsRead = writingServerLicenseRequest
             ? credSsp.serverLicenseRequestWriteNeedsRead
             : (writingValidClient
                    ? credSsp.validClientWriteNeedsRead
                    : (writingShareActivation
                           ? credSsp.shareActivationWriteNeedsRead
-                          : (writingConnectResponse
-                                 ? credSsp.connectResponseWriteNeedsRead
-                                 : (writingAttachConfirm
-                                        ? credSsp.attachConfirmWriteNeedsRead
-                                        : credSsp.channelJoinConfirmWriteNeedsRead))));
+                          : (writingGraphicsControl
+                                 ? credSsp.graphicsControlWriteNeedsRead
+                                 : (writingConnectResponse
+                                        ? credSsp.connectResponseWriteNeedsRead
+                                        : (writingAttachConfirm
+                                               ? credSsp.attachConfirmWriteNeedsRead
+                                               : credSsp.channelJoinConfirmWriteNeedsRead)))));
         const Interest interest = readingMcsTpkt
             ? connection.ioInterest()
             : (writeNeedsRead ? Interest::Read : Interest::Write);
@@ -764,6 +793,40 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
                 return {RuntimeHostError::None, false};
             }
 
+            if (readingGraphicsControl)
+            {
+                const auto intake =
+                    activeAdmissionBroker_->
+                        authorizeR3GraphicsDynamicVirtualChannelPdu(
+                            session, *deploymentPolicy_, completeTpkt);
+                if (!activeAdmissionBroker_->revalidate(
+                        activeAdmissionPermissionMask_))
+                    return rejectAdmission();
+
+                credSsp.firstMcsBytes = 0U;
+                credSsp.firstMcsExpectedBytes = 0U;
+                using GraphicsIntake = transport::RdpGraphicsDvcClientIntake;
+                switch (intake)
+                {
+                case GraphicsIntake::CapabilitiesAccepted:
+                case GraphicsIntake::GraphicsCapabilitiesAccepted:
+                    activeAdmissionStage_ =
+                        AcceptedClientAdmissionStage::GraphicsControlWritePending;
+                    break;
+                case GraphicsIntake::CreateAccepted:
+                case GraphicsIntake::GraphicsDataFragmentAccepted:
+                    activeAdmissionStage_ =
+                        AcceptedClientAdmissionStage::GraphicsControlClientExpected;
+                    break;
+                case GraphicsIntake::CreateRejected:
+                case GraphicsIntake::GraphicsDataAccepted:
+                case GraphicsIntake::Rejected:
+                case GraphicsIntake::Closed:
+                    return rejectAdmission();
+                }
+                return {RuntimeHostError::None, false};
+            }
+
             if (readingShareActivation)
             {
                 const auto intake =
@@ -826,7 +889,7 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
         }
 
         if (writingServerLicenseRequest || writingValidClient ||
-            writingShareActivation)
+            writingShareActivation || writingGraphicsControl)
         {
             using TlsOutcome = transport::TlsApplicationIoOutcome;
             if (writingServerLicenseRequest)
@@ -876,6 +939,82 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
                     activeAdmissionStage_ =
                         AcceptedClientAdmissionStage::ServerLicenseRequestDelivered;
                 }
+                return {RuntimeHostError::None, false};
+            }
+
+            if (writingGraphicsControl)
+            {
+                const auto pending =
+                    activeAdmissionBroker_->
+                        pendingR3GraphicsDynamicVirtualChannelWrite(
+                            session, *deploymentPolicy_);
+                if (!pending || !*pending ||
+                    pending->kind ==
+                        transport::RdpGraphicsDvcWriteKind::GraphicsFrameData)
+                    return rejectAdmission();
+
+                const auto sent =
+                    connection.writeTlsApplicationData(pending->bytes);
+                if (sent.outcome == TlsOutcome::NeedRead ||
+                    sent.outcome == TlsOutcome::NeedWrite)
+                {
+                    if (sent.bytes != 0U)
+                        return rejectAdmission();
+                    credSsp.graphicsControlWriteNeedsRead =
+                        sent.outcome == TlsOutcome::NeedRead;
+                    return {RuntimeHostError::None, true};
+                }
+                if (sent.outcome != TlsOutcome::Progress ||
+                    sent.bytes == 0U || sent.bytes > pending->bytes.size() ||
+                    !activeAdmissionBroker_->revalidate(
+                        activeAdmissionPermissionMask_))
+                    return rejectAdmission();
+
+                credSsp.graphicsControlWriteNeedsRead = false;
+                const auto completedKind = pending->kind;
+                const auto receipt =
+                    activeAdmissionBroker_->
+                        completeR3GraphicsDynamicVirtualChannelWrite(
+                            session, *deploymentPolicy_,
+                            pending->replySequence,
+                            pending->writeSliceSequence, sent.bytes);
+                if (receipt ==
+                        transport::RdpGraphicsDvcWriteOutcome::Rejected ||
+                    !activeAdmissionBroker_->revalidate(
+                        activeAdmissionPermissionMask_))
+                    return rejectAdmission();
+                if (receipt == transport::RdpGraphicsDvcWriteOutcome::Pending)
+                    return {RuntimeHostError::None, false};
+
+                if (completedKind ==
+                        transport::RdpGraphicsDvcWriteKind::CapabilitiesRequest ||
+                    completedKind ==
+                        transport::RdpGraphicsDvcWriteKind::CreateRequest)
+                {
+                    activeAdmissionStage_ =
+                        AcceptedClientAdmissionStage::GraphicsControlClientExpected;
+                    return {RuntimeHostError::None, false};
+                }
+
+                // R3 itself commits the final MAP write before projecting
+                // control readiness. No native pixels or frame are borrowed.
+                if (completedKind !=
+                        transport::RdpGraphicsDvcWriteKind::GraphicsMapSurfaceToOutput ||
+                    session.phase() != transport::McsSessionPhase::ShareActivated ||
+                    !activeAdmissionBroker_->authorizeR3ApplicationTrafficReady(
+                        session, *deploymentPolicy_))
+                    return rejectAdmission();
+                const auto observed =
+                    session.firstClientAcceptanceObservability();
+                if (!observed.graphicsDynamicVirtualChannelActivated ||
+                    !observed.graphicsControlReady ||
+                    !observed.surfaceCreated || !observed.surfaceMapped ||
+                    !activeAdmissionBroker_->revalidate(
+                        activeAdmissionPermissionMask_))
+                    return rejectAdmission();
+
+                activeAdmissionStage_ =
+                    AcceptedClientAdmissionStage::GraphicsReady;
                 return {RuntimeHostError::None, false};
             }
 
@@ -935,6 +1074,9 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
 
                     activeAdmissionStage_ =
                         AcceptedClientAdmissionStage::ShareActivated;
+                    activeGraphicsControlDeadline_ =
+                        std::chrono::steady_clock::now() +
+                        std::chrono::seconds{30};
                     acceptedClientDiagnostics_.protocolStage =
                         RuntimeAcceptedClientProtocolStage::ShareActivated;
                     acceptedClientDiagnostics_.shareActivated = true;
@@ -1810,9 +1952,25 @@ RuntimeHostStatus MacRuntimeHostControl::status() const
         }
     }
 
-    // R10 now reaches ShareActivated, but Graphics DVC/surfaces are not yet
-    // active. Native readiness cannot impersonate R3 GraphicsReady.
-    snapshot.graphicsReady = false;
+    // Only the original R2-protected R3 exact MAP receipt may mark protocol
+    // graphics ready. Neither native resources nor a prepared frame suffice.
+    const bool graphicsControlCommitted =
+        activeAdmissionStage_ == AcceptedClientAdmissionStage::GraphicsReady &&
+        activeMcsSession_ != nullptr && activeAdmissionBroker_ != nullptr &&
+        activeAdmissionBroker_->state() ==
+            rdp_server::server::security::MacConsoleAdmissionState::Admitted &&
+        activeConsentEpoch_.has_value() &&
+        ownerSharingAuthority_.authorizesAtEpoch(
+            activeAdmissionPermissionMask_, *activeConsentEpoch_);
+    if (graphicsControlCommitted)
+    {
+        const auto proof =
+            activeMcsSession_->firstClientAcceptanceObservability();
+        snapshot.graphicsReady = proof.shareActivated &&
+            proof.graphicsDynamicVirtualChannelActivated &&
+            proof.graphicsControlReady && proof.surfaceCreated &&
+            proof.surfaceMapped;
+    }
     snapshot.nativeDesktopReady = nativeDesktop_.ready();
     snapshot.nativeDesktopInitializing = false; // No R2-authorized macOS attach yet.
     snapshot.acceptedClientPreauthDiagnostics = acceptedClientDiagnostics_;
@@ -2372,9 +2530,18 @@ RuntimeHostResult MacRuntimeHostControl::serviceOnce() noexcept try
 
     if (activeConnection_ != nullptr)
     {
-        if (activeAdmissionStage_ !=
-                AcceptedClientAdmissionStage::ShareActivated &&
-            activeConnection_->cancelIfExpired(now, activeClientDeadline_))
+        const bool graphicsNegotiating =
+            activeAdmissionStage_ ==
+                AcceptedClientAdmissionStage::GraphicsControlWritePending ||
+            activeAdmissionStage_ ==
+                AcceptedClientAdmissionStage::GraphicsControlClientExpected;
+        if ((activeAdmissionStage_ !=
+                 AcceptedClientAdmissionStage::ShareActivated &&
+             activeAdmissionStage_ !=
+                 AcceptedClientAdmissionStage::GraphicsReady &&
+             !graphicsNegotiating &&
+             activeConnection_->cancelIfExpired(now, activeClientDeadline_)) ||
+            (graphicsNegotiating && now >= activeGraphicsControlDeadline_))
         {
             retireAcceptedClient();
             stage_ = RuntimeHostStage::ListenerAvailable;

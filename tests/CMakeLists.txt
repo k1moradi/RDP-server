@@ -1449,6 +1449,18 @@ set_tests_properties(
     runtime.macos-host-control-share-activation-composition-contract
     PROPERTIES LABELS "runtime;macos;security;licensing;share;policy;offline" TIMEOUT 15)
 
+# R10 maps Graphics only through the original protected broker; a mapped
+# control surface is still not native attachment or an accepted first frame.
+add_test(NAME runtime.macos-host-control-graphics-control-composition-contract
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_host_control_licensing_composition.py"
+        --source "${PROJECT_SOURCE_DIR}/src/server/runtime/mac_runtime_host_control.cpp"
+        --header "${PROJECT_SOURCE_DIR}/src/server/runtime/mac_runtime_host_control.h"
+        --check-graphics-control)
+set_tests_properties(
+    runtime.macos-host-control-graphics-control-composition-contract
+    PROPERTIES LABELS "runtime;macos;security;graphics;policy;offline" TIMEOUT 15)
+
 # R9 source-commit delivery policy: production changes require a centralized
 # CTest registration co-change in the same commit as the implementation/docs.
 # This is a git-metadata-only regression; no native or network activity.
@@ -2152,6 +2164,18 @@ function(add_rdp_test source_file suite behavior)
             security.macos-protected-personal-desktop-share-activation-receipts
             PROPERTIES
                 LABELS "protocol;security;transport;tls;licensing;share;admission;offline"
+                TIMEOUT 60)
+
+        # One real licensed R1/R2/R3 owner continues from Share activation
+        # through DRDYNVC CAPS/CREATE, graphics CAPS_CONFIRM and mapped surface.
+        add_test(
+            NAME security.macos-protected-personal-desktop-graphics-control-receipts
+            COMMAND "${test_target}"
+                "macos-protected-personal-desktop-graphics-control-receipts")
+        set_tests_properties(
+            security.macos-protected-personal-desktop-graphics-control-receipts
+            PROPERTIES
+                LABELS "protocol;security;transport;tls;licensing;share;graphics;offline"
                 TIMEOUT 60)
 
         # Genuine accepted R1 HYBRID/TLS with synthetic authentication/native

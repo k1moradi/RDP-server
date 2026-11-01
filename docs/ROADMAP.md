@@ -1,3 +1,13 @@
+## R10 protected macOS DRDYNVC, Graphics capabilities and mapped control (2026-11-01)
+
+**Authoring parent:** `50be63b0b39ce6e831b3009e07a0020d7bd3b28d`. [x] R1 sole HYBRID/TLS reader/writer, R2 original native/consent/proof and original policy plus licensing object identity, and R3 real PersonalDesktop/Share full-receipt gates are already on main. [x] Agent R8 independently fixed the cross-platform CMake configure blocker `security.macos-share-activated-clipboard-r2-classifier-denial` by choosing a durable behavior name in `0bf6730c`; no competing rename is required. [x] The R3 DRDYNVC v1 CAPS, Graphics CREATE, RDPGFX capabilities, CAPS_CONFIRM, CreateSurface and MapSurfaceToOutput transitions and their exact accepted-byte receipts already exist behind protected macOS R2 wrappers.
+
+[x] Continue R10's same owner from real ShareActivated through those actual protected DRDYNVC and surface steps, not a second R3 state machine or a synthetic activated route. Keep the same bounded R1 TPKT reader, original R1 SSL/BIO TLS writer, precise WANT/zero behavior, positive suffix receipts, owner thread and fresh R2 authorization before and after operations. Retain protocol GraphicsReady only when original R3 observed full MAP and current owner scope remains valid; project nativeDesktopReady independently. Add a separate 30-second Graphics negotiation deadline while still awaiting the client's DVC/control messages. Do not attach a macOS desktop, post pixels, or enable Input/Clipboard.
+
+[x] Add `security.macos-protected-personal-desktop-graphics-control-receipts` ordinary production-linked real-licensed Share→Graphics transcript, and `runtime.macos-host-control-graphics-control-composition-contract` original-authority source test. Synthetic native/proof fixtures remain non-product evidence. Connector-local configure/build/focused/full CTest and ASan/UBSan **NOT RUN**; exact-publication-SHA hosted CI **PENDING**. Physical Microsoft client, native macOS Admission/capture/input/Clipboard **NOT RUN / unauthorized**.
+
+[ ] Next separately authorized R10/R7 road: real native desktop attach only after fresh exact R2 proof/consent and mapped GraphicsReady, post-GraphicsReady R1 liveness/application pump, actual native frame publication with complete R1 accepted bytes, client-inbound R4 FRAME_ACK, and revocation/reconnect. GraphicsReady alone is not DesktopVisible.
+
 ## R2 PersonalDesktop credential-substitution regression phase correction (2026-11-01)
 
 Reviewed `0bf6730c2e0137b49e9b96a52860a8218f1a8c31` after the CTest registry taxonomy unblock. The new

@@ -613,6 +613,23 @@ bool R3ClipboardTransferBridge::beginServerMonitorReady() noexcept
     return true;
 }
 
+bool R3ClipboardTransferBridge::prepareNextServerInitializationPdu() noexcept
+{
+    switch (serverInitializationStage_)
+    {
+    case ServerInitializationStage::Dormant:
+        return beginServerCapabilities();
+    case ServerInitializationStage::AwaitMonitorReady:
+        return beginServerMonitorReady();
+    case ServerInitializationStage::ServerCapabilitiesWritePending:
+    case ServerInitializationStage::MonitorReadyWritePending:
+    case ServerInitializationStage::AwaitClientInitialization:
+    case ServerInitializationStage::Ready:
+        return false;
+    }
+    return false;
+}
+
 bool R3ClipboardTransferBridge::observeServerClipboardGeneration(
     const std::uint64_t clipboardGeneration) noexcept
 {

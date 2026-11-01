@@ -139,6 +139,12 @@ public:
     [[nodiscard]] bool beginServerCapabilities() noexcept;
     [[nodiscard]] bool beginServerMonitorReady() noexcept;
 
+    // R10 selects when to run the next step; R8 only prepares the exact
+    // capabilities/Monitor Ready PDU against the latest R2-observed R3 route.
+    // No packet is queued or delivered by this helper. Pending, Ready and
+    // revoked routes cannot advance by calling it again.
+    [[nodiscard]] bool prepareNextServerInitializationPdu() noexcept;
+
     // Local/native clipboard generations are monotonic over this bridge
     // lifetime. Replacing the local generation while a Format List response is
     // outstanding marks that response stale; it is drained but cannot accept

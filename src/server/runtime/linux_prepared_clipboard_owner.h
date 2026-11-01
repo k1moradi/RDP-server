@@ -109,6 +109,25 @@ public:
                    policy, completeTpkt, bridge_->completePduSink());
     }
 
+    [[nodiscard]] bool initializationWriteRequired() const noexcept {
+        if (!active() || writePending_)
+            return false;
+        using Stage = Bridge::ServerInitializationStage;
+        const Stage stage = bridge_->serverInitializationStage();
+        return stage == Stage::Dormant || stage == Stage::AwaitMonitorReady;
+    }
+
+    // R10 is the sole scheduler. This one-step preparation requires a fresh
+    // R2 Clipboard visit and only stages R8 bytes; the existing R3/R1 writer
+    // must separately queue, accept and receipt-commit the entire PDU.
+    [[nodiscard]] bool prepareServerInitializationPdu(
+        Connection& connection, const Policy& policy) noexcept {
+        return initializationWriteRequired() &&
+               connection.visitPersonalDesktopClipboardChannel(
+                   policy, bridge_->channelVisitor()) &&
+               bridge_->prepareNextServerInitializationPdu();
+    }
+
     [[nodiscard]] bool serviceAfterNetworkDispatch(
         Connection& connection, const Policy& policy,
         Clock::time_point now) noexcept {
@@ -143,8 +162,15 @@ public:
         Clock::time_point now, bool mayStartRemoteFetch) noexcept {
         // Do not service native paste/INCR before the sole R3/R1 initial
         // response receipts make this channel generation presentable.
-        if (!active() || !bridge_->serverInitializationReady()) {
+        if (!active() || !bridge_->serverInitializationReady() ||
+            writePending_) {
             return true;
+        }
+        // Initialization is only a wire receipt. Native paste also needs a
+        // fresh independent Clipboard-scope visit on this exact R3 route.
+        if (!connection.visitPersonalDesktopClipboardChannel(
+                policy, bridge_->channelVisitor())) {
+            return false;
         }
         if (!adapter_->servicePendingPaste(now)) {
             return false;

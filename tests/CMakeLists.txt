@@ -2824,6 +2824,14 @@ foreach(case_name IN ITEMS
         LABELS "protocol;clipboard;lifecycle;security;offline")
 endforeach()
 
+# R8 initial CAPS/Monitor/initial Format List exact R3 receipt and restart.
+# Deliberately outside the fixed 107-case Clipboard sanitizer selector.
+add_test(NAME runtime.clipboard-initial-handshake-exact-receipt-denials
+    COMMAND test_r8_r3_clipboard_bridge
+        initial-handshake-exact-receipt-denials)
+set_tests_properties(runtime.clipboard-initial-handshake-exact-receipt-denials
+    PROPERTIES LABELS "runtime;security;offline")
+
 # Stable R2-committed scalars require no R3 borrowed span after mutation.
 # This ordinary test is outside the fixed 87 clipboard sanitizer selection.
 add_test(NAME runtime.clipboard-stable-scalar-write-receipt
@@ -5136,6 +5144,7 @@ set_tests_properties(
 add_test(NAME runtime.linux-clipboard-native-publication-receipt-scope-denial
     COMMAND "${CMAKE_COMMAND}"
         "-DRDP_LINUX_PREPARED_CLIPBOARD_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_prepared_clipboard_owner.h"
+        "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
         -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_clipboard_native_publication_gate.cmake")
 set_tests_properties(
     runtime.linux-clipboard-native-publication-receipt-scope-denial PROPERTIES

@@ -1,3 +1,14 @@
+## R8 original-receipt initialization focused CTest (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build, run:
+
+```sh
+ctest --test-dir build -C Debug -R '^(runtime[.]clipboard-initial-handshake-exact-receipt-denials|runtime[.]linux-clipboard-native-publication-receipt-scope-denial|security[.]macos-(post-join-clipboard-view-input-denial|share-activated-clipboard-permission-denial|share-activated-clipboard-scope-classifier-denial))$' --output-on-failure
+ctest --test-dir build -C Debug --output-on-failure
+```
+
+Then full Release CTest and existing cross-platform exact-SHA 107-case Clipboard ASan/UBSan, CLIPRDR static-channel, X11 callback/INCR and native security lanes. No additional executable, dependency or build root. Local build/CTest/benchmarks NOT RUN; hosted exact publication-SHA qualification PENDING. No native Clipboard access or production activation.
+
 ## R5 combined held-key/button implicit owner destructor Xvfb qualification (2026-11-01)
 
 No new executable or build root: reuse `~/rdp-server/build/`, the

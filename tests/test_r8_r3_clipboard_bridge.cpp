@@ -456,6 +456,124 @@ void serverInitializationOrdering()
     assert(bridge.serverInitializationReady());
 }
 
+// R8/R3 production bridge and static-channel receipt owners; no native lease
+// or TLS writer is fabricated. The separate R10 source gate pins fresh R2
+// scope before any native X11 publication/paste.
+void initialHandshakeExactReceiptDenials()
+{
+    using namespace rdp_server::clipboard;
+    using Stage = R3ClipboardTransferBridge::ServerInitializationStage;
+    constexpr RdpClipboardStaticChannelView firstRoute{1008U, 400U};
+    R3ClipboardTransferBridge bridge(0U, true);
+    RdpClipboardStaticChannelRoute route;
+    assert(route.start(1005U, firstRoute.channelId,
+                       firstRoute.generation, 1600U));
+    auto visitor = bridge.channelVisitor();
+    auto sink = bridge.completePduSink();
+
+    // No R2-protected route observation, no server PDU preparation.
+    assert(!bridge.prepareNextServerInitializationPdu());
+    assert(!bridge.serverInitializationReady());
+    assert(visitor.visit(visitor.context, firstRoute));
+    assert(bridge.prepareNextServerInitializationPdu());
+    assert(bridge.serverInitializationStage() ==
+           Stage::ServerCapabilitiesWritePending);
+    assert(!bridge.prepareNextServerInitializationPdu());
+
+    const auto capabilities = bridge.pendingApplicationPdu();
+    assert(!capabilities.empty() && route.queue(capabilities));
+    const auto first = route.pending();
+    assert(first && bridge.bindQueuedWrite(first));
+    const std::uint64_t oldReplySequence = first.replySequence;
+    const std::uint64_t oldSliceSequence = first.writeSliceSequence;
+    const std::size_t oldOfferedBytes = first.wireBytes.size();
+
+    // A zero-byte TLS result or WANT_READ/WANT_WRITE is not an R3 receipt.
+    // R10 does not call recordAcceptedWriteReceipt until R1 accepts bytes.
+    assert(bridge.serverInitializationStage() ==
+           Stage::ServerCapabilitiesWritePending);
+    assert(!bridge.serverInitializationReady());
+    assert(route.pending());
+    const auto partial = route.onAcceptedBytes(
+        first.routeGeneration, first.replySequence,
+        first.writeSliceSequence, 1U);
+    assert(partial == RdpClipboardWriteOutcome::Pending);
+    assert(bridge.recordAcceptedWrite(first, 1U, partial));
+    assert(bridge.serverInitializationStage() ==
+           Stage::ServerCapabilitiesWritePending);
+
+    const auto completeQueuedReply = [&]() {
+        while (const auto pending = route.pending())
+        {
+            assert(bridge.bindQueuedWrite(pending));
+            const auto acceptedBytes = pending.wireBytes.size();
+            const auto outcome = route.onAcceptedBytes(
+                pending.routeGeneration, pending.replySequence,
+                pending.writeSliceSequence, acceptedBytes);
+            assert(outcome != RdpClipboardWriteOutcome::Rejected);
+            assert(bridge.recordAcceptedWrite(
+                pending, acceptedBytes, outcome));
+        }
+        assert(route.idle());
+    };
+    completeQueuedReply();
+    assert(bridge.serverInitializationStage() == Stage::AwaitMonitorReady);
+    // A committed capabilities receipt still cannot authorize Monitor Ready
+    // without a new route observation.
+    assert(!bridge.prepareNextServerInitializationPdu());
+    assert(visitor.visit(visitor.context, firstRoute));
+    assert(bridge.prepareNextServerInitializationPdu());
+    assert(bridge.serverInitializationStage() ==
+           Stage::MonitorReadyWritePending);
+    assert(!bridge.prepareNextServerInitializationPdu());
+    assert(route.queue(bridge.pendingApplicationPdu()));
+    completeQueuedReply();
+    assert(bridge.serverInitializationStage() ==
+           Stage::AwaitClientInitialization);
+
+    assert(visitor.visit(visitor.context, firstRoute));
+    assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    assert(!bridge.serverInitializationReady());
+    assert(route.queue(bridge.pendingApplicationPdu()));
+    const auto response = route.pending();
+    assert(response && bridge.bindQueuedWrite(response));
+    const auto partialResponse = route.onAcceptedBytes(
+        response.routeGeneration, response.replySequence,
+        response.writeSliceSequence, 1U);
+    assert(partialResponse == RdpClipboardWriteOutcome::Pending);
+    assert(bridge.recordAcceptedWrite(response, 1U, partialResponse));
+    assert(!bridge.serverInitializationReady());
+    assert(bridge.serverInitializationStage() ==
+           Stage::AwaitClientInitialization);
+    completeQueuedReply();
+    assert(bridge.serverInitializationReady());
+    assert(!bridge.prepareNextServerInitializationPdu());
+
+    // Stop/revoke closes the old native publication eligibility even after
+    // complete initialization. Reconnect has a distinct R3 generation and
+    // must repeat the entire receipt sequence; late old writes are inert.
+    bridge.retireR3ChannelState();
+    route.close();
+    assert(!bridge.serverInitializationReady() && !bridge.active());
+    constexpr RdpClipboardStaticChannelView reconnect{1008U, 401U};
+    RdpClipboardStaticChannelRoute restarted;
+    assert(restarted.start(1005U, reconnect.channelId,
+                           reconnect.generation, 1600U));
+    assert(visitor.visit(visitor.context, reconnect));
+    assert(bridge.prepareNextServerInitializationPdu());
+    assert(bridge.serverInitializationStage() ==
+           Stage::ServerCapabilitiesWritePending);
+    assert(!bridge.recordAcceptedWriteReceipt(
+        firstRoute.generation, oldReplySequence, oldSliceSequence,
+        oldOfferedBytes, 1U, RdpClipboardWriteOutcome::Pending));
+    assert(bridge.active() && !bridge.serverInitializationReady());
+    assert(bridge.serverInitializationStage() ==
+           Stage::ServerCapabilitiesWritePending);
+    bridge.retireR3ChannelState();
+    restarted.close();
+    assert(!bridge.active() && !bridge.serverInitializationReady());
+}
+
 void serverInitializationGenerationReplacement()
 {
     using namespace rdp_server::clipboard;
@@ -1219,6 +1337,8 @@ int main(int argc, char **argv)
         serverOutboundCapabilitiesAndFormatLists();
     else if (behavior == "server-initialization-ordering")
         serverInitializationOrdering();
+    else if (behavior == "initial-handshake-exact-receipt-denials")
+        initialHandshakeExactReceiptDenials();
     else if (behavior == "server-initialization-generation-replacement")
         serverInitializationGenerationReplacement();
     else if (behavior == "server-initialization-pending-write-retirement")

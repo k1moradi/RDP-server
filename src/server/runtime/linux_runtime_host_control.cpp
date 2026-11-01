@@ -2885,6 +2885,13 @@ RuntimeHostResult LinuxRuntimeHostControl::serviceNativeDesktopOnce() noexcept
     }
 
 #if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+    // R10 alone schedules the two initial server PDUs, one receipt-complete
+    // step at a time. R8 prepares, R3 routes and the existing R1 writer owns
+    // every accepted byte. Production Clipboard remains explicitly disabled.
+    if (nativeDesktop_->clipboard.initializationWriteRequired() &&
+        !nativeDesktop_->clipboard.prepareServerInitializationPdu(
+            *acceptedClient_, *deploymentPolicy_))
+        return retireClient(RuntimeHostError::GraphicsUnavailable);
     if (!nativeDesktop_->clipboard.serviceAfterNetworkDispatch(
             *acceptedClient_, *deploymentPolicy_, Clock::now()) ||
         (nativeDesktop_->clipboard.writePending() &&

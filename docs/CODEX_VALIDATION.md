@@ -1,3 +1,30 @@
+## R7 duplicate display ICC evidence and current native dependency (2026-11-01)
+
+**Authoring parent:** `429dc54041eb4b6462186e70352d7dd26810df80`. Current GitHub source review confirms R10
+now reaches protected PersonalDesktop licensing, Share activation and
+Graphics DVC CAPS/CREATE/MAP through genuine R3 `GraphicsReady`.
+`MacRuntimeHostControl::status()` projects GraphicsReady only from the
+original R2-admitted session, pinned owner-consent epoch and mapped R3
+surface; nativeDesktopReady remains independent. Production still does
+not attach a native macOS framebuffer or send its first physical frame;
+that requires original proof/native audit/consent authority, an owner-thread
+native lifetime and exact R3/R4 R1 accepted-byte/ACK ownership.
+
+**R7 diagnostic defect:** repeated IDs from the bounded
+`CGGetActiveDisplayList` diagnostic query could count one ICC profile twice.
+Fail closed as `display-set-changed` before the first profile read. Reuse
+existing parser fixtures and add a separately registered offline
+`macos.gui-qcolor-duplicate-display-id-metadata-denial` CTest.
+
+**Latest observed CI first failures:** `fdca79857b9df684f97c1b32b7dbd709fcab4c6f`
+Actions 41299381227, Ubuntu 1087/1088 and macOS 863/864 PASS; both first-frame
+receipt tests fail (Ubuntu exact wire-size assertion, macOS `delivered` false),
+while Windows additionally has Share/Graphics fixtures failing. Those
+synthetic R4/R10 tests are being corrected independently; do not claim actual
+native receipt or weaken graphics authorization. Source review PASS;
+connector-local build/CTest/sanitizers NOT RUN; exact publication-SHA CI
+PENDING; owner physical macOS/ColorSync/Windows App NOT RUN.
+
 ## Protected first-frame segmented-record correction and remaining Windows crash (2026-11-01)
 
 **Observed failing SHA:** `fdca79857b9df684f97c1b32b7dbd709fcab4c6f`, Actions `41299381227`. Agent R9 has already corrected the Share source-contract blocker. Linux/Windows first-frame tests reached `Delivered` but used the *first* pending MCS/DVC record length as though it covered the entire R4 frame. The separate macOS failure reaches the synthetic test's 30-second frame drain limit. Correct the existing positive test to account for each R3 outer record's `replySequence`, full accepted prefix/suffix and cumulative byte length through final `Delivered`; preserve the original positive TLS first-byte receipt, fresh R2 authority and distinct inbound client FRAME_ACK. Reduce only the shared offline graphics-capable GCC fixture's negotiated desktop to 128×96, leaving production geometry, RDP code and large-frame codec/segmentation tests intact. No public APIs, CTest registrations, native authority or fixed MCS census changed.

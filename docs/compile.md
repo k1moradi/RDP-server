@@ -1,3 +1,17 @@
+## R7 macOS ICC duplicate-display negative selection (2026-11-01)
+
+After canonical Debug configure/build using only `~/rdp-server/build/`:
+
+```sh
+ctest --test-dir build -C Debug -R '^macos[.]gui-qcolor-(duplicate-display-id-metadata-denial|provenance-parser-and-redaction)$' --output-on-failure
+ctest --test-dir build -C Debug --output-on-failure
+```
+
+Then existing full Release and same-SHA hosted R7 native/session sanitizers
+and cross-platform protocol gates. No new binary, dependency or build root.
+Connector-local CTest and owner macOS 27 run NOT RUN; exact publication-SHA CI
+PENDING.
+
 ## R2 off-owner licensing focused test and consumed-receipt follow-up (2026-11-01)
 
 Reviewed main parent `8b7cd13f3874513bcd838ad64f8eaffdef284d09`. Extend the existing production-linked `security.macos-protected-partial-license-request-policy-substitution-denial` (earlier Ubuntu Debug PASS at `f2e56b5`) with two independent checks after a real R1 TLS accepted byte: a joined wrong-thread original-policy request/suffix receipt denies without mutating R2/R3, and a fresh lifetime's duplicate consumed partial write-slice receipt retires R2/R3/R1. Preserve equal-value policy/AppServer substitution, exact late receipt denial, consent/audit/Stop/R1 cancellation, Linux positives, and View/Input versus Clipboard separation. No production API or protocol change. Run canonical Debug configure/build in only ~/rdp-server/build and focused `ctest --test-dir build -C Debug -R '^security[.]macos-protected-partial-license-request-policy-substitution-denial, exact-SHA hosted CTest/sanitizers PENDING. Separate R4 first-frame segmented record-size/timeout and Windows Share fixture failures remain CI blockers; real production CredSSP principal-to-physical macOS audit/consent is still NOT PROVEN.

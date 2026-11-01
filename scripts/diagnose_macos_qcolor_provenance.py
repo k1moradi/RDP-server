@@ -259,11 +259,13 @@ def _enumerate_active_display_ids(core_graphics) -> tuple[str, int, tuple[int, .
         return ("enumeration-unavailable", 0, ())
     if returned_count.value != display_count.value:
         return ("display-set-changed", int(display_count.value), ())
-    return (
-        "observed",
-        int(returned_count.value),
-        tuple(int(display_ids[index]) for index in range(returned_count.value)),
-    )
+    observed_display_ids = tuple(
+        int(display_ids[index]) for index in range(returned_count.value))
+    # Reject duplicate native IDs before any ICC read: a display set is not
+    # a multiset, and duplicate IDs would count one profile more than once.
+    if len(set(observed_display_ids)) != len(observed_display_ids):
+        return ("display-set-changed", int(returned_count.value), ())
+    return ("observed", int(returned_count.value), observed_display_ids)
 
 
 def format_profile_header_status_counts(statuses: tuple[str, ...]) -> str:

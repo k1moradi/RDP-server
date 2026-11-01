@@ -1,3 +1,13 @@
+## R7 macOS ICC duplicate-display negative regression (2026-11-01)
+
+The new ordinary offline
+`macos.gui-qcolor-duplicate-display-id-metadata-denial` selects the one
+unittest that supplies the fake active display IDs (11,11,22); requires
+`display-set-changed`, three enumerated entries, no profile statuses and
+zero native profile calls. The existing entire
+`macos.gui-qcolor-provenance-parser-and-redaction` CTest remains registered.
+No macOS frameworks, GUI, TCC, sockets or actual ColorSync data are used.
+
 ## Production-linked off-owner licensing suffix and consumed-receipt follow-up (2026-11-01)
 
 Reviewed main parent `8b7cd13f3874513bcd838ad64f8eaffdef284d09`. Extend the existing production-linked `security.macos-protected-partial-license-request-policy-substitution-denial` (earlier Ubuntu Debug PASS at `f2e56b5`) with two independent checks after a real R1 TLS accepted byte: a joined wrong-thread original-policy request/suffix receipt denies without mutating R2/R3, and a fresh lifetime's duplicate consumed partial write-slice receipt retires R2/R3/R1. Preserve equal-value policy/AppServer substitution, exact late receipt denial, consent/audit/Stop/R1 cancellation, Linux positives, and View/Input versus Clipboard separation. No production API or protocol change. Source review PASS; local compile/CTest NOT RUN, exact-SHA hosted CTest/sanitizers PENDING. Separate R4 first-frame segmented record-size/timeout and Windows Share fixture failures remain CI blockers; real production CredSSP principal-to-physical macOS audit/consent is still NOT PROVEN.

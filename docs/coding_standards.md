@@ -1,3 +1,12 @@
+## R7 duplicate native display IDs in ICC diagnostics (2026-11-01)
+
+The bounded read-only `CGGetActiveDisplayList` ICC collector must reject a
+duplicate native display ID as `display-set-changed` before querying profile
+metadata. A display set with repeated IDs is not independent evidence and
+must not inflate profile status counts or leak identifiers. Keep the existing
+32-display cap, privacy-redacted output, exact CFData/CGColorSpace release
+order and strict separation from authenticated native admission.
+
 ## R10 protected macOS Graphics control is distinct from desktop authority (2026-11-01)
 
 After a genuinely R3-receipt-committed ShareActivated transition, R10 may begin the sole original R2-protected Graphics DVC. It must use the existing R1 SSL/BIO application reader/writer, bounded reused TPKT buffer, and R2 visitors for every DRDYNVC CAPS/CREATE, Graphics CAPS, CAPS_CONFIRM, CreateSurface and MapSurfaceToOutput message/receipt. Zero accepted bytes and WANT_READ/WRITE do not commit progress; positive accepted bytes commit only the exact R3 reply/slice. Confirm/Map completion may publish protocol GraphicsReady only from R3's original mapped surface observability and current pinned R2 owner/scope, never nativeDesktop.ready() or a prepared framebuffer. A separate 30-second bounded graphics-control exchange prevents an indefinitely pending negotiated channel from retaining its accepted-client borrow. ShareActivated does not imply GraphicsReady; GraphicsReady does not imply native attachment, delivered pixels, input or Clipboard.

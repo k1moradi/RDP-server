@@ -17740,36 +17740,37 @@ ColorSync/profile execution and the warning-site backtrace remain NOT RUN.
 Collector-only Python mocks do not prove native ColorSync or identify the
 reproduced invalid-primaries QColorSpace constructor.
 
-**Native R10 dependency:** Protected macOS PersonalDesktop licensing and
-Demand/Confirm Active through real `ShareActivated` are now in R10 main
-(`fc7126df`). The original R1 TLS/BIO writer, native-evidence-bound R2
-broker and R3 share activation/accepted-byte receipts are reused; no new
-session or issuer is added. The **remaining protocol dependency** is R10's
-R2-protected R3 Graphics DVC activation and capability/surface
-CAPS/CREATE/MAP receipts, followed by R4 presentation readiness. Only then
-may R10 attach the R7 native desktop using its original current CredSSP
-proof, View consent epoch, native console/audit-session epoch and owner-thread
-authority. Keep R2/R3 close -> native retirement -> proof/R1 destruction.
-Share does not yet authorize native capture/input/Clipboard or imply a client
-frame. The previously shared `r2` CTest naming/configure blocker at
-`1447dd0c` was fixed by another agent at `0bf6730c`; exact new-head
-full CI and physical native acceptance remain pending.
+**R7/R10 current native dependency:** R10 has resolved the protected
+PersonalDesktop licensing and Share gates and now reaches original-owner,
+R2-protected R3 GraphicsReady after DRDYNVC, Graphics CAPS, CREATE and
+MAP accepted-byte receipts. The macOS HostControl status independently
+projects mapped R3 graphics readiness only while the admitted R2 broker
+and original owner-consent epoch remain current. This is **not native
+desktop attachment or a client-visible first frame**. The remaining R7
+integration is owner-thread native attach using the original R2-held
+authenticated proof, current macOS console/audit/SecuritySession evidence,
+original consent grant and original R1 lifetime; native retirement must
+precede destroying R3/proof/R1. No second authorization issuer, guessed UID,
+TCC prompt, native input/Clipboard or real capture is authorized. An actual
+R3/R4 first-frame publication must preserve exact TLS accepted-byte receipts
+and separate client FRAME_ACK ownership.
 
-**R7 fail-closed status correction:** R10 now reaches ShareActivated rather
-than stopping at AwaitDemandActive. Until R3 Graphics DVC and presentation
-are truly ready, `MacRuntimeHostControl::status().graphicsReady` remains
-false and `nativeDesktopReady` independently reports local native resource
-state. Existing `runtime.macos-host-control-pre-share-graphics-status-denials`
-exercises real HostControl startup/consent/revocation, and the new
-`runtime.macos-share-activation-does-not-imply-graphics-status`
-source regression pins ShareActivated != GraphicsReady != DesktopVisible
-without fabricating a live native borrower. R7 `ae4bb224` hosted same-SHA
-Linux/macOS/Windows protocol, native lifecycle and sanitizer jobs PASS;
-new publication-SHA qualification PENDING. The later R10/R7 live graphics
-increment must replace the deny-only status with R2-protected R3
-graphics/presentation evidence and a real production-backed four-state
-status + genuine delivered-first-frame test. GUI projection never grants
-native authority; no QColorSpace warning suppression is justified.
+**Current cross-platform CI gate:** At `fdca7985`, Ubuntu and macOS
+Debug/full CTest fail only the synthetic first-frame receipt case; Windows
+also shows Share/Graphics fixture segfaults and first-frame timeout. This
+blocks claiming exact-head global R3/R4 acceptance, not the R7 bounded ICC
+collector. Correct fixture boundaries without manufacturing a real native
+frame or relaxing authority. No owner macOS 27/physical Microsoft-client,
+capture or warning attribution test has run.
+
+**ICC duplicate-display integrity:** The opt-in collector now rejects
+repeated `CGGetActiveDisplayList` IDs as `display-set-changed` before a
+single profile read, preventing false double counts. Dedicated ordinary
+`macos.gui-qcolor-duplicate-display-id-metadata-denial` and existing
+`macos.gui-qcolor-provenance-parser-and-redaction` cover only synthetic
+native metadata; new exact-SHA hosted CI PENDING, physical ColorSync and
+invalid-primaries caller remain NOT RUN. Keep Sharing OFF on launch,
+do not suppress Qt warnings or modify user profiles.
 
 **Owner-only warning attribution:** Without enabling Sharing, capture or any
 permission prompt, start the extracted app under LLDB with symbols for the

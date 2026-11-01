@@ -124,6 +124,40 @@ class MacQColorProvenanceTests(unittest.TestCase):
                 FakeCoreGraphics((7, 9), second_count=1)),
             ("display-set-changed", 2, ()))
 
+    def test_active_display_duplicate_ids_fail_closed(self):
+        # Duplicate display IDs are not independent ICC evidence. Reject
+        # before querying any profile, and never expose the raw IDs.
+        class CoreGraphics:
+            def CGGetActiveDisplayList(
+                self, maximum, display_ids, display_count
+            ):
+                display_count._obj.value = 3
+                if display_ids is not None:
+                    for index, display_id in enumerate((11, 11, 22)):
+                        display_ids[index] = display_id
+                return 0
+
+        graphics = CoreGraphics()
+        self.assertEqual(
+            probe._enumerate_active_display_ids(graphics),
+            ("display-set-changed", 3, ()))
+        with mock.patch.object(probe.sys, "platform", "darwin"):
+            with mock.patch.object(
+                probe, "_load_color_frameworks",
+                return_value=(graphics, object())
+            ):
+                with mock.patch.object(
+                    probe, "_query_display_profile",
+                    side_effect=AssertionError("duplicate IDs must not be read")
+                ) as profile_reader:
+                    observed = probe.query_active_display_profile_headers()
+
+        self.assertEqual(observed, ("display-set-changed", 3, ()))
+        profile_reader.assert_not_called()
+        self.assertEqual(
+            probe.format_profile_header_status_counts(observed[2]),
+            "unavailable")
+
     def test_active_display_profile_summary_distinguishes_malformed_metadata(self):
         statuses = (
             "recognized-header",

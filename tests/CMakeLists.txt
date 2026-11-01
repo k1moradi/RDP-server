@@ -1478,6 +1478,15 @@ add_test(NAME macos.gui-qcolor-provenance-parser-and-redaction
 set_tests_properties(macos.gui-qcolor-provenance-parser-and-redaction PROPERTIES
     LABELS "macos;gui;qt;diagnostics;security;offline" TIMEOUT 20)
 
+# The original bounded diagnostic enumeration must not count the same
+# display profile twice, even if CoreGraphics returns duplicated native IDs.
+add_test(NAME macos.gui-qcolor-duplicate-display-id-metadata-denial
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_qcolor_provenance.py"
+        MacQColorProvenanceTests.test_active_display_duplicate_ids_fail_closed)
+set_tests_properties(macos.gui-qcolor-duplicate-display-id-metadata-denial
+    PROPERTIES LABELS "macos;gui;qt;diagnostics;security;offline" TIMEOUT 20)
+
 # Agent 5 read-only physical-client evidence helper. The synthetic fixture
 # reads only a temporary .app Info.plist and temporary logs; it never launches
 # Windows App, changes Keychain/trust state, touches preferences or uses network.

@@ -1,5 +1,7 @@
 ## R4 mapped-first-frame owner-retirement seam (2026-11-01)
 
+**Registration follow-up:** At `42f2248b` the new case was initially entered under the R3 test executable despite its R4 dispatch; this would not have executed the intended regression. A direct-main corrective commit relocates it into the existing `test_gfx_presentation_lifecycle` case list, outside fixed sanitizer selectors. The first publication is not a passing test receipt. Corrected CMake/static dispatch review PASS; compile/CTest/ASan/UBSan still NOT RUN and corrective exact-SHA hosted CI PENDING.
+
 Base \`e4534704900c4a3ef890e55aa35e91a76653f0ec\` inspected via GitHub: R4 mapped/resize tests,
 pre/post DATA tests, macOS R2 prepared-only Graphics denial, real R1 TLS
 Graphics DATA receipt fixture and fixed CI sanitizer selectors. Missing

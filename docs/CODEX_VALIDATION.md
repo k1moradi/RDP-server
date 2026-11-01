@@ -1,3 +1,7 @@
+## R10/R1 cross-platform CMake configure blocker: first-frame CTest taxonomy (2026-11-01)
+
+At `d0c36d2c563cd6d7e1b2551dae181b781b883c6d`, Actions `41298105627` reached CMake configure and failed in `tests/CMakeLists.txt:6053`: registered `security.macos-protected-graphics-first-frame-r1-receipt-client-ack` violates the existing durable CTest naming guard because `r1` is internal agent ownership taxonomy. This is the first failing boundary, not a C++ compile, Share/Graphics wire, native admission or R4 ACK failure. Keep all existing test behavior and the executable dispatch case unchanged, change only the CTest registry identifier to `security.macos-protected-graphics-first-frame-exact-tls-receipt-client-ack`, and preserve the strict guard. Connector-local configure/build/full tests/sanitizers NOT RUN. The next gate is exact-corrective-SHA hosted Ubuntu/macOS/Windows Debug/Release full CTest, R9 sanitizers and R10 focused real-licensing-to-Graphics receipts. No native/physical Microsoft client execution authorized.
+
 ## R10 macOS original-owner Graphics control after real licensing/Share (2026-11-01)
 
 **Authoring parent:** `50be63b0b39ce6e831b3009e07a0020d7bd3b28d`. Exact dependency refresh found the R10 PersonalDesktop and Share host scheduler on main, R2's original-policy/object/consent fences, and R3's graphics capability/Create/Graphics-CAPS/CAPS_CONFIRM/surface MAP APIs already implemented; no replacement interface is needed. The first new full-CTest blocker after Share was an R8 CTest label containing the internal `r2` taxonomy. Agent R8 fixed that independently at `0bf6730c`; previous R10 positive Share fixture and multiline source-guard problems were corrected by `1447dd0c`. The latest Share qualification must be checked at its own SHA, not retroactively marked green from earlier runs.
@@ -110,7 +114,7 @@ at `1447dd0`. Source review found no concrete R4 codec or R3 frame-credit
 defect. The existing protected MAP-to-first-frame consent regression proved
 retirement only; separate R1/R3 TLS DATA and R4 ACK tests did not exercise
 positive DATA/ACK under the same macOS R2 broker. Added the ordinary
-`security.macos-protected-graphics-first-frame-r1-receipt-client-ack` CTest
+`security.macos-protected-graphics-first-frame-exact-tls-receipt-client-ack` CTest
 by reusing the full mapped R1 HYBRID/TLS/R2/R3 fixture; it explicitly
 distinguishes encoded frame, first partial DATA acceptance, complete DATA
 receipt, and separately inbound synthetic matching client ACK. No code

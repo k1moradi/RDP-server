@@ -1,3 +1,7 @@
+## Cross-platform CTest name must describe receipts, not an agent road (2026-11-01)
+
+All registered CTests must pass the existing resolved-name taxonomy policy during CMake configure. The production-linked macOS first-frame/ACK fixture uses the durable name `security.macos-protected-graphics-first-frame-exact-tls-receipt-client-ack`; the executable's internal dispatcher argument remains unchanged. This is a registry-name correction only: keep exact R1 TLS receipts, protected R2/R3 and R4 ACK assertions. Never suppress or bypass the configure-time taxonomy guard.
+
 ## R10 real-licensed macOS Graphics negotiation and guarded status CTests (2026-11-01)
 
 Ordinary production-linked `security.macos-protected-personal-desktop-graphics-control-receipts` reuses the existing genuine R1 HYBRID/TLS + R2/R3 and completed PersonalDesktop licensing-to-Share transcript. After actual ShareActivated, it checks a zero-byte borrowed DVC receipt, one-byte positive exact-suffix CAPS/CREATE, genuine client DRDYNVC CAPS/CREATE responses, RDP Graphics CAPS and exact CAPS_CONFIRM/CreateSurface/MapSurface receipts. Verify R3's mapped-surface/control-ready evidence while first-frame write and genuine ACK remain absent. The fixture's credential/native proof is synthetic security test input, not product-valid macOS Admission.

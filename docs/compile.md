@@ -1,3 +1,7 @@
+## macOS first-frame CTest registry taxonomy correction (2026-11-01)
+
+At `d0c36d2c563cd6d7e1b2551dae181b781b883c6d`, Actions `41298105627` failed during CMake configure on all participating platforms, before compiling/testing, because the new first-frame CTest contained the internal `r1` agent-road token. Rename only that registered CTest to `security.macos-protected-graphics-first-frame-exact-tls-receipt-client-ack` and preserve its existing dispatcher and timeout. Re-run canonical configure/full Debug and Release CTest and focused R10 real-licensed Graphics tests at the corrective exact SHA. Local checkout execution NOT RUN; hosted corrective CI PENDING.
+
 ## R10 protected Graphics control focused validation (2026-11-01)
 
 Use only the existing `~/rdp-server/build/` per AGENTS. After the canonical Debug configure/build, run `ctest --test-dir build -C Debug -R '^security[.]macos-protected-personal-desktop-(licensing-(receipts|denials)|share-activation-receipts|graphics-control-receipts)$|^runtime[.]macos-host-control-(personal-licensing|share-activation|graphics-control)-composition-contract$|^runtime[.]macos-host-control-pre-share-graphics-status-denials$' --output-on-failure`. Then rerun ordinary full Debug/Release CTest and existing ASan/UBSan/Windows Clang 23 qualification. No new external dependency, executable or build root; real macOS owner/session/client validation is separate and not authorized by the fixture. Connector-local compile, full tests and sanitizers NOT RUN; exact-publication-SHA CI PENDING.

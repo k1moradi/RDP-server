@@ -1,3 +1,7 @@
+## Canonical roadmap updates must preserve the complete prior document (2026-11-01)
+
+The roadmap integrity guard is a delivery gate, not advisory. When prepending a current milestone/evidence section, use the complete current `docs/ROADMAP.md` as the base; never write a partial fetch/snippet back as the document. A +small/-thousands roadmap diff is a truncation signal and must be rejected before publication. The canonical structure self-test must remain green after documentation-only commits.
+
 ## Protected macOS fixture R2 must retire before its borrowed R3 session (2026-11-01)
 
 A positive `MacConsoleAdmissionBroker` fixture may remain admitted until scope

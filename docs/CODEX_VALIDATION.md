@@ -1,3 +1,7 @@
+## Canonical roadmap truncation repair (2026-11-01)
+
+At `5d95c2ca51d68b28e802fdb2c34ba017e9c84021`, CI structure job `124846231739` correctly failed before the primary workflow with `Canonical roadmap integrity FAIL: roadmap truncated`. GitHub diff shows `docs/ROADMAP.md` changed by +50/-18,161 lines: the intended R8 prefix survived but all prior canonical TODO/history was lost. This correction restores the exact `e28a8d5` roadmap blob byte-for-byte after the intended R8 section and adds no production or test behavior. Reconstruction/source review PASS; exact corrective-SHA structure/full CI PENDING.
+
 ## R8 exact-SHA post-Share Clipboard denial qualification and current dependency graph (2026-11-01)
 
 **Validated R8 source SHA:** `d241d4947f053227c7d35a02c882f0eca8089d52`,

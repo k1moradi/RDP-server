@@ -1,3 +1,19 @@
+## R2 pins the original PersonalDesktop licensing service objects (2026-11-01)
+
+Beyond the immutable one-shot deployment-policy pointer, the concrete macOS
+broker now pins the exact borrowed `RdpServerLicenseIdentity` and
+`RdpLicensingServiceCredential` addresses on the first successful protected
+Server License Request preparation. Reborrows must supply those same objects;
+Client Licensing must supply that original credential. An equally configured
+identity or different credential owner is terminal, even if R3 could match
+ProductInfo or a certificate fingerprint by value. The pointers are read-only
+lifetime fences, never a second licensing state owner: R3 still owns the
+bounded PDU, TLS accepted-byte slices and receipt sequences. R10 retains
+both service objects until R2 is destroyed and never exposes private PEM.
+No additional public API, alternate admission, Clipboard authority or
+cross-thread positive path is permitted. Reviewed main parent `d2e115173316fedf7593ab61e3679172d2af7453`;
+source-contract inspection PASS; compile/CTest/real-client evidence NOT RUN.
+
 ## R10 macOS licensed Share activation remains one-owner protected (2026-11-01)
 
 After receipt-complete PersonalDesktop `STATUS_VALID_CLIENT`, the same serialized macOS HostControl owner may prepare the R3-owned macOS Demand Active profile only through the original concrete R2 broker, then alternate the sole R1 TLS writer/reader according to R3 Share activation state. Advertise Dynamic Virtual Channels for the later graphics road and add Slow Path Input only when the originally pinned View|Input scope includes Input; capability negotiation is not native input authority. Positive R1 accepted bytes alone advance exact Share reply/slice receipts. The HostControl scheduling states only select read versus write; R3 remains the Share transcript owner and R2 remains the authority issuer.

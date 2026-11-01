@@ -1,3 +1,32 @@
+## R2 licensing service-object continuity follows original immutable policy (2026-11-01)
+
+**Review parent:** `d2e115173316fedf7593ab61e3679172d2af7453`. [x] Source audit of all six macOS protected
+PersonalDesktop licensing entry points and R10 service-lifetime borrows:
+policy pointer/one-shot selection, owner thread, original R1 HYBRID/TLS,
+credential generation, audit/native session, fresh consent epoch and
+post-callback receipt rejection hold. [x] Found a separate equality-vs-object
+identity gap: R3's ProductInfo/certificate-fingerprint equivalence did not pin
+the concrete licensing identity/credential object R2 first used. Harden only
+R2's borrowed-object identity fence; R3 remains the sole PDU/receipt owner.
+[x] Register dedicated ordinary production-R1-loopback
+`security.macos-protected-personal-licensing-context-substitution-denials`
+for byte-equivalent identity replacement and different credential owner,
+plus late receipt denial. Original policy replacement, AppServer mismatch,
+Stop, native audit swap, same-permission epoch swap, R1 cancellation,
+partial write callback revocation and cross-thread/double completion retain
+their separate existing CTests.
+
+[ ] **NOT RUN:** connector-local compile, focused/full Debug/Release CTest,
+sanitizers, exact-publication-SHA Linux/macOS/Windows hosted confirmation.
+[ ] **BLOCKED by physical authorization/evidence, not missing code API:**
+a real production CredSSP principal proof independently matched to macOS
+native console/audit session and exact owner View consent. Existing production
+R1 TLS fixture uses intentionally synthetic proof/native observations and
+cannot qualify that boundary. Agent 10 has already landed the licensing
+scheduler through `AwaitDemandActive`; protected Demand/Confirm Active,
+Share and then Graphics/native attachment remain its next composition gates.
+No Clipboard permission, CAL bypass of admission, or public R2 API added.
+
 ## R10 macOS protected Demand/Confirm Active and Share finalization (2026-11-01)
 
 **Authoring parent:** `ae4bb224339beec16d15b821bfab7c4715464463`. Licensing is no longer the R10 blocker: current main has the original-owner PersonalDesktop exchange through receipt-complete `STATUS_VALID_CLIENT`, and the demonstrated test compile/policy blockers were corrected by concurrent agents. R2 already owns the protected macOS Demand Active/Share visitors and R3 owns capability/profile, client-finalization ordering and exact write receipts.

@@ -2143,6 +2143,17 @@ function(add_rdp_test source_file suite behavior)
             PROPERTIES LABELS "security;native-authorization;transport;tls;licensing;offline"
                        TIMEOUT 60)
 
+        # R2 original licensing identity/credential pointers survive every
+        # borrowed R3 retry; matching ProductInfo/cert objects cannot replace
+        # the original service lifetime through real loopback R1 TLS.
+        add_test(NAME security.macos-protected-personal-licensing-context-substitution-denials
+            COMMAND "${test_target}"
+                "macos-protected-personal-licensing-context-substitution-denials")
+        set_tests_properties(
+            security.macos-protected-personal-licensing-context-substitution-denials
+            PROPERTIES LABELS "security;native-authorization;transport;tls;licensing;offline"
+                       TIMEOUT 60)
+
         # R1/R2/R3 licensing receipt fence: a real positive partial TLS
         # Server License Request write followed by callback-time native
         # revocation must retire the original session and reject late receipts.

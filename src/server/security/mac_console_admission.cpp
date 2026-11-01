@@ -956,13 +956,25 @@ MacConsoleAdmissionBroker::authorizeR3PersonalDesktopServerLicenseRequestWrite(
         const MacNativeDesktopAuthorizationView & /* authorization */,
         void *context) noexcept -> bool {
         auto &operation = *static_cast<OperationContext *>(context);
+        auto &broker = *operation.broker;
+        // R3 compares certificate fingerprints/ProductInfo; R2 additionally
+        // requires the exact borrowed service objects across retries.
+        if ((broker.personalDesktopLicensingIdentity_ != nullptr ||
+             broker.personalDesktopLicensingCredential_ != nullptr) &&
+            (broker.personalDesktopLicensingIdentity_ != operation.identity ||
+             broker.personalDesktopLicensingCredential_ != operation.credential))
+            return false;
         const auto provenance =
-            operation.broker->connection_->securityNegotiationProvenance();
+            broker.connection_->securityNegotiationProvenance();
         if (!provenance)
             return false;
         operation.outcome = operation.session->prepareServerLicenseRequestWrite(
             *provenance, *operation.identity, *operation.credential);
-        return operation.outcome.has_value();
+        if (!operation.outcome)
+            return false;
+        broker.personalDesktopLicensingIdentity_ = operation.identity;
+        broker.personalDesktopLicensingCredential_ = operation.credential;
+        return true;
     };
 
     if (!visitPersonalDesktopR3Operation(
@@ -1033,8 +1045,14 @@ MacConsoleAdmissionBroker::authorizeR3PersonalDesktopClientLicensingMessage(
         const MacNativeDesktopAuthorizationView & /* authorization */,
         void *context) noexcept -> bool {
         auto &operation = *static_cast<OperationContext *>(context);
+        auto &broker = *operation.broker;
+        // A later, even certificate-equivalent credential owner cannot
+        // replace the owner pinned when the Server License Request began.
+        if (broker.personalDesktopLicensingIdentity_ == nullptr ||
+            broker.personalDesktopLicensingCredential_ != operation.credential)
+            return false;
         const auto provenance =
-            operation.broker->connection_->securityNegotiationProvenance();
+            broker.connection_->securityNegotiationProvenance();
         if (!provenance)
             return false;
         operation.outcome = operation.session->acceptVerifiedR2ClientLicensingMessage(
@@ -2009,6 +2027,8 @@ void MacConsoleAdmissionBroker::revoke(
     }
     nativeAuthorization_.revoke();
     personalDesktopPolicy_ = nullptr;
+    personalDesktopLicensingIdentity_ = nullptr;
+    personalDesktopLicensingCredential_ = nullptr;
     if (admissionAttempted_ && connection_ != nullptr)
         connection_->cancel();
     admissionAttempted_ = false;

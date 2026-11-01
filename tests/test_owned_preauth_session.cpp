@@ -9034,6 +9034,79 @@ void testMacProtectedServerLicenseRequestPartialWriteCallbackRevocation()
 // Complete original R1 HYBRID TLS and R2-private MCS, with deterministic
 // credential/native test observations only. A positive receipt below proves
 // protocol mechanics, never a product-valid native macOS admission.
+// A byte-for-byte replacement ProductInfo and certificate is still a new
+// licensing identity object. R2 pins the original service borrows, not just
+// R3's matching certificate fingerprint. Proof/native admission is synthetic;
+// the accepted R1 HYBRID/TLS and R2/R3 route are production implementations.
+void testMacProtectedPersonalLicensingContextSubstitutionDenials()
+{
+    using rdp_server::server::runtime::RuntimeDeploymentPolicy;
+    using rdp_server::server::runtime::RuntimeLicensingContext;
+
+    RuntimeDeploymentPolicy policy;
+    assert(policy.configurePersonalDesktopPrivateLan(3389U));
+    RuntimeLicensingContext licensing;
+    assert(licensing.configureGeneratedApplicationIdentity());
+    const auto *const identity = licensing.identity();
+    const auto *const credential = licensing.credential();
+    assert(identity != nullptr && credential != nullptr);
+
+    const auto assertRetired = [](const MacProtectedTransportFixture &fixture) {
+        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(fixture.session->phase() == McsSessionPhase::Closed);
+        assert(fixture.session->licensingPhase() == RdpLicensingPhase::Closed);
+        assert(fixture.connection.stage() == PreauthStage::Closed);
+    };
+
+    // Clone all public identity values, including the exact certificate.
+    // R3's product/fingerprint comparisons alone accept these equal values;
+    // R2 must reject a different object even while the request is pending.
+    RdpServerLicenseIdentity replacementIdentity;
+    assert(replacementIdentity.configure(
+        identity->productVersion(), identity->companyNameUtf16(),
+        identity->productIdUtf16(), identity->serverCertificate(),
+        identity->scopeAnsi()));
+    assert(credential->matches(replacementIdentity));
+    {
+        auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture();
+        assert(fixture->broker.authorizeR3PersonalDesktopLicensingMode(
+            *fixture->session, policy));
+        const auto pending =
+            fixture->broker.authorizeR3PersonalDesktopServerLicenseRequestWrite(
+                *fixture->session, policy, *identity, *credential);
+        assert(pending && *pending);
+        assert(!fixture->broker.authorizeR3PersonalDesktopServerLicenseRequestWrite(
+            *fixture->session, policy, replacementIdentity, *credential));
+        assertRetired(*fixture);
+        assert(fixture->broker.completeR3PersonalDesktopServerLicenseRequestWrite(
+                   *fixture->session, policy, pending->replySequence,
+                   pending->writeSliceSequence, 1U) ==
+               RdpServerLicenseRequestWriteOutcome::Rejected);
+        assert(!fixture->broker.authorizeR3PersonalDesktopValidClientWrite(
+            *fixture->session, policy));
+        assertRetired(*fixture);
+    }
+
+    // A second valid licensing service credential cannot substitute for the
+    // original object during Client Licensing, irrespective of its contents.
+    RuntimeLicensingContext replacementLicensing;
+    assert(replacementLicensing.configureGeneratedApplicationIdentity());
+    {
+        auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture();
+        assert(fixture->broker.authorizeR3PersonalDesktopLicensingMode(
+            *fixture->session, policy));
+        const auto pending =
+            fixture->broker.authorizeR3PersonalDesktopServerLicenseRequestWrite(
+                *fixture->session, policy, *identity, *credential);
+        assert(pending && *pending);
+        assert(!fixture->broker.authorizeR3PersonalDesktopClientLicensingMessage(
+            *fixture->session, policy, *replacementLicensing.credential(), {}));
+        assertRetired(*fixture);
+        assert(!fixture->broker.authorizeR3PersonalDesktopServerLicenseRequestWrite(
+            *fixture->session, policy, *identity, *credential));
+    }
+}
+
 void testMacProtectedPersonalDesktopLicensingReceipts()
 {
     using rdp_server::server::runtime::RuntimeDeploymentPolicy;
@@ -14484,6 +14557,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedBufferedAttachConfirmAfterErect},
     {"macos-protected-personal-licensing-policy-retirement-denials",
      &testMacProtectedPersonalLicensingPolicyAndRetirementDenials},
+    {"macos-protected-personal-licensing-context-substitution-denials",
+     &testMacProtectedPersonalLicensingContextSubstitutionDenials},
     {"macos-protected-license-request-partial-write-callback-revocation",
      &testMacProtectedServerLicenseRequestPartialWriteCallbackRevocation},
     {"macos-protected-channel-join-client-info-after-attach",

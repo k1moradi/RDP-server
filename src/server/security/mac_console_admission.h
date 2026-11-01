@@ -433,6 +433,13 @@ private:
     // replacing or destroying it; no scalar mode or identity is sufficient.
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
         *personalDesktopPolicy_{};
+    // The first successful Server License Request pins both original
+    // service-lifetime R10 objects, not only their matching certificate and
+    // ProductInfo values. R10 must retire R2 before destroying either owner.
+    const rdp_server::server::transport::RdpServerLicenseIdentity
+        *personalDesktopLicensingIdentity_{};
+    const rdp_server::server::transport::RdpLicensingServiceCredential
+        *personalDesktopLicensingCredential_{};
     PreparedLifetime prepared_{};
     // R10 guarantees that both borrowed owners outlive the broker; any R1
     // admission attempt enrolls R3 before calling a callback-capable issuer.

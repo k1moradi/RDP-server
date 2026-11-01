@@ -1,3 +1,52 @@
+## R2 original PersonalDesktop licensing object-identity hardening (2026-11-01)
+
+**Reviewed main parent:** `d2e115173316fedf7593ab61e3679172d2af7453`. The existing broker already pinned
+the one-shot PersonalDesktop deployment-policy identity and revalidated owner
+thread, original CredSSP/credential generation, exact R1 SSL/BIO connection,
+native audit session and consent epoch around all six licensing calls.
+R3 checked licensing certificate fingerprints and ProductInfo by value, but R2
+did not additionally bind the original licensing identity/credential objects.
+A semantically equal identity could therefore replace the original object on
+a later prepared Server License Request without failing R3's value checks.
+
+Pin both original service-object addresses in the broker on the first
+successful protected prepare; deny substitution on later prepare/intake, close
+R3 and cancel the original R1. Add dedicated production-R1-TLS CTest
+`security.macos-protected-personal-licensing-context-substitution-denials`.
+The existing policy-replacement, owner Stop, native audit/session and consent
+epoch replacement, R1 cancellation, partial TLS write callback revocation,
+cross-thread and duplicate receipt regressions remain unchanged. R10 currently
+borrows the original `RuntimeLicensingContext` and `RuntimeDeploymentPolicy`
+with safe declaration/destruction order, and no new R2 API is needed.
+
+**Verification:** GitHub source and CTest dispatch review PASS; this session
+cannot clone GitHub or invoke the canonical owner build, so focused/full CTest,
+sanitizers, exact-publication-SHA hosted CI and real production CredSSP/native
+admission remain **NOT RUN/PENDING**, not PASS. The loopback fixture uses
+synthetic principal/native observations; the next gate is hosted full tests and
+a separate real CredSSP principal proof/physical macOS consent evidence gate.
+R10's protected post-licensing Demand/Share/Graphics composition is independent
+remaining product work; no Clipboard authority has been granted.
+
+## Exact-head protocol CI first failure: stale allocation-retirement source contract (2026-11-01)
+
+Reviewed `6f10bcce0ddbf5cd18f41113e811977d2992a782` after R10 licensing and R7 retirement cleanup. Actions
+`41293004442` compiled Debug successfully on Ubuntu and macOS. Ubuntu job
+`124808388014` then ran 1076 tests with **1075 PASS / 1 FAIL**; macOS job
+`124808387941` ran 852 tests with **851 PASS / 1 FAIL**. Both failures were
+`runtime.macos-host-control-allocation-failure-retirement-contract` with the
+same message: `allocation failure helper missing:
+nativeDesktop_.retireAfterAuthorizationLoss()`.
+
+Production review shows that missing direct call is intentional: R7
+`7b0f07ed` made `retireAcceptedClient()` the sole accepted-client native
+retirement owner and separately pins caller ownership. Correct the older
+allocation source contract to require the central helper and prohibit duplicate
+native retirement. No production R1/R2/R3/R7/R10 code changes. Hosted focused
+security/sanitizer jobs already completed successfully at the failing SHA, but
+full protocol CI is FAIL until the corrective SHA reruns. Local CTest,
+sanitizers and physical-client/native testing NOT RUN.
+
 ## R10 macOS PersonalDesktop -> Share activation integration (2026-11-01)
 
 **Authoring parent:** `ae4bb224339beec16d15b821bfab7c4715464463`. The prior R10 licensing compile and invalid-policy fixture blockers are resolved on main, and R2/R3 already expose the protected Demand Active/Share primitives. Production R10 now continues the original accepted R1 HYBRID/TLS, concrete R2 broker and R3 session from `AwaitDemandActive` through protected macOS Demand Active and connection finalization to genuine `ShareActivated`. Exact R1 positive accepted bytes complete only R3-owned Share suffixes; client Share TPKTs reuse the one bounded plaintext buffer. Dynamic Virtual Channels are negotiated for the later graphics road; Slow Path Input is advertised only under the originally pinned Input scope. The scheduler does not start Graphics, attach/service native desktop, dispatch input or authorize Clipboard. The 30-second accepted-client deadline still covers pending Share and stops applying only after genuine ShareActivated.

@@ -1,3 +1,26 @@
+## R2 licensing-context identity replacement focused validation (2026-11-01)
+
+No new target or third-party dependency. In the sole reused
+`~/rdp-server/build/` root, run canonical Debug configure/build, then
+`ctest --test-dir build -C Debug -R '^security[.]macos-protected-personal-licensing-(context-substitution|policy-retirement)-denials$' --output-on-failure`
+and `ctest --test-dir build -C Debug --output-on-failure`. Also run
+existing licensing receipt, partial-write-revocation, native owner-thread and
+double-completion selectors plus exact-SHA Linux/macOS/Windows CI. Review
+parent `d2e115173316fedf7593ab61e3679172d2af7453`; connector source/registry checks PASS; configure/build/
+CTest, sanitizers and physical-client tests NOT RUN.
+
+## R7 allocation-failure source-contract corrective check (2026-11-01)
+
+At `6f10bcce0ddbf5cd18f41113e811977d2992a782`, hosted Ubuntu and macOS Debug builds succeeded but full
+CTest failed only
+`runtime.macos-host-control-allocation-failure-retirement-contract` because
+its source assertion predated centralized native retirement. No production
+compile change is required. Reuse only `~/rdp-server/build/`; after canonical
+Debug configure/build run:
+`ctest --test-dir build -C Debug -R '^runtime[.]macos-(host-control-allocation-failure-retirement-contract|native-retirement-single-owner-callers|native-proof-retired-before-credential-destruction)$' --output-on-failure`,
+then full Debug/Release CTest and applicable same-SHA hosted gates. Connector
+execution NOT RUN; exact corrective-SHA qualification PENDING.
+
 ## R10 protected macOS Share activation build/test scope (2026-11-01)
 
 No new executable, external dependency, scheduler, TLS owner or build root is introduced. Reuse `~/rdp-server/build/` and the existing `test_owned_preauth_session` plus Python HostControl composition fixture. After the canonical Debug configure/build, run:

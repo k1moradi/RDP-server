@@ -1,3 +1,30 @@
+## R2 original licensing-context substitution rejection (2026-11-01)
+
+Ordinary `security.macos-protected-personal-licensing-context-substitution-denials`
+reuses the production loopback R1 HYBRID/TLS and concrete R2/R3 post-Client-Info
+fixture. First pin the original generated service identity and credential on a
+Server License Request; a separately configured identity with identical
+ProductInfo and certificate must revoke R2, close R3 and cancel R1. A different
+generated credential owner must also be rejected when offered for later Client
+Licensing. Late receipts and the original formerly valid borrow stay denied.
+This checks exact object lifetime rather than only R3 certificate fingerprints.
+Fixture CredSSP principal and macOS native observations remain synthetic and
+never grant physical admission; no client, desktop, Clipboard or input is used.
+Outside fixed sanitizer inventories. Reviewed main parent `d2e115173316fedf7593ab61e3679172d2af7453`;
+static source/CTest registry inspection PASS; local/hosted execution NOT RUN.
+
+## Allocation-failure source contract must follow the single accepted-client retirement owner (2026-11-01)
+
+When `MacRuntimeHostControl::retireAcceptedClient()` is the canonical owner of
+accepted-client native teardown, allocation-failure source tests must not require
+a second direct `nativeDesktop_.retireAfterAuthorizationLoss()` call after that
+helper. The allocation contract must require the central retirement call and
+fail-closed stage/error recovery, while explicitly rejecting a duplicate native
+retirement in the helper. The independent centralized-caller test continues to
+pin the one direct native-service failure path. A stale source guard that
+requires removed redundancy is a real full-CTest failure, not evidence that
+production should restore the duplicate cleanup.
+
 ## R10 real-licensing to protected macOS Share receipt coverage (2026-11-01)
 
 Register ordinary `security.macos-protected-personal-desktop-share-activation-receipts` using the existing production-linked `test_owned_preauth_session` fixture. It must complete real generated PersonalDesktop licensing first, then use the original R1 TLS owner, concrete macOS R2 broker and production R3 Share lifecycle through Demand Active, Confirm Active, server Synchronize/Cooperate, client Synchronize/Cooperate/Request Control, server Granted Control, client Font List and receipt-complete Font Map -> `ShareActivated`. Include a zero-byte Share receipt and exact one-byte suffix progression without manufacturing native macOS Admission.

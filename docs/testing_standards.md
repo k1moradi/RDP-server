@@ -1,3 +1,25 @@
+## R5 implicit held-state nested RAII source-chain CTest (2026-11-01)
+
+The ordinary offline
+`x11.desktop-implicit-held-state-no-post-teardown-chain-contract`
+reads the production desktop aggregate and XTEST controller. It
+pins implicit destructor -> suppressed whole-owner cancellation ->
+input child `retireWithoutNativeInput()` -> XCB handle invalidation
+and held key/button clearing -> `optional::reset()` -> child destructor,
+then the parent's XCB disconnect. Direct XTEST fake-input and
+`releaseAll()` are forbidden inside terminal input retirement; the
+only graceful release path remains explicit authorized disconnect.
+A self-contained CMake source-shaped positive/negative mutation fixture
+checked the script syntax and its terminal-post rejection; registered
+repository CTest and exact-SHA CI remain NOT RUN/PENDING.
+
+This source-only result is not a held-input aggregate behavioral
+test, count of actual native posts, or sanitizer leak proof. Existing
+production Xvfb queued-Damage implicit-destruction and held-controller
+tests remain distinct, with the fixed R9 **45-case** sanitizer census
+unchanged. Never fabricate native R2 Admission to turn a test into
+production input authority.
+
 ## R8 fully formed post-Share Clipboard negative packet fixtures (2026-11-01)
 
 The existing ordinary `security.macos-share-activated-clipboard-scope-classifier-denial`

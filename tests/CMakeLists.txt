@@ -3295,6 +3295,19 @@ if(TARGET rdp-server-linux-runtime-security)
         x11.desktop-resource-implicit-retirement-no-xtest-contract
         PROPERTIES LABELS "x11;linux-adapter;security;offline;terminal")
 
+
+    # Production-source chain: the aggregate's implicit destructor must
+    # clear held XTEST bookkeeping before child/parent RAII destruction.
+    # Source-only; no R2 lease, display or XTEST injection.
+    add_test(NAME x11.desktop-implicit-held-state-no-post-teardown-chain-contract
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_R5_DESKTOP_SOURCE=${PROJECT_SOURCE_DIR}/src/x11/x11_desktop_resources.cpp"
+            "-DRDP_R5_INPUT_SOURCE=${PROJECT_SOURCE_DIR}/src/x11/x11_input_controller.cpp"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_x11_implicit_held_state_retirement.cmake")
+    set_tests_properties(
+        x11.desktop-implicit-held-state-no-post-teardown-chain-contract
+        PROPERTIES LABELS "x11;linux-adapter;security;offline;terminal")
+
     # R5 follows the single R10 R2-selected XCB owner. The production
     # post-Share scheduler must retire its borrowed logind watch before
     # native drain, refresh R2 authority and borrow the first XShm frame

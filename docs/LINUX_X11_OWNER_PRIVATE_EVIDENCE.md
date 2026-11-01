@@ -1,3 +1,26 @@
+## R5 source-chain checkpoint and owner-only acceptance (2026-11-01)
+
+The nested implicit held-state source-chain CTest was authored after
+main `50be63b0b39ce6e831b3009e07a0020d7bd3b28d`; no new physical evidence exists. It checks a
+terminal no-XTEST production call chain but not a native held-state
+aggregate under a live R2 lease. Keep this file's original private
+v3 manifest and independent **v4** socket/native-epoch anti-splice pins.
+The exact publication SHA still requires full CI and native **45/45**
+sanitizers plus separate implicit-owner sanitizer receipt.
+
+For any separately authorized owner acceptance, bind the same
+original R1 accepted-socket instance to CredentialsVerified, real
+R2 native lease, independent Linux session/consent epoch and native
+authority, R3 Share/GraphicsReady, R5 first current XShm frame,
+**complete** positive R1 TLS frame-byte receipt, **inbound** R3/R4
+matching FRAME_ACK, RandR bounds/input owner, zero posts/frames
+following terminal revocation and distinct fresh socket/native R2
+owner with new first frame/ACK on reconnect. Reject stale ACK,
+cross-attempt reuse and matching scalar generations from different
+native/socket owners. R1 bytes accepted alone never prove client
+visibility. Do not publish identifiers, credentials, XIDs or native
+session observations. Physical status NOT RUN / unauthorized.
+
 ## Exact R5 automated qualification — 2026-11-01
 
 The implicit-retirement implementation/test publication

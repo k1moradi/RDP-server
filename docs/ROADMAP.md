@@ -1,3 +1,33 @@
+## R5 nested implicit X11 held-state teardown chain (2026-11-01)
+
+**Reviewed main parent:** `50be63b0b39ce6e831b3009e07a0020d7bd3b28d`. The previously landed
+`e453470` aggregate destructor is terminal/no-XTEST; `64732a09`
+covers implicit queued-Damage/XCB retirement and replacement; `59a48ad`
+adds that existing case separately to native sanitizer CI without
+altering the fixed **45-case** selection.
+
+- [x] Add one independent offline source-chain CTest for aggregate implicit
+  destruction, terminal child state clear, no XTEST posts in terminal
+  controller functions, child-before-XCB parent teardown and inert child
+  destructor. An isolated CMake 3.31.6 source-shaped positive and a
+  deliberately injected XTEST-post negative fixture were checked.
+- [ ] Run the new source CTest, existing destructor/fatal input/RandR CTests
+  and queued-XDamage implicit-destruction Xvfb fixture on its exact
+  publication SHA; then full Linux Debug and Release CTest.
+- [ ] Obtain exact publication-SHA **45/45** R5 ASan/UBSan selector plus
+  separately counted implicit-destructor native sanitizer case.
+- [ ] Independently obtain aggregate-held keyboard/button implicit-destructor
+  behavioral no-post/leak evidence. The new source-only check, direct
+  XTEST-controller held-state tests and Xvfb aggregate teardown without
+  held state do not establish that stronger combined observation.
+- [ ] Obtain R9 exact-SHA/manual-candidate prerequisites and explicit
+  owner authorization before any real Linux seat0/R2, client Share,
+  first-frame/inbound ACK, input, RandR, terminal Stop or reconnect.
+
+No owner native test, real X server, seat0 capture or XTEST injection
+was performed. Publication-SHA CI is PENDING; native behavioral
+acceptance and private session evidence remain NOT RUN/unauthorized.
+
 ## R8 fully formed post-Share Clipboard negative packet fixtures (2026-11-01)
 
 The existing ordinary `security.macos-share-activated-clipboard-scope-classifier-denial`

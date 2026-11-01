@@ -1,3 +1,14 @@
+## R5 implicit held-input nested teardown offline check (2026-11-01)
+
+No new dependency or executable. Reuse the sole `~/rdp-server/build/`
+after normal Linux Debug configure/build. Run
+`ctest --test-dir build -C Debug -R '^x11[.](desktop-implicit-held-state-no-post-teardown-chain-contract|desktop-resource-implicit-retirement-no-xtest-contract|input-native-failure-terminal-retirement-no-xtest|input-randr-bounds-update-held-state-no-cleanup)$' --output-on-failure`.
+The new CMake source check does not create a display, lease or XTEST
+event. Existing separately instrumented synthetic-Xvfb implicit-owner
+case and the fixed 45 native ASan/UBSan CTests must run under authorized
+CI on the identical publication SHA. Publication-SHA CTest/ASan
+execution NOT RUN/PENDING at authoring.
+
 ## R7 macOS Share-vs-Graphics status review (2026-11-01)
 
 After canonical Debug configure/build in the only `~/rdp-server/build/` root,

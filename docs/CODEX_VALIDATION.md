@@ -1,3 +1,26 @@
+## R5 current-descendant nested implicit-held-state source check (2026-11-01)
+
+Reviewed main parent `50be63b0b39ce6e831b3009e07a0020d7bd3b28d`, including `e453470` terminal
+aggregate destruction, `64732a09` XCB/Damage replacement test and
+`59a48ad` separately instrumented implicit owner. A new offline
+source CTest traces aggregate destructor -> terminal controller
+`retireState()` -> held key/button clear and XCB null -> inert
+child destructor -> child-before-parent native teardown. This guards
+against future nested RAII changes silently reintroducing cleanup
+XTEST. Isolated CMake 3.31.6 source fixture PASS, negative mutation
+injecting `xcb_test_fake_input` in `retireState` correctly FAIL.
+Actual current checkout compile/focused CTest/full CTest/ASan/UBSan
+NOT RUN; CI on the exact new publication SHA PENDING.
+
+**Unclosed behavioral gap:** no combined aggregate-held key/button
+implicit-destruction native post counter and leak receipt. Existing
+direct-controller held-state and aggregate queued-Damage tests cannot
+be spliced into a single proof. Never claim that the source-only CTest
+observed XTEST or a real native R2 authorization. Physical Linux
+R1/R2/R3/R5/R4, seat0/owner consent, actual first frame/complete
+write/inbound ACK, RandR/input, terminal revocation and reconnect all
+NOT RUN/unauthorized. No real X server or XTEST activity performed.
+
 ## R8 fully formed post-Share Clipboard negative packet fixtures (2026-11-01)
 
 The existing ordinary `security.macos-share-activated-clipboard-scope-classifier-denial`

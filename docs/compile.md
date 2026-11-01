@@ -1,3 +1,12 @@
+## R7 GUI native platform label qualification (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. After normal configure/build:
+```sh
+ctest --test-dir build -C Debug -R '^gui[.]offscreen-(native-desktop-platform-labels|graphics-native-desktop-projection)$' --output-on-failure
+ctest --test-dir build -C Debug --output-on-failure
+```
+Require exact-publication-SHA Ubuntu/macOS/Windows full Debug/Release, GUI parity and native/session sanitizers. Benchmark and physical testing NOT RUN.
+
 ## R3 partial Server License Request premature licensing CTest (2026-11-01)
 
 Reuse only `~/rdp-server/build/`; no new executable/dependency. Following canonical Debug configure/build, run:

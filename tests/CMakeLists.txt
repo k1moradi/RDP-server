@@ -5646,6 +5646,12 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-authoritative-sharing-toggle
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;product;runtime;lifecycle" TIMEOUT 30)
+    # Qt must display the current platform's native target without an X11 claim.
+    add_test(NAME gui.offscreen-native-desktop-platform-labels
+        COMMAND test_desktop_gui_offline native-desktop-platform-labels)
+    set_tests_properties(gui.offscreen-native-desktop-platform-labels
+        PROPERTIES LABELS "gui;runtime;platform;readiness;offline" TIMEOUT 20)
+
     add_test(NAME gui.offscreen-product-status-authority
         COMMAND test_desktop_gui_offline product-status-authority)
     set_tests_properties(gui.offscreen-product-status-authority

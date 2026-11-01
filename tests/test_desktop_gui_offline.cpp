@@ -803,6 +803,57 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (mode == "native-desktop-platform-labels")
+    {
+        // The R10 target is descriptive GUI data, never R2 admission or
+        // GraphicsReady. An absent macOS target must not mention X11/Wayland.
+        FakeRuntimeHost platformRuntime;
+        platformRuntime.deriveProductStatusFromLegacy = false;
+        platformRuntime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
+        platformRuntime.snapshot.product.controlAvailable = true;
+        platformRuntime.snapshot.product.state =
+            RuntimeProductHostState::Listening;
+        platformRuntime.snapshot.product.nativeDesktopTargetAvailable = true;
+#if defined(__linux__)
+        platformRuntime.snapshot.product.nativeDesktopTarget = ":0";
+        const QString expectedDesktop =
+            QStringLiteral("Physical X11 desktop :0");
+#else
+        platformRuntime.snapshot.product.nativeDesktopTarget =
+            "macOS ScreenCaptureKit Desktop";
+        const QString expectedDesktop =
+            QStringLiteral("macOS ScreenCaptureKit Desktop");
+#endif
+        HostControl platformHost(platformRuntime);
+        assert(platformHost.status().desktop == expectedDesktop);
+        assert(!platformHost.status().graphicsReady);
+        assert(!platformHost.status().nativeDesktopReady);
+
+        DesktopWindow platformWindow(platformHost);
+        platformWindow.refresh();
+        auto* readiness =
+            requiredLabel(platformWindow, "runtimeReadinessStatus");
+        assert(readiness->text().contains(
+            QStringLiteral("Selected desktop: ") + expectedDesktop));
+
+        platformRuntime.snapshot.product.nativeDesktopTargetAvailable = false;
+        platformRuntime.snapshot.product.nativeDesktopTarget.clear();
+        platformWindow.refresh();
+        const QString absentDesktopText = readiness->text();
+#if defined(__linux__)
+        assert(absentDesktopText.contains(
+            QStringLiteral("Wayland is not supported")));
+#else
+        assert(absentDesktopText.contains(
+            QStringLiteral("No eligible local desktop.")));
+        assert(!absentDesktopText.contains(QStringLiteral("X11")));
+        assert(!absentDesktopText.contains(QStringLiteral("Wayland")));
+#endif
+        assert(!platformHost.status().graphicsReady);
+        assert(!platformHost.status().nativeDesktopReady);
+        return 0;
+    }
+
     if (mode == "runtime")
     {
         UnavailableRuntimeHostControl unavailable;

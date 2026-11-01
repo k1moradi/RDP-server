@@ -299,9 +299,15 @@ HostStatus HostControl::status() const
     if (runtimeStatus.product.nativeDesktopTargetAvailable &&
         !runtimeStatus.product.nativeDesktopTarget.empty())
     {
+        // Preserve the existing Linux X11 identification, but never label
+        // the separately reported macOS/Windows native target as X11.
+#if defined(__linux__)
         view.desktop =
             QStringLiteral("Physical X11 desktop ") +
             toQString(runtimeStatus.product.nativeDesktopTarget);
+#else
+        view.desktop = toQString(runtimeStatus.product.nativeDesktopTarget);
+#endif
     }
 
     // R10 owns the exact native interface/endpoint selection policy.

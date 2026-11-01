@@ -1,3 +1,9 @@
+## R7 Qt native desktop platform labels after protected Graphics attachment (2026-11-01)
+
+[x] Reviewed `b66f16503e553aab0bc527759f9be97d01833383`. R10 attached native macOS state after original R2/R3 mapped GraphicsReady; R4 now preserves a fail-closed native frame observation but does not send RDP frames. R7's `6e29bec5` ICC regression and hosted cross-platform/native-sanitizer matrix PASS.
+[x] Fix R7 GUI presentation: prevent X11 prefix on the ScreenCaptureKit native target and Wayland-only unavailable wording on macOS/Windows while preserving existing Linux X11 behavior. Add `gui.offscreen-native-desktop-platform-labels` offline behavior CTest covering Qt target/empty status and absence of fake GraphicsReady/native readiness. No TCC, capture, ICC, consent, listener, protocol, pixels or startup changes.
+[ ] Static source/CTest review PASS; local build/CTest/sanitizers NOT RUN (GitHub DNS/owner checkout unavailable), new SHA CI PENDING. R10 next needs exact R2/R3/R4 frame-credit preflight, synchronous R7 sequence-fenced framebuffer borrow, existing R1 TLS accepted-byte receipts and independent client FRAME_ACK. Owner-only macOS LLDB invalid-primaries caller and physical acceptance NOT RUN.
+
 ## R3 accepted-partial Server License Request: premature Client Licensing denial (2026-11-01)
 
 **Source parent `82bbe04e0e09290d8b43ead9cd04078093ef017b`:** The existing exact R3/R2 licensing-to-Share method/phase map below remains canonical. Previously uncovered: one valid, complete joined global-I/O Client Licensing TPKT arrives through the original R1 HYBRID TLS reader **after one Server License Request byte was genuinely accepted**, but before R3 has delivered the remaining reply/slice suffix. This differs from the existing zero-delivery direct-call denial, Client Licensing replay during partial STATUS_VALID_CLIENT, and premature Confirm Active during partial Demand Active.

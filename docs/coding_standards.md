@@ -1,3 +1,7 @@
+## R7 Qt native desktop labels do not reinterpret R10 targets (2026-11-01)
+
+Preserve Linux X11 prefix and Wayland-only unavailable guidance. On macOS/Windows, display R10's read-only native desktop target directly and use an OS-neutral unavailable message. Compile-platform wording must never become R2 admission, R3 GraphicsReady, native readiness, delivered pixels, input or Clipboard authority.
+
 ## R4 native frame observation is a non-authorizing freshness selector (2026-11-01)
 
 The macOS R10 platform-native service must not discard R7's returned native `MacNativeDesktopServiceObservation` when a later Graphics frame needs its `pixelGeometry`, `geometryGeneration`, `admittedSessionGeneration` and `latestFrameSequence`. Expose it as an optional output of the existing owner-thread service only on successful R7 authorization and lifecycle service; default/reset it on error so a stale prior frame selector cannot survive denial. This observation is **not** a second R2 grant, capture buffer, frame queue, or new frame credit owner. R10 must recheck original R2 View, R3 mapped geometry and R4 ACK readiness, borrow precisely the observed latest frame synchronously through R7, retire that borrow before any TLS write, then use only the existing protected R3 segmented publisher and sole R1 writer. Native Ready cannot assert delivered pixels or client ACK.

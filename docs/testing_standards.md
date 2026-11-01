@@ -1,3 +1,7 @@
+## R7 native desktop platform labels offline behavior (2026-11-01)
+
+The dedicated ordinary `gui.offscreen-native-desktop-platform-labels` CTest reuses `test_desktop_gui_offline` with a fake R10 status. Verify target and unavailable labels through the actual Qt adapter and Advanced label on Linux and macOS/Windows, and assert native target metadata alone cannot create GraphicsReady or native resource readiness. No live OS resources, permission prompts, credentials or frames.
+
 ## Partial Server License Request rejects premature TLS Client Licensing (2026-11-01)
 
 The dedicated `security.macos-protected-client-licensing-before-partial-server-request-delivery-denial` uses the same original R1 HYBRID TLS/BIO reader/writer, private R2 broker and R3 MCS fixture as the positive PersonalDesktop licensing tests. After a zero receipt and one actual R1 TLS-accepted Server License Request byte, R3 must still be `AwaitServerLicenseRequest` and licensing `NotStarted`. A valid 8192-byte joined global-I/O Client Licensing TPKT arrives through R1, and the rejected R2 intake must retire original R1/R2/R3, reject captured stale suffix receipt and forbid Valid Client/Demand Active. Distinct from direct pre-delivery and partial-Valid Client replay denials. No native authority, additional executable or MCS census change. Source review PASS; local execution NOT RUN, same-SHA CI PENDING.

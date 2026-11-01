@@ -1811,9 +1811,14 @@ void DesktopWindow::refresh()
                         ? QStringLiteral("initializing")
                         : QStringLiteral("inactive")),
                 snapshot.desktop.isEmpty()
-                    ? QStringLiteral(
+                    ?
+#if defined(__linux__)
+                      QStringLiteral(
                           "No eligible physical X11 desktop "
                           "(Wayland is not supported).")
+#else
+                      QStringLiteral("No eligible local desktop.")
+#endif
                     : snapshot.desktop));
     errorStatus_->setText(
         !userFacingError_.isEmpty()

@@ -1,3 +1,36 @@
+## R5 P1 aggregate-held key+button implicit-destructor XTEST behavior and R9 matrix (2026-11-01)
+
+**Source parent:** `e222dbdc07374d6824c5a8f50061aa2c989c5141`. The production aggregate already owns
+no-post implicit teardown, XShm/XDamage/XCB child ordering, generation-fenced
+capture and RandR-retained held XTEST bookkeeping. No production failure was
+demonstrated; the actual uncovered coverage gap is **both** held keyboard and
+held pointer button during the **same aggregate destructor**. An additive
+Xvfb behavior CTest reuses `test_x11_desktop_resources`, inserts both presses
+through that production aggregate, counts the production XTEST call path,
+asserts zero destructor releases, validates closed descriptor and new
+capture/Damage owner, and cleans synthetic Xvfb state only via its separate
+helper. The existing source-only and constituent native XTEST tests remain.
+The fixed 45-case native sanitizer census and standalone
+implicit-destructor sanitizer selection are unchanged. Test-only private
+access is not an R2 production-admission path.
+
+**Evidence:** source, dependency, test registration, one-owner and R9
+acceptance-matrix review **PASS by inspection**. Local canonical checkout
+absent: compile/CTest/ASan/UBSan/performance/Xvfb execution **NOT RUN**;
+exact-publication-SHA GitHub Actions qualification **PENDING**. No
+privileged logind session, live X11 capture, physical XTEST, real user
+screen, credentials, clipboard or Windows App was accessed. The observed
+owner Microsoft client remains before Type 3: its pre-admission peer
+close cannot be attributed to R5 or explained by changing input/capture.
+Original R1 accepted-client lifetime, fresh R2 authenticated native proof
+and consent, native seat0, R3 Share/GraphicsReady, R4 first frame, complete
+R1 write, genuine independent inbound FRAME_ACK, input/resize, Stop and
+fresh reconnect are individually **NOT RUN** for physical acceptance;
+the exact stage-by-stage matrix and R4/R10 handoff live in
+`docs/ROADMAP.md`. **Next:** same-SHA Linux Debug/Release/full CTest,
+R9 45-case native/supplemental sanitizers and cross-platform CI, followed
+only with separately approved R9/owner physical client acceptance.
+
 ## R9 P0 exact-SHA evidence matrix and future approved Microsoft A/B (2026-11-01)
 
 Reviewed starting main SHA e222dbdc07374d6824c5a8f50061aa2c989c5141, https://github.com/k1moradi/RDP-server/actions/runs/41318750637. Inspected the Actions run, job, step and artifact metadata. SUCCESS: protocol Ubuntu Debug and Release CTest; macOS Debug and Release CTest; Windows MSVC Debug and Release CTest; R6 Windows Clang 23 Debug and Release full CTest and native security preflight/sanitizers; R9 protocol ASan/UBSan, R5 Linux GUI ZIP, R7 macOS portable GUI, GUI bootstrap/Round2 and credential-parity jobs, workflow structure and documentation policy. The individual protocol and Clang23 full CTest steps completed successfully on this starting SHA. These are hosted job/step results, not owner-native acceptance or independently verified per-test log counts.

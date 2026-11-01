@@ -4806,6 +4806,11 @@ if(TARGET rdp-server-linux-x11-desktop)
         rdp-server-graphics)
     target_compile_options(test_x11_desktop_resources PRIVATE
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    # Instrument production XTEST calls only in the existing Linux X11
+    # fixture. This is link-only observation, not an input API or another
+    # native owner; no release call may escape aggregate scope exit.
+    target_link_options(test_x11_desktop_resources PRIVATE
+        "LINKER:--wrap=xcb_test_fake_input")
     if(TARGET rdp-server-linux-xinput-pointer)
         target_compile_definitions(test_x11_desktop_resources PRIVATE
             RDP_TEST_XINPUT_POINTER=1)
@@ -4929,6 +4934,20 @@ if(TARGET rdp-server-linux-x11-desktop)
                 implicit-owner-destruction-queued-damage-isolation)
         set_tests_properties(
             x11.desktop-resource-implicit-destruction-queued-damage-isolation
+            PROPERTIES
+                LABELS "x11;linux-adapter;native;synthetic-display;security;generation"
+                TIMEOUT 20)
+        # Combined production-backed held key + button implicit destruction:
+        # counted XTEST posts, XCB descriptor retirement, fresh XDamage/XShm.
+        # This ordinary Xvfb test is separate from the fixed 45-case
+        # R9 native X11 sanitizer selector.
+        add_test(NAME x11.desktop-resource-implicit-held-key-button-no-xtest
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_desktop_resources>
+                implicit-held-key-button-destructor-no-xtest)
+        set_tests_properties(
+            x11.desktop-resource-implicit-held-key-button-no-xtest
             PROPERTIES
                 LABELS "x11;linux-adapter;native;synthetic-display;security;generation"
                 TIMEOUT 20)

@@ -1,3 +1,24 @@
+## R5 combined aggregate-held input implicit retirement Xvfb behavior gate (2026-11-01)
+
+Register `x11.desktop-resource-implicit-held-key-button-no-xtest` in the
+existing `test_x11_desktop_resources` executable, using disposable Xvfb
+`-noreset`. The test must route one key press and button-1 press through the
+actual production aggregate's input child, count the original XTEST calls
+through a test-only GNU/LLD link wrapper, then let the aggregate destruct
+without explicit graceful disconnect. Require exactly one of each press and
+zero KEY_RELEASE/BUTTON_RELEASE posts from that aggregate, closed original
+XCB descriptor, reset held bookkeeping in a successor aggregate (unmatched
+breaks post nothing), rejected stale native capture generation and working
+new XShm/XDamage capture. Any Xvfb cleanup to clear simulated pressed state
+belongs to an independent fixture connection and is excluded from the
+aggregate teardown measurement. This is not a source-contract, a separate
+input controller, a forged R2 lease or an authorized physical seat0 test.
+Keep existing controller/RandR/source/queued-Damage tests and the fixed
+**45-case** native X11 sanitizer selector unchanged. Run the new test in
+ordinary full CTest plus focused exact-publication-SHA Linux/Xvfb tests,
+and keep physical R1/R2/R3/R4/R5 receipt stages independently NOT RUN until
+explicit owner authorization.
+
 ## R9 offline exact-SHA evidence classification and future settings coverage (2026-11-01)
 
 The dedicated ordinary project.exact-sha-qualification-job-status-denials CTest must run the standard-library-only R9 self-test. A completed-success GitHub job is job-level evidence only on its original exact head SHA; malformed, queued, skipped, canceled, duplicate, absent, wrong-SHA or artifact-only input must not become PASS. No job or SSPI artifact metadata grants physical Windows App Type 3, authenticated native R2 admission, owner same-SHA acceptance or client pixels. Keep 45 R5 X11, 107 R8 Clipboard, 23 Graphics DVC and 29 x264 ASan/UBSan selections, and independent R4 retirement tests unchanged.

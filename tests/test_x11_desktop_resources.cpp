@@ -21,8 +21,72 @@
 
 #include <xcb/randr.h>
 #include <xcb/xcb.h>
+#include <xcb/xtest.h>
 
 using namespace rdp_server::rdp;
+
+// Only this test translation unit defines the friend. Production input still
+// requires the real R2/R3-authorized route; the fixture mints no R2 lease.
+struct X11DesktopResourcesBehaviorTestAccess final
+{
+    [[nodiscard]] static bool handleSyntheticInput(
+        X11DesktopResources &desktop, std::uint64_t captureGeneration,
+        const X11InputEvent &event) noexcept
+    {
+        return desktop.handleAuthorizedInput(captureGeneration, event);
+    }
+};
+
+namespace
+{
+struct ObservedXtestRequests final
+{
+    std::size_t keyPresses{};
+    std::size_t buttonPresses{};
+    std::size_t keyReleases{};
+    std::size_t buttonReleases{};
+};
+
+ObservedXtestRequests observedXtestRequests{};
+bool observeXtestRequests{};
+} // namespace
+
+// The GNU/LLD link wrapper counts the actual production XTEST calls, rather
+// than inferring no release from X-server state after a client disconnect.
+// It forwards every request unchanged; no physical desktop is ever involved.
+extern "C" xcb_void_cookie_t __real_xcb_test_fake_input(
+    xcb_connection_t *, std::uint8_t, std::uint8_t, std::uint32_t,
+    xcb_window_t, std::int16_t, std::int16_t, std::uint8_t);
+
+extern "C" xcb_void_cookie_t __wrap_xcb_test_fake_input(
+    xcb_connection_t *connection, std::uint8_t type,
+    std::uint8_t detail, std::uint32_t timestamp, xcb_window_t rootWindow,
+    std::int16_t rootX, std::int16_t rootY, std::uint8_t deviceId)
+{
+    if (observeXtestRequests)
+    {
+        switch (type)
+        {
+        case XCB_KEY_PRESS:
+            ++observedXtestRequests.keyPresses;
+            break;
+        case XCB_BUTTON_PRESS:
+            ++observedXtestRequests.buttonPresses;
+            break;
+        case XCB_KEY_RELEASE:
+            ++observedXtestRequests.keyReleases;
+            break;
+        case XCB_BUTTON_RELEASE:
+            ++observedXtestRequests.buttonReleases;
+            break;
+        default:
+            break;
+        }
+    }
+    return __real_xcb_test_fake_input(
+        connection, type, detail, timestamp, rootWindow,
+        rootX, rootY, deviceId);
+}
 
 namespace
 {
@@ -1629,6 +1693,202 @@ syntheticXvfbImplicitOwnerDestructionQueuedDamageIsolation()
     // Replacement also uses implicit no-post native retirement.
 }
 
+
+// Read the ephemeral Xvfb server's actual held key/button state. These
+// observations are independent of the XTEST call counters.
+std::array<std::uint8_t, 32>
+syntheticHeldKeymap(xcb_connection_t &connection) noexcept
+{
+    xcb_generic_error_t *error = nullptr;
+    const auto cookie = xcb_query_keymap(&connection);
+    xcb_query_keymap_reply_t *reply =
+        xcb_query_keymap_reply(&connection, cookie, &error);
+    assert(error == nullptr && reply != nullptr);
+    std::array<std::uint8_t, 32> snapshot{};
+    for (std::size_t index = 0; index < snapshot.size(); ++index)
+    {
+        snapshot[index] = static_cast<std::uint8_t>(reply->keys[index]);
+    }
+    std::free(error);
+    std::free(reply);
+    return snapshot;
+}
+
+std::uint16_t
+syntheticPointerMask(xcb_connection_t &connection,
+                     xcb_window_t rootWindow) noexcept
+{
+    xcb_generic_error_t *error = nullptr;
+    const auto cookie = xcb_query_pointer(&connection, rootWindow);
+    xcb_query_pointer_reply_t *reply =
+        xcb_query_pointer_reply(&connection, cookie, &error);
+    assert(error == nullptr && reply != nullptr);
+    assert(reply->same_screen != 0);
+    const std::uint16_t mask = reply->mask;
+    std::free(error);
+    std::free(reply);
+    return mask;
+}
+
+void
+syntheticXvfbImplicitHeldKeyboardAndButtonDestruction()
+{
+    // Dedicated isolated Xvfb: no real seat0, privileged R2 identity, or
+    // networked accepted client. Do not call the graceful disconnect path.
+    const char *display = syntheticDisplay();
+    int screenNumber = -1;
+    XcbConnection helper = connectHelper(display, screenNumber);
+    xcb_screen_t *screen = screenFor(*helper, screenNumber);
+    const auto baselineKeys = syntheticHeldKeymap(*helper);
+    const std::uint16_t baselineButtons =
+        syntheticPointerMask(*helper, screen->root);
+    assert((baselineButtons & XCB_BUTTON_MASK_1) == 0U);
+
+    constexpr std::uint64_t nativeSessionGeneration = 1305U;
+    constexpr Rectangle damageRectangle{0, 0, 8, 6};
+    X11NativeGeometryObservation retiredGeometry{};
+    int retiredDescriptor = -1;
+    observedXtestRequests = {};
+    observeXtestRequests = true;
+    {
+        X11DesktopResources originalOwner(display, kCaptureArenaPixels);
+        requireValidResources(originalOwner, "held key/button implicit owner");
+        retiredGeometry =
+            originalOwner.observeNativeGeometry(nativeSessionGeneration);
+        assert(retiredGeometry.valid());
+        retiredDescriptor = originalOwner.fileDescriptor();
+        assert(retiredDescriptor >= 0);
+        const std::uint64_t inputGeneration =
+            originalOwner.captureGeneration();
+
+        // Exercise the aggregate's ACTUAL production input controller, not
+        // a separate test XTEST controller. The friend exists only here;
+        // the runtime input route continues to demand fresh R2 authority.
+        assert(X11DesktopResourcesBehaviorTestAccess::handleSyntheticInput(
+            originalOwner, inputGeneration,
+            X11KeyInput{0x61U, 0x1eU, false, true}));
+        assert(X11DesktopResourcesBehaviorTestAccess::handleSyntheticInput(
+            originalOwner, inputGeneration,
+            X11PointerButtonInput{140, 140, 1U, true}));
+        xcb_connection_t *originalConnection =
+            originalOwner.nativeConnection();
+        assert(originalConnection != nullptr);
+        synchronizeXcbConnection(*originalConnection);
+        assert(observedXtestRequests.keyPresses == 1U);
+        assert(observedXtestRequests.buttonPresses == 1U);
+        assert(observedXtestRequests.keyReleases == 0U);
+        assert(observedXtestRequests.buttonReleases == 0U);
+        assert(syntheticHeldKeymap(*helper) != baselineKeys);
+        assert((syntheticPointerMask(*helper, screen->root) &
+                XCB_BUTTON_MASK_1) != 0U);
+
+        // Leave pending XDamage in the original XCB queue; no retirement
+        // callback may resurrect this generation after scope exit.
+        drawSyntheticPattern(
+            *helper, screen->root, damageRectangle, kFirstPixelPattern);
+        synchronizeXcbConnection(*originalConnection);
+        // Implicit destruction is the terminal path, with both inputs held.
+    }
+    assert(observedXtestRequests.keyPresses == 1U);
+    assert(observedXtestRequests.buttonPresses == 1U);
+    assert(observedXtestRequests.keyReleases == 0U);
+    assert(observedXtestRequests.buttonReleases == 0U);
+    observeXtestRequests = false;
+
+    // The aggregate must retire all children, including XDamage and XShm,
+    // before closing the sole XCB descriptor. ASan/LSan also covers the
+    // destroyed input's held slots and native child allocations.
+    errno = 0;
+    assert(fcntl(retiredDescriptor, F_GETFD) == -1);
+    assert(errno == EBADF);
+
+    // Cleanup is explicitly owned by this disposable Xvfb fixture, NOT by
+    // the revoked original aggregate; it is excluded from measured releases.
+    const auto heldKeys = syntheticHeldKeymap(*helper);
+    xcb_keycode_t heldKeycode = XCB_NO_SYMBOL;
+    std::size_t changedKeyCount = 0U;
+    for (std::size_t byteIndex = 0; byteIndex < heldKeys.size(); ++byteIndex)
+    {
+        const auto changed = static_cast<std::uint8_t>(
+            heldKeys[byteIndex] ^ baselineKeys[byteIndex]);
+        for (std::size_t bit = 0; bit < 8U; ++bit)
+        {
+            if ((changed & static_cast<std::uint8_t>(1U << bit)) != 0U)
+            {
+                heldKeycode = static_cast<xcb_keycode_t>(byteIndex * 8U + bit);
+                ++changedKeyCount;
+            }
+        }
+    }
+    // Xvfb ordinarily retains XTEST state across client exit; if it has
+    // already normalized that state, do not manufacture another key release.
+    assert(changedKeyCount <= 1U);
+    if (changedKeyCount == 1U)
+    {
+        (void)xcb_test_fake_input(
+            helper.get(), XCB_KEY_RELEASE, heldKeycode,
+            XCB_CURRENT_TIME, screen->root, 0, 0, 0);
+    }
+    if ((syntheticPointerMask(*helper, screen->root) &
+         XCB_BUTTON_MASK_1) != 0U)
+    {
+        (void)xcb_test_fake_input(
+            helper.get(), XCB_BUTTON_RELEASE, 1U,
+            XCB_CURRENT_TIME, screen->root, 0, 0, 0);
+    }
+    assert(xcb_flush(helper.get()) > 0);
+    synchronizeXcbConnection(*helper);
+    assert(syntheticHeldKeymap(*helper) == baselineKeys);
+    assert(syntheticPointerMask(*helper, screen->root) == baselineButtons);
+
+    // No native XCB/XShm/XDamage resource or held-state generation escapes
+    // into the replacement; it can capture newly generated damage normally.
+    X11DesktopResources replacement(display, kCaptureArenaPixels);
+    requireValidResources(replacement, "replacement after both held inputs");
+    const auto newGeometry =
+        replacement.observeNativeGeometry(nativeSessionGeneration);
+    assert(newGeometry.valid());
+    assert(newGeometry.captureGeneration !=
+           retiredGeometry.captureGeneration);
+    assert(!replacement.nativeGeometryIsCurrent(
+        retiredGeometry, nativeSessionGeneration));
+    assert(!replacement.capture(
+        retiredGeometry.captureGeneration, damageRectangle).valid());
+
+    observedXtestRequests = {};
+    observeXtestRequests = true;
+    assert(X11DesktopResourcesBehaviorTestAccess::handleSyntheticInput(
+        replacement, newGeometry.captureGeneration,
+        X11KeyInput{0x61U, 0x1eU, false, false}));
+    assert(X11DesktopResourcesBehaviorTestAccess::handleSyntheticInput(
+        replacement, newGeometry.captureGeneration,
+        X11PointerButtonInput{140, 140, 1U, false}));
+    assert(observedXtestRequests.keyReleases == 0U);
+    assert(observedXtestRequests.buttonReleases == 0U);
+    observeXtestRequests = false;
+
+    xcb_connection_t *replacementConnection =
+        replacement.nativeConnection();
+    assert(replacementConnection != nullptr);
+    synchronizeXcbConnection(*replacementConnection);
+    bool workMayRemain = false;
+    assert(replacement.processEvents(64U, &workMayRemain, false) ==
+           ConnectionStatus::Ok);
+    assert(!workMayRemain);
+    assert(replacement.damageNotificationCount() == 0U);
+    assert(!replacement.damagePending());
+    const auto initialNotifications = replacement.damageNotificationCount();
+    drawSyntheticPattern(
+        *helper, screen->root, damageRectangle, kSecondPixelPattern);
+    requireSyntheticDamage(
+        replacement, initialNotifications, damageRectangle);
+    const FramebufferView frame = replacement.capture(
+        newGeometry.captureGeneration, damageRectangle);
+    requireCapturedPattern(
+        frame, damageRectangle, damageRectangle, kSecondPixelPattern);
+    replacement.retireAfterAuthorizationLoss();
+}
+
 void
 syntheticXvfbAuthorityRetirementQueuedDamageIsolation()
 {
@@ -2638,6 +2898,11 @@ main(int argc, char **argv)
     if (behavior == "implicit-owner-destruction-queued-damage-isolation")
     {
         syntheticXvfbImplicitOwnerDestructionQueuedDamageIsolation();
+        return 0;
+    }
+    if (behavior == "implicit-held-key-button-destructor-no-xtest")
+    {
+        syntheticXvfbImplicitHeldKeyboardAndButtonDestruction();
         return 0;
     }
     if (behavior == "authority-retirement-queued-damage-isolation")

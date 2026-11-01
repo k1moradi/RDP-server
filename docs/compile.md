@@ -1,3 +1,25 @@
+## R5 combined held-key/button implicit owner destructor Xvfb qualification (2026-11-01)
+
+No new executable or build root: reuse `~/rdp-server/build/`, the
+existing Linux X11 desktop test executable and the shared CTest registry.
+GNU/LLD `--wrap=xcb_test_fake_input` instrumentation is linked only into
+that test executable, forwarding actual native calls unchanged. Run the
+following after the canonical Debug configure/build, on an isolated Xvfb
+runner (never on a physical desktop):
+
+```sh
+ctest --test-dir build -C Debug -R '^x11[.]desktop-resource-(implicit-held-key-button-no-xtest|implicit-destruction-queued-damage-isolation|implicit-retirement-no-xtest-contract)$' --output-on-failure
+ctest --test-dir build -C Debug --output-on-failure
+```
+
+Repeat full Release, fixed 45-case R5 native X11 ASan/UBSan and the
+existing additive implicit-destructor sanitizer lane at the same exact
+publication SHA. Linux-only registration is conditional on the existing
+X11/XTEST/Xvfb dependencies. Windows/macOS continue their unchanged full
+CTest matrices. Canonical local configure/build/CTest, sanitizer and
+benchmark **NOT RUN** (checkout unavailable); new-SHA hosted CI
+**PENDING**; physical seat0, input and clipboard **NOT RUN**.
+
 ## R9 exact-SHA metadata test and evidence snapshot (2026-11-01)
 
 Only reuse ~/rdp-server/build. The new ordinary project.exact-sha-qualification-job-status-denials invokes a Python standard-library offline self-test, without new executable, Qt, real credentials, network, listener, desktop, or secondary build directory. After canonical Debug configure/build:

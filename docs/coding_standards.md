@@ -1,3 +1,21 @@
+## R5 aggregate held keyboard+button implicit destruction stays no-XTEST (2026-11-01)
+
+The private X11 aggregate's destructor must retire its held key/button
+bookkeeping with `retireWithoutNativeInput()` before the XShm/XDamage/XCB
+children/parent are destroyed. Do not reinterpret implicit scope exit as an
+R2-authorized graceful disconnect. RandR replaces only geometry/capture
+children, retains the original admitted XTEST input owner and held slots, and
+invalidates earlier capture generations. A test-translation-unit-only friend
+may exercise `handleAuthorizedInput` under disposable Xvfb; that synthetic
+hook is not a runtime admission API and must not be used by R10. Count the
+actual production XTEST calls in the test executable using link-time
+interception; no new production transport, scheduler, input authority or
+protocol surface is justified. The real pre-Type-3 Windows App failure never
+reaches this boundary. The R10 first-frame route still requires fresh R2
+View, R3 mapped surface, current R5 native geometry and R4 credit before
+the ephemeral BGRA borrow, then exact R1 write receipts and separately
+received client FRAME_ACK.
+
 ## R4 original native BGRA borrow and segmented first-frame authority (2026-11-01)
 
 R10's next sole-owner call chain: freshly verify R2 View and R3 mapped surface/generation plus R4 frame-credit preflight BEFORE any native operation; compare R7 exact current frame sequence, native admission generation and dimensions to mapped geometry, borrow precisely that BGRA frame with validated pitch/length, and synchronously encode a contiguous owned ClearCodec buffer. End R7 native borrow BEFORE any R1 TLS writes. Use R3's sole segmented DATA publisher and exactly its R1 accepted-byte receipts; zero writes grant nothing, partial/uncertain delivery demands retirement, and only final complete delivery records an R4 outstanding ACK. Separately consume a genuine inbound client FRAME_ACK through R2/R3. At 64 outstanding ACKs defer before borrow, encoding, reservation or TLS output. Resize requires ACK drain and R3 DELETE/CREATE/MAP; never infer pixels from GraphicsReady or local write completion. Existing ClearCodec checks mapped dimensions, surface, BGRA stride, buffer length, wire u16/u32 limits and overflow; frame IDs and sequence stay with R3/R4, not R7 or GUI. New ordinary `graphics.frame-native-borrow-segmented-receipt-fence` regression checks immutable encoded bytes after padded native-buffer mutation and zero/partial R3 receipts with premature ACK. Authoring parent `6c21f5097431f7e65f3e237b8ac6c98c54330e84`: source/CTest review PASS; owner-local configure/build, focused/full CTest, ASan/UBSan, exact-publication-SHA hosted CI and physical Microsoft-client frame/ACK NOT RUN. No proven production defect or new encoder/queue/ACK owner.

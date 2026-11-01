@@ -192,6 +192,9 @@ public:
 
 private:
     friend class X11AuthorizedInputRoute;
+    // Test-only friend: exercises the real native aggregate under isolated Xvfb
+    // without exposing an input bypass through a production callable API.
+    friend struct X11DesktopResourcesBehaviorTestAccess;
 
     enum class InputRetirementMode : std::uint8_t
     {

@@ -96,6 +96,8 @@ class X11DesktopResources final
 public:
     X11DesktopResources(std::string_view displayName,
                         std::uint64_t maximumCapturePixels) noexcept;
+    // Implicit destruction is a terminal, no-XTEST fallback. Graceful native
+    // input release requires an explicit disconnect while R2 is still current.
     ~X11DesktopResources() noexcept;
 
     X11DesktopResources(const X11DesktopResources &) = delete;
@@ -201,9 +203,11 @@ private:
         std::uint64_t expectedGeneration,
         const X11InputEvent &event) noexcept;
     void fail(const char *reason) noexcept;
+    // Internal cancellation must default to no native posts even if a future
+    // failure path omits an explicit retirement mode.
     void cancelGeometryBoundResources(
         InputRetirementMode inputRetirementMode =
-            InputRetirementMode::ReleaseHeldState) noexcept;
+            InputRetirementMode::SuppressNativeInput) noexcept;
     [[nodiscard]] bool rebuildGeometryBoundResources(
         PixelSize geometry) noexcept;
     [[nodiscard]] bool initializePointerPositionTracker(

@@ -1069,6 +1069,31 @@ Git blob comparison with the earlier intact `4a79a54ff397a6aaff61ee048d2850fda84
 
 **Candidate remains BLOCKED pending this change's own full exact-SHA hosted producer matrix and the manual-candidate prerequisites.** The claimed owner Linux 1060/1060 test is **SHA MISSING**, without independent `git rev-parse HEAD`, toolchain/configuration and command receipt. Recover attribution from the existing run if possible; do not infer it. M1 owner-native Linux/X11, Windows CLANG64/Clang23 and macOS27 same-SHA receipts remain **NOT VERIFIED**. Manual gate and physical client tests remain **NOT RUN/unauthorized**. No M1 freeze was nominated. Any later architectural commit resets the candidate.
 
+## R5 implicit native owner no-XTEST destructor fallback (2026-10-31)
+
+**Reviewed base:** `5b0e284671455aa86f60a1b39723f35048d07bd7`.
+The prior R5 RandR input-owner preservation compiled and its synthetic-Xvfb
+held-input CTest passed; Ubuntu full CTest had one stale source guard,
+subsequently fixed by `05ea486b` with centralized CTest policy follow-up
+`5b0e2846`. This avoids duplicating another agent's resolved work.
+
+The R5 RAII destructor was a separate no-XTEST hole: implicit scope exit
+called graceful `disconnect()`, potentially issuing held-key/button releases
+after native R2 authority had been revoked without another check. Implicit
+destruction now takes `retireAfterAuthorizationLoss()`, and both geometry
+and whole-owner cancellation helpers default to suppressing native input.
+The explicitly authorized graceful `disconnect()` still may release held
+state. Dedicated offline
+`x11.desktop-resource-implicit-retirement-no-xtest-contract` checks these
+distinct paths. No new owner, listener, X11 call, additional dependency or
+change to the R5 **45-case** native sanitizer selection.
+
+**Qualification:** source review complete; authoring environment CTest/full
+build **NOT RUN**, new exact-SHA CI **PENDING**. R9 exact-SHA owner nomination
+and separately authorized physical Linux seat0/Windows client/FRAME_ACK/
+XTEST/RandR/Stop/reconnect remain **NOT RUN / blocked on owner authorization**.
+The concurrent R10 macOS path does not block this R5 source correction.
+
 ## R5 RandR input-owner cleanup race — fix authored (2026-10-31)
 
 **Audit parent:** `4e29a77e2735695b956ce9e777ff9bf14e4407d7`.

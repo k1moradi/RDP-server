@@ -1,3 +1,13 @@
+## R5 implicit native owner no-XTEST CTest (2026-10-31)
+
+No new native target, dependency or build root. Reuse
+`~/rdp-server/build/` and run
+`ctest --test-dir build -C Debug -R '^x11[.]desktop-resource-implicit-retirement-no-xtest-contract$' --output-on-failure`
+plus the previous RandR and complete Debug/Release suites. The new offline
+CTest does not change the R9 fixed **45-case** ASan/UBSan native selector.
+Connector-local CTest and compilation **NOT RUN**; hosted exact-SHA validation
+required before owner qualification.
+
 ## macOS accepted-client/native proof lifetime order test (2026-10-31)
 
 This single-owner teardown correction modifies existing R10 HostControl

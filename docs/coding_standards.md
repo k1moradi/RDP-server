@@ -1,3 +1,14 @@
+## R5 implicit X11 owner destruction is no-post by default (2026-10-31)
+
+A C++ destructor cannot assume native R2 authority is still current.
+`X11DesktopResources` must retire held XTEST input without native releases
+when destroyed implicitly, including stack unwind and forgotten explicit Stop
+paths. Only a caller that has independently revalidated R2 may invoke
+`disconnect()` for graceful held-key/button cleanup. Both full-native and
+geometry-child cancellation must default to suppressing XTEST; no cleanup
+permission is inferred from a healthy XCB descriptor or capture generation.
+Preserve the original native owner hierarchy and child-before-parent ordering.
+
 ## R10 native authorization borrow retirement ordering (2026-10-31)
 
 On serialized accepted-client loss, close the original R2 broker/R3

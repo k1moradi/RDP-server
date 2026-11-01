@@ -1,3 +1,29 @@
+## R5 implicit native destructor no-XTEST follow-up (2026-10-31)
+
+**Source parent** `5b0e284671455aa86f60a1b39723f35048d07bd7`. Agent 5's
+RandR fix at `07509cc1` compiled in hosted Ubuntu and its new Xvfb
+held-state CTest passed. The prior Ubuntu suite's sole failure was the
+source guard requiring removed graceful geometry teardown; separate R5
+`05ea486b` corrected that guard and `5b0e2846` repaired its CTest
+registry-policy co-change. No second RandR fix is added here.
+
+**Separate teardown gap:** `X11DesktopResources` destructor still called
+`disconnect()`, a public graceful path that can emit held-key/button
+XTEST releases. Unlike an explicit authorized disconnect, implicit scope
+exit has no independent fresh R2 owner permission check. Make destruction
+use terminal `retireAfterAuthorizationLoss()` (no XTEST), and change the
+unused geometry-cancellation default from graceful release to fail-closed
+suppression. Explicit graceful disconnect and typed R2/R3 authorization
+remain unchanged. Add ordinary source-contract CTest
+`x11.desktop-resource-implicit-retirement-no-xtest-contract` to pin
+both defaults and the distinct explicit graceful path; existing Xvfb
+native tests provide the independent native no-post behavioral evidence.
+
+**Verification:** code, CMake/test and documentation inspection; local CTest,
+new exact-SHA hosted CI and owner-native physical tests **NOT RUN/PENDING**.
+Do not infer R9 candidate readiness, physical input or real seat0 lease from
+these source-only checks.
+
 ## R9/R10 macOS native proof-borrow lifetime review (2026-10-31)
 
 Audited `f4a8bf46d49cb74335138871c29683daa8c84a4b` after R10 Channel Join/Client Info and R8

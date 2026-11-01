@@ -1,3 +1,15 @@
+## R5 implicit X11 destructor no-XTEST contract (2026-10-31)
+
+Ordinary source-only
+`x11.desktop-resource-implicit-retirement-no-xtest-contract` proves the
+aggregate RAII destructor calls terminal no-post retirement and both native
+cancellation helpers default to suppression, while graceful held input release
+appears only in explicit `disconnect()`. This is not physical input proof;
+existing synthetic-Xvfb held-state tests separately exercise real native
+controller no-post semantics. Keep this new offline CTest distinct from the
+fixed **45** R5 native sanitizer tests and the earlier RandR owner-retention
+contract; it does not create a lease, listener or X11 client.
+
 ## R9/R10 macOS native proof-borrow retirement CTest (2026-10-31)
 
 Offline `runtime.macos-native-proof-retired-before-credential-destruction`

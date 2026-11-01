@@ -3077,6 +3077,17 @@ if(TARGET rdp-server-linux-runtime-security)
         x11.input-native-failure-terminal-retirement-no-xtest
         PROPERTIES LABELS "x11;linux-adapter;security;offline;terminal")
 
+    # Scope exit has no fresh R2 authority proof; implicit desktop teardown
+    # must suppress XTEST, independent of authorized explicit disconnect.
+    add_test(NAME x11.desktop-resource-implicit-retirement-no-xtest-contract
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_R5_NATIVE_HEADER=${PROJECT_SOURCE_DIR}/src/x11/x11_desktop_resources.h"
+            "-DRDP_R5_NATIVE_SOURCE=${PROJECT_SOURCE_DIR}/src/x11/x11_desktop_resources.cpp"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_x11_desktop_destructor_no_input.cmake")
+    set_tests_properties(
+        x11.desktop-resource-implicit-retirement-no-xtest-contract
+        PROPERTIES LABELS "x11;linux-adapter;security;offline;terminal")
+
     # R5 follows the single R10 R2-selected XCB owner. The production
     # post-Share scheduler must retire its borrowed logind watch before
     # native drain, refresh R2 authority and borrow the first XShm frame

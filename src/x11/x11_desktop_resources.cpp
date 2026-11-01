@@ -170,7 +170,10 @@ X11DesktopResources::X11DesktopResources(
 
 X11DesktopResources::~X11DesktopResources() noexcept
 {
-    disconnect();
+    // Scope exit has no fresh R2 authorization proof. Never synthesize held
+    // XTEST releases when the original native owner may already be revoked.
+    // A still-authorized caller can explicitly disconnect() beforehand.
+    retireAfterAuthorizationLoss();
 }
 
 bool

@@ -305,6 +305,73 @@ class MacQColorProvenanceTests(unittest.TestCase):
         self.assertEqual(core_graphics.released, [101, 101, 101])
         self.assertEqual(core_foundation.released, [202, 202, 202])
 
+    def test_display_icc_length_exception_retires_borrows_and_continues(self):
+        # A failing CFData metadata call must release the data before its
+        # parent color space and must not discard the following display.
+        release_order = []
+
+        class CoreGraphics:
+            def CGGetActiveDisplayList(
+                self, maximum, display_ids, display_count
+            ):
+                display_count._obj.value = 2
+                if display_ids is not None:
+                    display_ids[0], display_ids[1] = 11, 22
+                return 0
+
+            def CGDisplayCopyColorSpace(self, display_id):
+                return display_id + 100
+
+            def CGColorSpaceGetModel(self, color_space):
+                return 1
+
+            def CGColorSpaceCopyICCData(self, color_space):
+                return color_space + 100
+
+            def CGColorSpaceRelease(self, color_space):
+                release_order.append(("color-space", color_space))
+
+        class CoreFoundation:
+            def CFDataGetLength(self, profile_data):
+                if profile_data == 211:
+                    raise OSError("/Users/private-owner/Library/ColorSync/profile.icc")
+                return 128
+
+            def CFDataGetBytePtr(self, profile_data):
+                return 303
+
+            def CFRelease(self, profile_data):
+                release_order.append(("profile-data", profile_data))
+
+        header = bytearray(128)
+        header[0:4] = (128).to_bytes(4, byteorder="big")
+        header[12:16] = b"mntr"
+        header[36:40] = b"acsp"
+        with mock.patch.object(probe.sys, "platform", "darwin"):
+            with mock.patch.object(
+                probe, "_load_color_frameworks",
+                return_value=(CoreGraphics(), CoreFoundation())
+            ):
+                with mock.patch.object(
+                    probe.ctypes, "string_at", return_value=bytes(header)
+                ) as header_reader:
+                    observation = probe.query_active_display_profile_headers()
+
+        self.assertEqual(
+            observation,
+            ("observed", 2, ("query-unavailable", "recognized-header")))
+        header_reader.assert_called_once_with(303, 128)
+        self.assertEqual(
+            release_order,
+            [
+                ("profile-data", 211), ("color-space", 111),
+                ("profile-data", 222), ("color-space", 122),
+            ])
+        summary = probe.format_profile_header_status_counts(observation[2])
+        self.assertEqual(summary, "query-unavailable:1,recognized-header:1")
+        self.assertNotIn("private-owner", repr(observation) + summary)
+        self.assertNotIn("profile.icc", repr(observation) + summary)
+
     def test_display_icc_oversized_metadata_releases_in_reverse_order(self):
         # CFData length is untrusted native metadata. Reject oversized
         # profiles before obtaining any bytes, then retire the CFData borrow

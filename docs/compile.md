@@ -1,3 +1,17 @@
+## R7 ICC CFData exception offline CTest (2026-11-01)
+
+No binary or framework dependency was added; reuse the sole canonical
+`~/rdp-server/build/` directory. After the usual Debug configure/build:
+
+```sh
+ctest --test-dir build -C Debug -R '^macos[.]gui-qcolor-(metadata-exception-native-borrow-retirement|duplicate-display-id-metadata-denial|provenance-parser-and-redaction)$' --output-on-failure
+ctest --test-dir build -C Debug --output-on-failure
+```
+
+Repeat exact-head applicable hosted macOS/Ubuntu/Windows full Debug/Release
+CTest and R7 native/session sanitizer jobs. A mocked Python diagnostic
+does not claim ASan instrumentation of CoreFoundation or a real display.
+
 ## Windows protected Share/Graphics fixture lifetime correction (2026-11-01)
 
 No production target or dependency changes. Reuse only `~/rdp-server/build/`.

@@ -1,3 +1,31 @@
+## R7 ICC metadata-exception retirement and native attachment qualification (2026-11-01)
+
+[x] At reviewed `644d5a83d08ff09273856487908b1d159c421ac9`, the opt-in multi-display ICC collector
+releases borrowed CFData before its parent CGColorSpace after an exception.
+One new offline negative case makes CFDataGetLength fail on the first of two
+unique displays, checks exact reverse-order cleanup, preservation of the
+second observation and non-disclosure of the private native path.
+The dedicated `macos.gui-qcolor-metadata-exception-native-borrow-retirement`
+CTest is registered; no production color, GUI, native capture or permission
+behavior changes.
+[x] Source inspection confirms `MacRuntimeHostControl::status()` projects
+R3 GraphicsReady only from original R2-protected, Share-activated and mapped
+R3 proof with current owner-consent epoch; it separately reports native
+resource readiness. `retireAcceptedClient()` closes R2/R3, retires native
+resources before destroying CredSSP proof and R1, and is shared by Stop,
+allocation failure, timeout, explicit disconnect and consent revocation.
+[ ] New-publication-SHA hosted CTest/sanitizers PENDING; connector-local
+compile/CTest/benchmark NOT RUN. At earlier `d241d494`, Ubuntu 1090/1090,
+macOS 866/866 full CTest and R7 native/session sanitizer lanes PASS, whereas
+Windows 3/908 Share/Graphics/first-frame fixtures SEGFAULTed. The R10/R3/R4
+lifetime repair at `e28a8d5` needs an exact-SHA rerun.
+[ ] Live R10 native macOS attachment still needs the original current R2
+authenticated proof, pinned View consent epoch, current console/audit
+session epoch, real accepted-byte Share and R3 Graphics mapping, plus
+stable borrowed proof/R1 lifetime. Native frame publication and client ACK,
+owner macOS LLDB warning caller attribution and physical Windows App remain
+NOT RUN; no TCC prompt, pixels, private ICC paths or warning suppression.
+
 ## Canonical roadmap truncation guard repair (2026-11-01)
 
 **Failing SHA:** `5d95c2ca51d68b28e802fdb2c34ba017e9c84021`, structure run `41305947553` / job `124846231739`: `verify_canonical_roadmap.py` reported `Canonical roadmap integrity FAIL: roadmap truncated`. The docs-only R8 qualification commit accidentally replaced the ~1.26 MB living roadmap with only its new 3 KB section, deleting 18,161 existing lines. Restore the exact parent `e28a8d5aae14f661e24d9279f7359731fa2a3901` roadmap blob and retain the intended R8 qualification section ahead of it. No source, protocol, dependency, CTest registration or native authority changes. Source/document reconstruction review PASS; publication-SHA structure guard and ordinary hosted CI PENDING. Do not continue feature integration from a truncated roadmap.

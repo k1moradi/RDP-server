@@ -1,3 +1,23 @@
+## R7 ICC metadata-exception and current macOS readiness evidence (2026-11-01)
+
+**Reviewed parent:** `644d5a83d08ff09273856487908b1d159c421ac9`. Source inspection PASS: nested
+collector try/finally releases CFData before CGColorSpace on
+CFDataGetLength exception; collector catches native failure per display
+and continues. One additional negative Python fixture checks the actual
+collector's exception path, exact release order and redacted
+two-display summary, with one behavior-named CTest. No production change.
+Connector-local build/CTest/sanitizers/benchmarks NOT RUN; new publication-SHA
+hosted CI PENDING.
+
+At earlier `d241d494` GitHub Actions `41305124720`, macOS full
+866/866 and Ubuntu full 1090/1090 CTest PASS, plus R7 native/session
+sanitizers and portable GUI PASS. Windows full CTest 905/908 failed three
+protected Share/Graphics/first-frame fixture SEGFAULTs; subsequent
+`e28a8d5` R10/R3/R4 lifetime fix requires new SHA qualification.
+The actual invalid-primaries warning caller is still UNATTRIBUTED.
+Neither physical ColorSync/profiles nor native macOS attachment, captured
+pixels, permission prompts or Windows App operation was run.
+
 ## Canonical roadmap truncation repair (2026-11-01)
 
 At `5d95c2ca51d68b28e802fdb2c34ba017e9c84021`, CI structure job `124846231739` correctly failed before the primary workflow with `Canonical roadmap integrity FAIL: roadmap truncated`. GitHub diff shows `docs/ROADMAP.md` changed by +50/-18,161 lines: the intended R8 prefix survived but all prior canonical TODO/history was lost. This correction restores the exact `e28a8d5` roadmap blob byte-for-byte after the intended R8 section and adds no production or test behavior. Reconstruction/source review PASS; exact corrective-SHA structure/full CI PENDING.

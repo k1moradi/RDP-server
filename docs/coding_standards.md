@@ -1,3 +1,12 @@
+## R7 native ICC metadata exception and continued display retirement (2026-11-01)
+
+The opt-in CoreGraphics ICC collector must release each copied CFData before
+its CGColorSpace even if CFDataGetLength throws. It must emit only the closed
+`query-unavailable` status for that display and continue observing other
+unique active displays. Never read the failed data pointer or report a
+private ColorSync path, native display ID, ICC bytes or pixels. Keep this
+offline diagnostic independent of R2/R3 native attachment and GUI authority.
+
 ## R7 duplicate native display IDs in ICC diagnostics (2026-11-01)
 
 The bounded read-only `CGGetActiveDisplayList` ICC collector must reject a

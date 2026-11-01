@@ -1,3 +1,16 @@
+## R7 ICC length-exception native-borrow continuation (2026-11-01)
+
+The dedicated ordinary offline
+`macos.gui-qcolor-metadata-exception-native-borrow-retirement` CTest exercises
+CFDataGetLength throwing on the first of two unique active display IDs.
+Require exact release order CFData(211), CGColorSpace(111), CFData(222),
+CGColorSpace(122), one subsequent successful 128-byte header observation,
+`query-unavailable:1,recognized-header:1`, and no private path in the
+returned summary. This tests the production collector with fake frameworks,
+not physical ColorSync or native Python ctypes sanitizer instrumentation.
+Preserve existing duplicate IDs, oversized CFData, malformed header,
+partial read and string_at exception tests.
+
 ## Canonical roadmap updates must preserve the complete prior document (2026-11-01)
 
 The roadmap integrity guard is a delivery gate, not advisory. When prepending a current milestone/evidence section, use the complete current `docs/ROADMAP.md` as the base; never write a partial fetch/snippet back as the document. A +small/-thousands roadmap diff is a truncation signal and must be rejected before publication. The canonical structure self-test must remain green after documentation-only commits.

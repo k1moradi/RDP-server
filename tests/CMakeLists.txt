@@ -1487,6 +1487,15 @@ add_test(NAME macos.gui-qcolor-duplicate-display-id-metadata-denial
 set_tests_properties(macos.gui-qcolor-duplicate-display-id-metadata-denial
     PROPERTIES LABELS "macos;gui;qt;diagnostics;security;offline" TIMEOUT 20)
 
+# CFData length exceptions must retire borrowed native handles before
+# continuing other displays, without revealing their IDs or profile paths.
+add_test(NAME macos.gui-qcolor-metadata-exception-native-borrow-retirement
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_qcolor_provenance.py"
+        MacQColorProvenanceTests.test_display_icc_length_exception_retires_borrows_and_continues)
+set_tests_properties(macos.gui-qcolor-metadata-exception-native-borrow-retirement
+    PROPERTIES LABELS "macos;gui;qt;diagnostics;security;offline" TIMEOUT 20)
+
 # Agent 5 read-only physical-client evidence helper. The synthetic fixture
 # reads only a temporary .app Info.plist and temporary logs; it never launches
 # Windows App, changes Keychain/trust state, touches preferences or uses network.

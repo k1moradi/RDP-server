@@ -8925,7 +8925,8 @@ void testMacProtectedPartialLicenseRequestPolicySubstitutionDenial()
     const auto *const credential = licensing.credential();
     assert(identity != nullptr && credential != nullptr);
 
-    for (std::size_t scenario = 0U; scenario < 2U; ++scenario)
+    // Fresh R1/R2/R3 lifetime for each policy and receipt replay branch.
+    for (std::size_t scenario = 0U; scenario < 3U; ++scenario)
     {
         auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture();
         assert(fixture->broker.authorizeR3PersonalDesktopLicensingMode(
@@ -8953,19 +8954,59 @@ void testMacProtectedPartialLicenseRequestPolicySubstitutionDenial()
             assert(suffix->writeSliceSequence != first->writeSliceSequence);
             assert(suffix->bytes.size() + acceptedBytes == first->bytes.size());
             staleSlice = suffix->writeSliceSequence;
+
+            // Off-owner probes with correct original arguments deny without
+            // modifying the R2/R3 state. Join before touching owner state.
+            bool offOwnerBorrowed{true};
+            Receipt offOwnerCompletion{Receipt::Pending};
+            std::jthread wrongThread{[&]() noexcept {
+                offOwnerBorrowed = fixture->broker
+                    .authorizeR3PersonalDesktopServerLicenseRequestWrite(
+                        *fixture->session, policy, *identity, *credential)
+                    .has_value();
+                offOwnerCompletion = fixture->broker
+                    .completeR3PersonalDesktopServerLicenseRequestWrite(
+                        *fixture->session, policy, suffix->replySequence,
+                        suffix->writeSliceSequence, acceptedBytes);
+            }};
+            wrongThread.join();
+            assert(!offOwnerBorrowed && offOwnerCompletion == Receipt::Rejected);
+            assert(fixture->broker.state() == MacConsoleAdmissionState::Admitted);
+            assert(fixture->session->phase() ==
+                   McsSessionPhase::AwaitServerLicenseRequest);
+            const auto unchangedSuffix =
+                fixture->broker.authorizeR3PersonalDesktopServerLicenseRequestWrite(
+                    *fixture->session, policy, *identity, *credential);
+            assert(unchangedSuffix &&
+                   unchangedSuffix->replySequence == suffix->replySequence &&
+                   unchangedSuffix->writeSliceSequence == staleSlice &&
+                   unchangedSuffix->bytes.data() == suffix->bytes.data() &&
+                   unchangedSuffix->bytes.size() == suffix->bytes.size());
+
             assert(!fixture->broker
                         .authorizeR3PersonalDesktopServerLicenseRequestWrite(
                             *fixture->session, replacementPolicy,
                             *identity, *credential));
         }
-        else
+        else if (scenario == 1U)
         {
-            // A different application-server mode cannot accept the pending
-            // original PersonalDesktop positive-byte receipt.
+            // AppServer cannot accept an original PersonalDesktop byte.
             assert(fixture->broker.completeR3PersonalDesktopServerLicenseRequestWrite(
                        *fixture->session, appServerPolicy,
                        first->replySequence, first->writeSliceSequence,
                        acceptedBytes) == Receipt::Rejected);
+        }
+        else
+        {
+            // Replaying the exact consumed partial R1 receipt is terminal.
+            assert(fixture->broker.completeR3PersonalDesktopServerLicenseRequestWrite(
+                       *fixture->session, policy, first->replySequence,
+                       first->writeSliceSequence, acceptedBytes) ==
+                   Receipt::Pending);
+            assert(fixture->broker.completeR3PersonalDesktopServerLicenseRequestWrite(
+                       *fixture->session, policy, first->replySequence,
+                       first->writeSliceSequence, acceptedBytes) ==
+                   Receipt::Rejected);
         }
 
         assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);

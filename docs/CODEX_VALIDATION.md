@@ -1,3 +1,7 @@
+## R2 off-owner licensing receipt source validation and consumed-receipt follow-up (2026-11-01)
+
+Reviewed main parent `8b7cd13f3874513bcd838ad64f8eaffdef284d09`. Extend the existing production-linked `security.macos-protected-partial-license-request-policy-substitution-denial` (earlier Ubuntu Debug PASS at `f2e56b5`) with two independent checks after a real R1 TLS accepted byte: a joined wrong-thread original-policy request/suffix receipt denies without mutating R2/R3, and a fresh lifetime's duplicate consumed partial write-slice receipt retires R2/R3/R1. Preserve equal-value policy/AppServer substitution, exact late receipt denial, consent/audit/Stop/R1 cancellation, Linux positives, and View/Input versus Clipboard separation. No production API or protocol change. Source review PASS; local compile/CTest NOT RUN, exact-SHA hosted CTest/sanitizers PENDING. Separate R4 first-frame segmented record-size/timeout and Windows Share fixture failures remain CI blockers; real production CredSSP principal-to-physical macOS audit/consent is still NOT PROVEN.
+
 ## R5 descendant implicit-X11 teardown and owner-evidence gate verification (2026-11-01)
 
 **Evidence source SHA:** `fdca79857b9df684f97c1b32b7dbd709fcab4c6f`

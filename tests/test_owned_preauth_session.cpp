@@ -8777,7 +8777,7 @@ void testMacProtectedPersonalLicensingPolicyAndRetirementDenials()
             break;
         case 2U:
         {
-            constexpr std::array<char16_t, 3U> replacementPassword{
+            std::array<char16_t, 3U> replacementPassword{
                 u'N', u'e', u'w'};
             assert(fixture->credential.configure(u"Session", replacementPassword));
             break;

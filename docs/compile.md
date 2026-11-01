@@ -1,3 +1,7 @@
+## R6 qualification unblock: mutable R10 credential test buffer (2026-11-01)
+
+Exact-SHA CI for `61a1113d65a0c5011cc569334db9f5a3ee2036d2` reaches the existing Windows native 60-case selector successfully, then all full-build producers fail compiling `tests/test_owned_preauth_session.cpp:8782`: a const `std::array<char16_t, 3>` cannot bind to `StandalonePasswordCredentialOwner::configure(..., std::span<char16_t>)`. Replace only that test-local `constexpr` buffer with mutable stack storage. No target, dependency, build root, sanitizer census or CTest is added. Re-run the canonical Debug/full CTest plus Windows MSVC/Clang23 and sanitizer jobs at the corrective publication SHA; the R6 evidence CTests become executable only after this shared compile blocker is cleared.
+
 ## R6 offline nested-source redaction correction build contract (2026-11-01)
 
 No new executable, third-party dependency or build root. Reuse the original `tests/test_macos_windows_app_owner_evidence.py` and central CTest registry in the existing `~/rdp-server/build/`. Run the canonical Debug configure/build and then:

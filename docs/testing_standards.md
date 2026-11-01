@@ -1,3 +1,19 @@
+## R5 implicit X11 destruction: separate sanitizer proof (2026-11-01)
+
+Preserve the R9 fixed 45-case native X11 ASan/UBSan selector and
+its independent count/sentinel checks. The existing ordinary
+`x11.desktop-resource-implicit-destruction-queued-damage-isolation`
+CTest now also runs **separately** under the same Clang ASan/UBSan
+job, with an exact one-case CTest preflight and no additional native
+test registration. The ephemeral Xvfb test exercises production
+implicit desktop teardown, original XCB descriptor closure, queued
+XDamage isolation and a fresh replacement capture generation; it
+does not fabricate R2 admission, inject XTEST, visit seat0 or prove
+authenticated client visibility. A sanitizer pass is not itself proof
+of XTEST held-state behavior, first-frame ACK or physical owner
+acceptance. This is an extra test, not a 46th member of the fixed
+45-case census. Hosted execution on the publishing SHA is PENDING.
+
 ## R2 original licensing-context substitution rejection (2026-11-01)
 
 Ordinary `security.macos-protected-personal-licensing-context-substitution-denials`

@@ -1,3 +1,31 @@
+## R5 supplemental X11 implicit-destructor sanitizer gate (2026-11-01)
+
+- [x] Previous R5 `64732a09d1f78934ecac60ef0b5db96e29b42cbf`
+  hosted Linux Debug/Release full CTest and fixed 45-case R9 X11
+  ASan/UBSan selection qualified at that exact source SHA.
+- [x] Dependency audit confirmed original R2-native admission plus
+  R3 Share/GraphicsReady gates the single R5 XCB/XShm/XDamage/XTEST
+  owner. Later macOS HostControl allocation source-contract failure
+  at `6f10bcce` was corrected by R7/R10 in `751d9d0a`; no
+  R5 production change is needed.
+- [x] Extend the existing R9 instrumented workflow with one separate
+  Xvfb `x11.desktop-resource-implicit-destruction-queued-damage-isolation`
+  CTest, exact one-case preflight and CI-structure sentinel. This
+  adds ASan/UBSan coverage for the R5 implicit scope-exit test
+  without changing the **45-case** native sanitizer census.
+- [ ] Obtain supplemental test PASS plus the original 45/45 and
+  Linux full CTest at the **new exact publication SHA**.
+- [ ] R9 exact-SHA manual candidate and independent owner approval;
+  then privately prove original accepted socket, R2 native lease/
+  consent/session, R3 Share, native first frame, complete R1 write,
+  inbound R4 FRAME_ACK, resize/input, terminal revocation and fresh
+  reconnect. Synthetic Xvfb/sanitizers do not authorize these.
+  
+**Status:** Source/workflow design reviewed; no local CI execution.
+Supplemental sanitizer qualification **PENDING**, real owner
+acceptance **NOT RUN / unauthorized**. No real X server, seat0
+capture or XTEST injection was performed here.
+
 ## R2 licensing service-object continuity follows original immutable policy (2026-11-01)
 
 **Review parent:** `d2e115173316fedf7593ab61e3679172d2af7453`. [x] Source audit of all six macOS protected

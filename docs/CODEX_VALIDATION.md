@@ -1,3 +1,24 @@
+## R5 separate implicit X11 destructor sanitizer qualification (2026-11-01)
+
+Reviewed the native test from R5 commit
+`64732a09d1f78934ecac60ef0b5db96e29b42cbf` against the current
+one-owner Linux R2/R3/R5/R10 graph. Original exact-SHA Ubuntu Debug
+and Release 1066/1066 CTests and fixed 45/45 R5 native sanitizer
+selector were PASS. An independent sanitizer execution of the
+later-added implicit-owner/queued-XDamage case was the remaining
+automated coverage gap: ordinary full CTest ran it, but the fixed
+instrumented R5 selection did not.
+
+The R9 workflow now preserves its exact 45-case selection and runs
+that existing Xvfb case as a **separately counted one-case**
+ASan/UBSan step after the 45/45 check. The CI structure guard pins
+that supplemental step. No production code, R2 lease, R3 protocol
+state, XTEST injection or CTest registration changed.
+Publication-SHA workflow/structure inspection **PENDING**;
+connector-local build and CTest **NOT RUN**. Independently
+authorized physical seat0, Windows App/mstsc, first frame/inbound
+ACK, input, RandR and reconnect remain **NOT RUN**.
+
 ## R2 original PersonalDesktop licensing object-identity hardening (2026-11-01)
 
 **Reviewed main parent:** `d2e115173316fedf7593ab61e3679172d2af7453`. The existing broker already pinned

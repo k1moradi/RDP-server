@@ -1,3 +1,17 @@
+## R5 additive sanitizer verification without changing the 45-case census (2026-11-01)
+
+The existing R9 native X11 ASan/UBSan job keeps exactly 45 selected
+cases and runs the original selection before one distinct,
+registration-counted, behavior-named CTest:
+`x11.desktop-resource-implicit-destruction-queued-damage-isolation`.
+It uses the same instrumented `<checkout>/build` root and the
+ephemeral Xvfb CTest wrapper already registered by `tests/CMakeLists.txt`.
+No new executable, system dependency, persistent build tree, native
+seat0 activity or actual client input is introduced. The CI structure
+guard requires the extra step and one-case count. Static workflow
+review is not a test receipt; exact publication-SHA hosted sanitizer
+execution and current full CTest remain PENDING.
+
 ## R2 licensing-context identity replacement focused validation (2026-11-01)
 
 No new target or third-party dependency. In the sole reused

@@ -1,3 +1,29 @@
+## R7 P0 — restored desktop rapid-test preferences via R2 (2026-11-01)
+
+R2's public RuntimeUserPreferences load/save boundary is now available.
+R7 consumes it in the normal portable desktop without a second settings
+file or native permission owner. A validated non-secret record loads
+before process-only CLI overrides. Stored stable interface IDs select
+only freshly R10-approved LAN choices; a missing or replaced ID falls
+back to R10's current recommendation and a saved address is never used.
+Only explicit owner widget edits persist fields; untouched CLI/OS
+Username suggestions do not. Password, Sharing state and permission
+are always volatile/independent. Linux expert --config stays isolated.
+The existing R10 requestStart and Release credential gates are unchanged;
+CLI --enable remains GUI confirmation only.
+
+New ordinary offline CTests:
+gui.offscreen-rapid-preferences-restart-cli-precedence and
+gui.offscreen-rapid-preferences-invalid-replaced-interface use one Qt
+GUI thread, fake HostControl and memory-only preference callbacks. They
+cover restoration, process-only precedence, owner edit, missing/replaced
+interface, invalid store, Stop/restart and no listener. Existing rapid
+argv/stdin/help process tests remain in place. Source ownership review
+PASS; connector-local build/CTest/sanitizers NOT RUN. Next gate:
+same-publication-SHA hosted Debug/Release/full CTest and owner canonical
+Linux/Windows Clang23/macOS checks. Real physical RDP client remains
+a separately owner-authorized gate.
+
 ## R9 P0 — prevent same-SHA cross-run qualification evidence mixing (2026-11-01)
 
 - Authoring parent `260a70aa384baabcefb21e5b31b4e54605aad028`. The R9 classifier previously checked the outer run SHA but did not check independently supplied GitHub job `run_id` or SSPI artifact `workflow_run.id/head_sha`. Separate JSON snapshots could therefore mix green job metadata or a matching-named artifact from another workflow run, including one at the same SHA.

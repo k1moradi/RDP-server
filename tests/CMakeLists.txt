@@ -5841,9 +5841,17 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         COMMAND test_desktop_gui_offline rapid-cli-privacy)
     add_test(NAME gui.offscreen-rapid-start-explicit-consent
         COMMAND test_desktop_gui_offline rapid-start-consent)
+    add_test(NAME gui.offscreen-rapid-preferences-restart-cli-precedence
+        COMMAND test_desktop_gui_offline
+            rapid-preferences-restart-cli-precedence)
+    add_test(NAME gui.offscreen-rapid-preferences-invalid-replaced-interface
+        COMMAND test_desktop_gui_offline
+            rapid-preferences-invalid-replaced-interface)
     set_tests_properties(
         gui.offscreen-rapid-cli-privacy
         gui.offscreen-rapid-start-explicit-consent
+        gui.offscreen-rapid-preferences-restart-cli-precedence
+        gui.offscreen-rapid-preferences-invalid-replaced-interface
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;cli;credentials;offline" TIMEOUT 20)
     # --help must terminate before QApplication even with an invalid QPA.

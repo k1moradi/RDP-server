@@ -1,3 +1,18 @@
+## R7 restored-desktop-preferences focused build gate (2026-11-01)
+
+Reuse only the canonical ~/rdp-server/build/ root. After ordinary Debug
+configure/build, run:
+```sh
+ctest --test-dir build -C Debug -R '^gui[.](offscreen-rapid-|rapid-help-before-qapplication|rapid-cli-executable-denials)' --output-on-failure
+ctest --test-dir build -C Debug --output-on-failure
+```
+Reconfigure that same root for Release and full CTest, then applicable
+sanitizers and hosted Linux, macOS, Windows/MSVC and Clang23 checks.
+The desktop-ui and legacy Windows desktop GUI both link the one R2
+preferences target, with no second QApplication, build root, native
+permission, listener or physical client. Local execution NOT RUN;
+hosted exact-SHA checks pending.
+
 ## R4 ACK-intake retirement focused qualification (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build, run `ctest --test-dir build -C Debug -R '^graphics[.]frame-(ack-intake-session-retirement-before-consume|delivery-session-retirement-before-ack|partial-data-retirement-successor-generation|native-borrow-segmented-receipt-fence)$' --output-on-failure`, then ordinary full Debug CTest. Reconfigure the same root for Release, run complete CTest and preserve the existing Graphics sanitizer lane exactly: 23 fixed DVC cases plus the two separately selected R4 retirement regressions. No new executable, dependency, queue, codec, ACK owner or build root is introduced.

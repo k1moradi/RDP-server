@@ -51,6 +51,36 @@
 using namespace rdp::gui;
 using namespace rdp_server::server::runtime;
 
+
+namespace
+{
+// Process-only test backend; no native preferences files or OS permissions.
+RuntimeUserPreferences fakeStoredPreferences;
+RuntimeUserPreferencesStorageStatus fakeLoadStatus{
+    RuntimeUserPreferencesStorageStatus::Loaded};
+int fakePreferenceSaves{};
+
+RuntimeUserPreferencesStorageStatus loadFakePreferences(
+    RuntimeUserPreferences& output) noexcept
+{
+    output = {};
+    if (fakeLoadStatus == RuntimeUserPreferencesStorageStatus::Loaded)
+        output = fakeStoredPreferences;
+    return fakeLoadStatus;
+}
+
+RuntimeUserPreferencesStorageStatus saveFakePreferences(
+    const RuntimeUserPreferences& input) noexcept
+{
+    fakeStoredPreferences = input;
+    ++fakePreferenceSaves;
+    return RuntimeUserPreferencesStorageStatus::Stored;
+}
+
+constexpr DesktopPreferencesAccess kFakePreferences{
+    &loadFakePreferences, &saveFakePreferences};
+} // namespace
+
 class FakeRuntimeHost final : public RuntimeHostControl
 {
 public:
@@ -891,6 +921,115 @@ int main(int argc, char** argv)
         auto* sessionPassword = restarted.findChild<QLineEdit*>("sessionPassword");
         assert(sessionPassword && sessionPassword->text().isEmpty());
         assert(candidate.startCalls == 1);
+        return 0;
+    }
+
+
+    if (mode == "rapid-preferences-restart-cli-precedence")
+    {
+        fakeLoadStatus = RuntimeUserPreferencesStorageStatus::Loaded;
+        fakePreferenceSaves = 0;
+        fakeStoredPreferences = {
+            "stored-owner", "ethernet-1", 3390U, false, 22U};
+        FakeRuntimeHost candidate;
+        prepareReadyHost(candidate);
+        candidate.startSucceeds = true;
+        HostControl candidateHost(candidate);
+        {
+            DesktopWindow window(candidateHost, nullptr, kFakePreferences);
+            auto* username = window.findChild<QLineEdit*>("standaloneUsername");
+            auto* interfaces = window.findChild<QComboBox*>("lanInterface");
+            auto* port = window.findChild<QSpinBox*>("sharingPort");
+            auto* input = window.findChild<QCheckBox*>("allowRemoteInput");
+            auto* lifetime =
+                window.findChild<QSpinBox*>("ownerPermissionLifetimeMinutes");
+            assert(username && interfaces && port && input && lifetime);
+            assert(username->text() == QStringLiteral("stored-owner"));
+            assert(interfaces->currentData(Qt::UserRole + 1).toString() ==
+                   QStringLiteral("ethernet-1"));
+            assert(interfaces->currentData().toString() ==
+                   QStringLiteral("192.168.0.10"));
+            assert(port->value() == 3390 && !input->isChecked());
+            assert(lifetime->value() == 22);
+            assert(candidate.startCalls == 0);
+
+            const QString cliOwner = QStringLiteral("cli-only");
+            assert(window.applyStartupOptions(&cliOwner, nullptr, true));
+            assert(username->text() == cliOwner);
+            assert(fakePreferenceSaves == 0);
+            assert(fakeStoredPreferences.lastExplicitUsername == "stored-owner");
+            port->setValue(3391); // Explicit owner UI event, not CLI argument.
+            assert(fakePreferenceSaves == 1);
+            assert(fakeStoredPreferences.lastExplicitUsername == "stored-owner");
+            assert(fakeStoredPreferences.port == 3391U);
+            assert(fakeStoredPreferences.preferredStableLanInterfaceId ==
+                   "ethernet-1");
+            username->setText(QStringLiteral("owner-edited"));
+            assert(QMetaObject::invokeMethod(
+                username, "textEdited", Qt::DirectConnection,
+                Q_ARG(QString, QStringLiteral("owner-edited"))));
+            assert(QMetaObject::invokeMethod(
+                username, "editingFinished", Qt::DirectConnection));
+            assert(fakePreferenceSaves == 2);
+            assert(fakeStoredPreferences.lastExplicitUsername == "owner-edited");
+            assert(candidate.startCalls == 0);
+            candidateHost.stop();
+        }
+        {
+            DesktopWindow restarted(candidateHost, nullptr, kFakePreferences);
+            auto* username =
+                restarted.findChild<QLineEdit*>("standaloneUsername");
+            auto* port = restarted.findChild<QSpinBox*>("sharingPort");
+            auto* password = restarted.findChild<QLineEdit*>("sessionPassword");
+            assert(username && port && password);
+            assert(username->text() == QStringLiteral("owner-edited"));
+            assert(port->value() == 3391);
+            assert(password->text().isEmpty());
+            assert(requiredLabel(
+                restarted, "startupSharingConfirmation")->isHidden());
+            assert(candidate.startCalls == 0);
+            assert(candidate.stopCalls == 1);
+        }
+        return 0;
+    }
+
+    if (mode == "rapid-preferences-invalid-replaced-interface")
+    {
+        fakePreferenceSaves = 0;
+        fakeLoadStatus = RuntimeUserPreferencesStorageStatus::Loaded;
+        fakeStoredPreferences = {
+            "stored-owner", "ethernet-1", 3390U, true, 15U};
+        FakeRuntimeHost candidate;
+        prepareReadyHost(candidate);
+        // Identical IP cannot validate an old stable interface identity.
+        candidate.interfaces = {RuntimeHostInterface{
+            "new-interface", "Replacement", {"192.168.0.10"},
+            false, true}};
+        HostControl candidateHost(candidate);
+        {
+            DesktopWindow window(candidateHost, nullptr, kFakePreferences);
+            auto* interfaces = window.findChild<QComboBox*>("lanInterface");
+            assert(interfaces);
+            assert(interfaces->currentData(Qt::UserRole + 1).toString() ==
+                   QStringLiteral("new-interface"));
+            assert(candidate.startCalls == 0);
+            assert(fakePreferenceSaves == 0);
+        }
+        // R2 invalid status cannot inject malformed/non-secret settings.
+        fakeLoadStatus = RuntimeUserPreferencesStorageStatus::Invalid;
+        fakeStoredPreferences.port = 0U;
+        fakeStoredPreferences.lastExplicitUsername = "invalid-owner";
+        {
+            DesktopWindow window(candidateHost, nullptr, kFakePreferences);
+            auto* port = window.findChild<QSpinBox*>("sharingPort");
+            auto* username = window.findChild<QLineEdit*>("standaloneUsername");
+            auto* password = window.findChild<QLineEdit*>("sessionPassword");
+            assert(port && username && password);
+            assert(port->value() == 3389);
+            assert(username->text() != QStringLiteral("invalid-owner"));
+            assert(password->text().isEmpty());
+            assert(candidate.startCalls == 0);
+        }
         return 0;
     }
 

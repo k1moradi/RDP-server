@@ -1305,7 +1305,8 @@ if(WIN32)
             "${PROJECT_SOURCE_DIR}/src/gui")
         target_compile_features(rdp-server-windows-gui PRIVATE cxx_std_23)
         target_link_libraries(
-            rdp-server-windows-gui PRIVATE Qt6::Widgets wtsapi32)
+            rdp-server-windows-gui PRIVATE Qt6::Widgets wtsapi32
+                rdp-server-runtime-user-preferences)
         # The existing CLI rdp-server.exe is a different binary; avoid a
         # case-insensitive file collision in the Windows build tree and ZIP.
         set_target_properties(rdp-server-windows-gui PROPERTIES
@@ -1370,7 +1371,8 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
             src/gui/linux_prerequisites.cpp)
     endif()
     target_compile_features(rdp-server-desktop-ui PUBLIC cxx_std_23)
-    target_link_libraries(rdp-server-desktop-ui PUBLIC Qt6::Widgets)
+    target_link_libraries(rdp-server-desktop-ui PUBLIC
+        Qt6::Widgets rdp-server-runtime-user-preferences)
     if(WIN32)
         # WTS supplies only interactive-session account-name metadata.
         # No OS password API is called or linked.

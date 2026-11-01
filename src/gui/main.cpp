@@ -3,6 +3,7 @@
 #include "desktop_window.h"
 #include "host_control.h"
 #include "server/runtime/runtime_host_control.h"
+#include "server/runtime/runtime_user_preferences.h"
 #if defined(__linux__)
 #include "server/runtime/linux_runtime_host_control.h"
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
@@ -273,7 +274,10 @@ int main(int argc, char** argv)
     rdp_server::server::runtime::UnavailableRuntimeHostControl runtime;
 #endif
     rdp::gui::HostControl control(runtime);
-    rdp::gui::DesktopWindow window(control);
+    rdp::gui::DesktopWindow window(
+        control, nullptr,
+        {&rdp_server::server::runtime::loadRuntimeUserPreferences,
+         &rdp_server::server::runtime::saveRuntimeUserPreferences});
     if (!applyLaunch(window))
     {
         std::fputs("rdp-server-desktop: password surface unavailable\n", stderr);

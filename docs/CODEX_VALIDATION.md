@@ -1,3 +1,24 @@
+## R7 P0 restored desktop preferences (2026-11-01)
+
+Authoring baseline `5115ce956dd36dc75741c309767505229678f779`.
+Reviewed AGENTS, VISION, ROADMAP, coding/testing/compile/benchmark
+standards, CODEX_VALIDATION, GUI entry/window/HostControl and R10
+bootstrap. R2's public secure user-preferences API has landed:
+the prior GUI composition blocker is resolved. The ordinary portable
+GUI now consumes it via injected load/save function pointers; no second
+file path or store exists. Added two memory-only fake-host offline
+CTest cases for restart/CLI precedence and invalid/replaced interface.
+Existing R10 owner Start/credential capability gates remain unchanged.
+The temporary Qt password copy is overwritten after credential handoff.
+
+Source/dependency/ownership review PASS; connector-local canonical
+configure/build/full Debug/Release CTest, ASan/UBSan, benchmarks and
+physical Windows App/mstsc NOT RUN (no checkout/Qt toolchain).
+Exact-publication-SHA hosted qualification PENDING. Next gate:
+same-SHA CI compilation and full CTest, then separately authorized
+physical client proof. Never infer Sharing, native admission or a
+physical frame from these offline tests.
+
 ## R9 same-SHA job/artifact run-provenance correction — 2026-11-01
 
 - Reviewed exact parent `260a70aa384baabcefb21e5b31b4e54605aad028`. R2's later preference backend tests strengthen atomic retention, but the desktop executable still does not link/consume R2 preferences; GUI restart and stale restored-interface invalidation remain R7 integration work, not PASS.

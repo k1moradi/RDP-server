@@ -1,3 +1,14 @@
+## R7 restored-preferences offline GUI qualification (2026-11-01)
+
+Two ordinary gui.offscreen-rapid-preferences-* CTests reuse the existing
+single-QApplication fake-R10 executable and inject memory-only R2
+load/save callbacks. Do not write the real current user's settings in
+fake-host CTests. Verify CLI Username override is process-only until
+owner edit, valid restored input/port/lifetime, stable interface ID
+matched only to fresh R10-approved LAN choices, invalid preferences
+defaults, Stop/restart, empty password and no Start before consent.
+Keep process-level --help/argv/stdin denials and full CTest independent.
+
 ## R4 ACK intake received before session retirement regression (2026-11-01)
 
 Add ordinary offline `graphics.frame-ack-intake-session-retirement-before-consume` to the existing `test_owned_mcs_connect_initial` executable. It first completes every segmented DATA record so the frame legitimately owns one R4 ACK slot, then accepts a genuine-shaped client FRAME_ACK into the existing R3 DVC reassembly buffer without consuming it. Pending client input must leave the outstanding count at one. The test closes the DVC before the separate R4 consume, requires retirement to clear both the pending client bytes and ACK window, then invokes the delayed consume and requires `Rejected` while the lifecycle stays `Closed`.

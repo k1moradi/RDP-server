@@ -1,3 +1,15 @@
+## R7 restored rapid-test preferences integration (2026-11-01)
+
+The portable desktop consumes R2's existing secure per-user non-secret
+preferences API for explicitly edited Username, a freshly R10-approved stable
+LAN interface ID, port, input and permission-lifetime controls. GUI supplies
+no file path, duplicate store, saved address, password, permission or Sharing
+state. Absent/invalid storage yields safe defaults; --username is process-only
+until the owner explicitly edits Username. Stored stable IDs only select
+current R10-approved choices; R10 alone authorizes Start after the owner's
+explicit action. Offline fake-host tests inject memory-only R2 callbacks.
+The Linux expert --config path remains outside ordinary preference loading.
+
 ## User-only preference storage and opt-in vault design (2026-11-01)
 
 The per-user non-secret preferences are convenience values only: last **manually entered** Username, a stable LAN interface identifier requiring fresh re-enumeration, port, input preference and permission-lifetime preference. Loading cannot configure Session Password, open a listener, grant host consent/View/Input/Clipboard or change GraphicsReady. Startup remains Sharing OFF. Absent/invalid/unavailable secure storage yields defaults and no shared fallback.
@@ -15,11 +27,10 @@ explicitly turn Sharing ON through the existing runtime-owned flow.
 No command-line/environment password or automatic listener is allowed.
 The Linux-only --config FILE expert option remains isolated.
 
-R2 alone owns the future secure per-user non-secret preferences API.
-Until that API exists, R7 does not invent a local settings file or claim
-restart restoration. Once it exists, never persist Session Password or
-Sharing ON; revalidate any saved interface ID using current R10-approved
-LAN enumeration and never treat preferences as admission or permission.
+R2 alone owns the secure per-user non-secret preferences API. The
+ordinary portable GUI consumes that API, never persists Session Password
+or Sharing ON, and revalidates saved interface IDs against freshly approved
+R10 LAN enumeration. Stored fields never grant admission or permission.
 
 ## Remote RDP client credential guidance (2026-10-27)
 

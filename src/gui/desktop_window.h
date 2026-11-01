@@ -2,6 +2,7 @@
 #pragma once
 
 #include "host_control.h"
+#include "server/runtime/runtime_user_preferences.h"
 
 #include <QWidget>
 
@@ -22,10 +23,23 @@ namespace rdp::gui
 
 class ToggleSwitchWidget;
 
+// Production supplies R2's public preferences boundary. Offline fake-host
+// fixtures inject memory-only functions, never a second file/path/store.
+struct DesktopPreferencesAccess final
+{
+    using Preferences = rdp_server::server::runtime::RuntimeUserPreferences;
+    using Status =
+        rdp_server::server::runtime::RuntimeUserPreferencesStorageStatus;
+    Status (*load)(Preferences&) noexcept = nullptr;
+    Status (*save)(const Preferences&) noexcept = nullptr;
+};
+
 class DesktopWindow final : public QWidget
 {
 public:
-    explicit DesktopWindow(HostControl& host, QWidget* parent = nullptr);
+    explicit DesktopWindow(
+        HostControl& host, QWidget* parent = nullptr,
+        DesktopPreferencesAccess preferencesAccess = {});
 
     void refresh();
     // CLI-only Qt presentation; R10 retains every credential/Start decision.
@@ -50,6 +64,7 @@ private:
     [[nodiscard]] bool configuredUsernameChanged(
         const HostStatus& snapshot) const;
     [[nodiscard]] HostRequest currentHostRequest() const;
+    void saveOwnerPreferences();
     void requestStart();
     void requestStop();
     void requestQuit();
@@ -57,6 +72,8 @@ private:
     void updateTray(const HostStatus& snapshot, const QString& address);
 
     HostControl& host_;
+    DesktopPreferencesAccess preferencesAccess_;
+    DesktopPreferencesAccess::Preferences savedPreferences_;
 
     QTabWidget* tabs_;
     QWidget* mainTab_;
@@ -107,6 +124,8 @@ private:
 
     bool manualInterfaceOverride_{false};
     bool startupUsernameOverrideActive_{false};
+    bool restoredUsernameActive_{false};
+    bool usernameOwnerEdited_{false};
     bool quitRequested_{false};
     QString userFacingError_;
     // Last authoritative non-secret Username projected by R10. This is only

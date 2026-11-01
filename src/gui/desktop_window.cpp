@@ -44,6 +44,8 @@
 #include <cstring>
 #include <string_view>
 #include <tuple>
+#include <utility>
+#include <vector>
 
 namespace rdp::gui
 {
@@ -715,9 +717,12 @@ QString formatEndpoint(const QString& address, const int port)
 
 } // namespace
 
-DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
+DesktopWindow::DesktopWindow(
+    HostControl& host, QWidget* parent,
+    const DesktopPreferencesAccess preferencesAccess)
     : QWidget(parent),
       host_(host),
+      preferencesAccess_(preferencesAccess),
       tabs_(new QTabWidget(this)),
       mainTab_(new QWidget(tabs_)),
       advancedTab_(new QWidget(tabs_)),
@@ -1019,6 +1024,46 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     if (QSystemTrayIcon::isSystemTrayAvailable())
         trayIcon_->show();
 
+    // R2 accepts only complete, owner-private, non-secret records. Restore
+    // before connecting widget signals, never restoring a saved permission.
+    if (preferencesAccess_.load != nullptr &&
+        preferencesAccess_.load(savedPreferences_) ==
+            DesktopPreferencesAccess::Status::Loaded)
+    {
+        std::vector<std::byte> validatedRecord;
+        if (rdp_server::server::runtime::encodeRuntimeUserPreferences(
+                savedPreferences_, validatedRecord))
+        {
+            if (!savedPreferences_.lastExplicitUsername.empty())
+            {
+                restoredUsernameActive_ = true;
+                username_->setText(QString::fromUtf8(
+                    savedPreferences_.lastExplicitUsername.data(),
+                    static_cast<qsizetype>(
+                        savedPreferences_.lastExplicitUsername.size())));
+            }
+            port_->setValue(savedPreferences_.port);
+            allowRemoteInput_->setChecked(savedPreferences_.preferRemoteInput);
+            permissionLifetimeMinutes_->setValue(
+                savedPreferences_.permissionLifetimeMinutes);
+        }
+        else
+        {
+            savedPreferences_ = {};
+        }
+    }
+    else
+    {
+        savedPreferences_ = {};
+    }
+
+    connect(username_, &QLineEdit::textEdited, this, [this](const QString&) {
+        usernameOwnerEdited_ = true;
+        startupUsernameOverrideActive_ = false;
+        restoredUsernameActive_ = false;
+    });
+    connect(username_, &QLineEdit::editingFinished, this,
+            [this] { if (usernameOwnerEdited_) saveOwnerPreferences(); });
     connect(username_, &QLineEdit::textChanged, this, [this] { refresh(); });
     connect(sessionPassword_, &QLineEdit::textChanged, this, [this] { refresh(); });
     connect(sessionPasswordConfirm_, &QLineEdit::textChanged, this, [this] { refresh(); });
@@ -1093,7 +1138,16 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
                 manualInterfaceOverride_ = true;
                 refresh();
             });
-    connect(port_, &QSpinBox::valueChanged, this, [this](int) { refresh(); });
+    connect(interfaces_, &QComboBox::activated, this,
+            [this](int) { saveOwnerPreferences(); });
+    connect(port_, &QSpinBox::valueChanged, this, [this](int) {
+        saveOwnerPreferences();
+        refresh();
+    });
+    connect(allowRemoteInput_, &QCheckBox::clicked, this,
+            [this](bool) { saveOwnerPreferences(); });
+    connect(permissionLifetimeMinutes_, &QSpinBox::valueChanged, this,
+            [this](int) { saveOwnerPreferences(); });
     connect(clientSelection_, &QComboBox::currentIndexChanged,
             this, [this](int) { refresh(); });
 
@@ -1280,6 +1334,59 @@ bool DesktopWindow::configuredUsernameChanged(
            username_->text() != configuredStandaloneUsername_;
 }
 
+
+void DesktopWindow::saveOwnerPreferences()
+{
+    if (preferencesAccess_.save == nullptr)
+        return;
+
+    // Explicit owner widget events only. An untouched CLI override or
+    // initial local-OS Username suggestion must never be saved implicitly.
+    auto candidate = savedPreferences_;
+    if (usernameOwnerEdited_)
+        candidate.lastExplicitUsername = username_->text().toUtf8().toStdString();
+    candidate.port = static_cast<std::uint16_t>(port_->value());
+    candidate.preferRemoteInput = allowRemoteInput_->isChecked();
+    candidate.permissionLifetimeMinutes =
+        static_cast<std::uint8_t>(permissionLifetimeMinutes_->value());
+
+    if (manualInterfaceOverride_)
+    {
+        // Keep only the stable ID of an exact currently approved R10
+        // choice, never a saved address or any permission/listener state.
+        const QString interfaceId =
+            interfaces_->currentData(Qt::UserRole + 1).toString();
+        const QString address = interfaces_->currentData().toString();
+        const HostStatus current = host_.status();
+        const bool approved = std::ranges::any_of(
+            current.approvedLanInterfaces,
+            [&](const LanInterfaceChoice& choice) {
+                return choice.stableId == interfaceId &&
+                       choice.address == address;
+            });
+        candidate.preferredStableLanInterfaceId =
+            approved ? interfaceId.toUtf8().toStdString() : std::string{};
+    }
+
+    std::vector<std::byte> encoded;
+    if (!rdp_server::server::runtime::encodeRuntimeUserPreferences(
+            candidate, encoded))
+    {
+        userFacingError_ = QStringLiteral(
+            "Preferences contain an invalid non-secret value.");
+        refresh();
+        return;
+    }
+
+    savedPreferences_ = std::move(candidate);
+    usernameOwnerEdited_ = false;
+    if (preferencesAccess_.save(savedPreferences_) !=
+        DesktopPreferencesAccess::Status::Stored)
+        userFacingError_ = QStringLiteral(
+            "Private preferences could not be saved on this computer.");
+    refresh();
+}
+
 void DesktopWindow::requestStart()
 {
     const HostStatus snapshot = host_.status();
@@ -1299,11 +1406,13 @@ void DesktopWindow::requestStart()
 
     userFacingError_.clear();
 
-    const QString password = sessionPassword_->text();
+    QString password = sessionPassword_->text();
     if (!password.isEmpty())
     {
         const bool credentialConfigured =
             host_.configureStandalonePassword(username_->text(), password);
+        password.fill(QChar{u'\0'});
+        password.clear();
         sessionPassword_->clear();
         sessionPasswordConfirm_->clear();
         if (!credentialConfigured)
@@ -1519,7 +1628,7 @@ void DesktopWindow::refresh()
     if (!snapshot.configuredStandaloneUsername.isEmpty())
     {
         const bool maySynchronize =
-            !startupUsernameOverrideActive_ &&
+            !startupUsernameOverrideActive_ && !restoredUsernameActive_ &&
             (configuredStandaloneUsername_.isEmpty() ||
             username_->text().isEmpty() ||
             username_->text() == configuredStandaloneUsername_);
@@ -1590,6 +1699,28 @@ void DesktopWindow::refresh()
                 }
                 if (selectedIndex == 0)
                     manualInterfaceOverride_ = false;
+            }
+        }
+
+        // Restore a stable ID against this fresh R10-approved list only.
+        // Missing/replaced IDs fall back to the R10 recommendation, without
+        // reusing any previous network address.
+        if (!manualInterfaceOverride_ &&
+            !savedPreferences_.preferredStableLanInterfaceId.empty())
+        {
+            const QString preferredId = QString::fromUtf8(
+                savedPreferences_.preferredStableLanInterfaceId.data(),
+                static_cast<qsizetype>(
+                    savedPreferences_.preferredStableLanInterfaceId.size()));
+            for (int index = 1; index < interfaces_->count(); ++index)
+            {
+                if (interfaces_->itemData(
+                        index, Qt::UserRole + 1).toString() == preferredId)
+                {
+                    selectedIndex = index;
+                    manualInterfaceOverride_ = true;
+                    break;
+                }
             }
         }
 

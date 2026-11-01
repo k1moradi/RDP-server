@@ -10433,6 +10433,7 @@ void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
         // Commit one genuine R1 TLS plaintext byte, then insist on the exact
         // R3 suffix tuple. Neither encoding nor a partial DATA receipt
         // records client decode progress or an outstanding ACK.
+        const std::size_t firstFrameWireBytes = firstPending->bytes.size();
         const std::size_t acceptedFirstByte =
             writeOneMacProtectedPlaintextByte(*fixture, firstPending->bytes);
         assert(acceptedFirstByte == 1U);
@@ -10449,7 +10450,7 @@ void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
                suffix->replySequence == firstPending->replySequence &&
                suffix->writeSliceSequence != firstPending->writeSliceSequence &&
                suffix->bytes.size() + acceptedFirstByte ==
-                   firstPending->bytes.size());
+                   firstFrameWireBytes);
         const auto partiallyAccepted =
             fixture->session->firstClientAcceptanceObservability();
         assert(!partiallyAccepted.firstExactFrameWriteCommitted);
@@ -10504,7 +10505,8 @@ void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
             assert(outcome == Write::Pending || outcome == Write::Delivered);
             delivered = outcome == Write::Delivered;
         }
-        assert(delivered && acceptedOuterBytes > strideBytes * height);
+        assert(delivered);
+        assert(acceptedOuterBytes == firstFrameWireBytes);
         // A Delivered receipt already proves that R3 consumed the final
         // frame suffix. The protected pending-write broker is a positive
         // borrow, not a read-only "is empty" probe: invoking it with no

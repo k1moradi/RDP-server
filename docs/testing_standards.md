@@ -1,3 +1,7 @@
+## Frame receipt tests compare protocol wire bytes, not raw framebuffer size (2026-11-01)
+
+A Graphics frame may be compressed or wrapped differently across valid implementations/platforms, so a test must not infer correctness from encoded PDU size being greater than the source BGRA byte count. For protected first-frame receipt tests, cache the original prepared R3 frame PDU size and prove exact accepted-byte accounting across the first byte and all suffix receipts until `Delivered`. Client FRAME_ACK remains a separate inbound receipt.
+
 ## R9 Share source-contract scope correction after protected Graphics landed (2026-11-01)
 
 **Failing evidence:** descendant `ce1938083ebd02e2bcd1a089173d85a89df9f34b`, Actions [41298794508](https://github.com/k1moradi/RDP-server/actions/runs/41298794508), Ubuntu Debug full CTest **1086/1087 PASS / 1 FAIL**. The sole failure is `runtime.macos-host-control-share-activation-composition-contract` with `Share scheduler must not start Graphics`. The dedicated Graphics-control source contract passes, and the earlier Share application-traffic count correction also passes. The remaining assertion is stale because it scans the entire scheduler after R10 legitimately added a separately protected branch that begins only when `AcceptedClientAdmissionStage::ShareActivated` is already committed.

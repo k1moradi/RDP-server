@@ -1,3 +1,7 @@
+## macOS protected first-frame size assertion portability failure (2026-11-01)
+
+At `ce1938083ebd02e2bcd1a089173d85a89df9f34b`, macOS test `security.macos-protected-graphics-first-frame-exact-tls-receipt-client-ack` reached the final frame-write loop and then failed `delivered && acceptedOuterBytes > strideBytes * height`. Delivery itself is the relevant R3 result; encoded ClearCodec/DVC PDU bytes are not required to exceed uncompressed BGRA bytes. The correction caches the original prepared frame PDU length and requires exact accepted-byte equality at `Delivered`. Production R1/R2/R3/R4 behavior is unchanged. Local execution NOT RUN; exact corrective-SHA hosted qualification PENDING.
+
 ## R9 Share source-contract scope correction after protected Graphics landed (2026-11-01)
 
 **Failing evidence:** descendant `ce1938083ebd02e2bcd1a089173d85a89df9f34b`, Actions [41298794508](https://github.com/k1moradi/RDP-server/actions/runs/41298794508), Ubuntu Debug full CTest **1086/1087 PASS / 1 FAIL**. The sole failure is `runtime.macos-host-control-share-activation-composition-contract` with `Share scheduler must not start Graphics`. The dedicated Graphics-control source contract passes, and the earlier Share application-traffic count correction also passes. The remaining assertion is stale because it scans the entire scheduler after R10 legitimately added a separately protected branch that begins only when `AcceptedClientAdmissionStage::ShareActivated` is already committed.

@@ -1,3 +1,12 @@
+## R9 exact-SHA metadata test and evidence snapshot (2026-11-01)
+
+Only reuse ~/rdp-server/build. The new ordinary project.exact-sha-qualification-job-status-denials invokes a Python standard-library offline self-test, without new executable, Qt, real credentials, network, listener, desktop, or secondary build directory. After canonical Debug configure/build:
+
+    ctest --test-dir build -C Debug -R '^project[.]exact-sha-qualification-job-status-denials$' --output-on-failure
+    ctest --test-dir build -C Debug --output-on-failure
+
+Run normal Release/hosted exact-SHA matrix and applicable existing sanitizer lanes. Read-only GitHub metadata-snapshot commands and separately authorized owner A/B checklist are recorded in docs/CODEX_VALIDATION.md. Local tests and benchmarks NOT RUN.
+
 ## R4 first-frame native borrow focused test (2026-11-01)
 
 Reuse only `~/rdp-server/build/`: canonical Debug configure/build, `ctest --test-dir build -C Debug -R '^graphics[.]frame-(native-borrow-segmented-receipt-fence|delivery-session-retirement-before-ack|partial-data-retirement-successor-generation)$' --output-on-failure`, ordinary full Debug/Release CTest and existing unchanged portable graphics ASan/UBSan selection (fixed 23 DVC cases plus the two R4 retirement tests). No new executable/dependency/build root. Authoring parent `6c21f5097431f7e65f3e237b8ac6c98c54330e84`: source/CTest review PASS; owner-local configure/build, focused/full CTest, ASan/UBSan, exact-publication-SHA hosted CI and physical Microsoft-client frame/ACK NOT RUN. Benchmark and physical clients NOT RUN.

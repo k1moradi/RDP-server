@@ -2209,6 +2209,17 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "protocol;security;native-authorization;transport;tls;mcs;admission;graphics;offline"
                 TIMEOUT 60)
 
+        # R4 first DATA positive path: one original R1 TLS/R2/R3 owner,
+        # synthetic native pixels and client ACK only, no live desktop.
+        add_test(NAME security.macos-protected-graphics-first-frame-r1-receipt-client-ack
+            COMMAND "${test_target}"
+                "macos-protected-graphics-first-frame-r1-receipt-client-ack")
+        set_tests_properties(
+            security.macos-protected-graphics-first-frame-r1-receipt-client-ack
+            PROPERTIES
+                LABELS "protocol;security;native-authorization;transport;tls;mcs;admission;graphics;offline"
+                TIMEOUT 90)
+
         # R8 production R2 post-Share classification must retire joined
         # CLIPRDR traffic without independent macOS Clipboard authority.
         # Keep this separate from the fixed 107-case sanitizer census.

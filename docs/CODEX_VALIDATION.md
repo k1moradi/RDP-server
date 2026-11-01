@@ -1,3 +1,22 @@
+## R4 post-Share first-frame R1 receipt and independent ACK seam (2026-11-01)
+
+Authoring parent `d014a6e46f29`. R10's protected macOS Share scheduler landed
+at `fc7126df`, and the positive Share fixture's `drdynvc` correction landed
+at `1447dd0`. Source review found no concrete R4 codec or R3 frame-credit
+defect. The existing protected MAP-to-first-frame consent regression proved
+retirement only; separate R1/R3 TLS DATA and R4 ACK tests did not exercise
+positive DATA/ACK under the same macOS R2 broker. Added the ordinary
+`security.macos-protected-graphics-first-frame-r1-receipt-client-ack` CTest
+by reusing the full mapped R1 HYBRID/TLS/R2/R3 fixture; it explicitly
+distinguishes encoded frame, first partial DATA acceptance, complete DATA
+receipt, and separately inbound synthetic matching client ACK. No code
+change to the production encoder, scheduler, surface owner, native capture
+or permissions; no physical client ACK/desktop visibility evidence.
+Source/CTest registration inspection PASS. Connector-local build, focused/full
+CTest, ASan/UBSan and benchmark NOT RUN. Exact publication-SHA hosted CI
+PENDING. Next R10 gate: compose real macOS R3 Graphics DVC after genuine
+ShareActivated; attach R7 synchronous pixels only after fresh R2 consent.
+
 ## R3 Client Licensing replay during partial Valid Client validation (2026-11-01)
 
 Reviewed parent `0bf6730c2e0137b49e9b96a52860a8218f1a8c31`, original R2 policy/service-object identity

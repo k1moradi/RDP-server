@@ -9965,7 +9965,8 @@ void testMacProtectedShareActivatedClipboardR2ClassifierDenial()
     }
 }
 
-void testMacProtectedGraphicsMappedFirstFrameConsentReplacementDenial()
+void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
+    bool publishFirstFrameAndAcknowledge)
 {
     using rdp_server::server::runtime::RuntimeDeploymentPolicy;
     using Write = RdpGraphicsDvcWriteOutcome;
@@ -10085,6 +10086,154 @@ void testMacProtectedGraphicsMappedFirstFrameConsentReplacementDenial()
     assert(mapped.outstandingFrameAcknowledgements == 0U);
     assert(!mapped.firstGenuineFrameAcknowledge);
 
+    if (publishFirstFrameAndAcknowledge)
+    {
+        // This positive path uses only synthetic proof/native observations.
+        // The original R2 admission, R3 mapped surface, TLS connection and
+        // accepted-byte receipts are all production instances.
+        const auto connectInitial = macProtectedHybridGraphicsConnectInitial();
+        const auto parsedConnectInitial = parseMcsConnectInitial(connectInitial);
+        assert(parsedConnectInitial);
+        const auto clientGcc =
+            parseGccConferenceCreate(parsedConnectInitial.value.gccUserData);
+        assert(clientGcc);
+        const std::uint32_t widthPixels = clientGcc.settings.requestedWidth;
+        const std::uint32_t heightPixels = clientGcc.settings.requestedHeight;
+        assert(widthPixels != 0U && heightPixels != 0U);
+
+        const std::size_t width = widthPixels;
+        const std::size_t height = heightPixels;
+        assert(width <= std::numeric_limits<std::size_t>::max() / 4U);
+        const std::size_t strideBytes = width * 4U;
+        assert(height <= std::numeric_limits<std::size_t>::max() / strideBytes);
+        std::vector<std::byte> framePixels(strideBytes * height);
+        const ::FramebufferView framebuffer{
+            framePixels, widthPixels, heightPixels, strideBytes};
+        const auto firstPending =
+            fixture->broker.beginR3GraphicsClearCodecFramePublication(
+                *fixture->session, policy, firstFrameId, framebuffer);
+        assert(firstPending && *firstPending &&
+               firstPending->kind == RdpGraphicsDvcWriteKind::GraphicsFrameData);
+        const auto prepared =
+            fixture->session->firstClientAcceptanceObservability();
+        assert(prepared.firstClearCodecFramePrepared);
+        assert(!prepared.firstExactFrameWriteCommitted);
+        assert(prepared.outstandingFrameAcknowledgements == 0U);
+        assert(!prepared.firstGenuineFrameAcknowledge);
+
+        // R4 has synchronously copied BGRA into the R3-owned frame. The
+        // borrowed source is retired before any TLS DATA write is scheduled.
+        std::vector<std::byte>{}.swap(framePixels);
+
+        // Commit one genuine R1 TLS plaintext byte, then insist on the exact
+        // R3 suffix tuple. Neither encoding nor a partial DATA receipt
+        // records client decode progress or an outstanding ACK.
+        const std::size_t acceptedFirstByte =
+            writeOneMacProtectedPlaintextByte(*fixture, firstPending->bytes);
+        assert(acceptedFirstByte == 1U);
+        assert(fixture->broker.completeR3GraphicsDynamicVirtualChannelWrite(
+                   *fixture->session, policy, firstPending->replySequence,
+                   firstPending->writeSliceSequence, acceptedFirstByte) ==
+               Write::Pending);
+        auto suffix =
+            fixture->broker.pendingR3GraphicsDynamicVirtualChannelWrite(
+                *fixture->session, policy);
+        assert(suffix && suffix->kind ==
+                   RdpGraphicsDvcWriteKind::GraphicsFrameData &&
+               suffix->channelGeneration == firstPending->channelGeneration &&
+               suffix->replySequence == firstPending->replySequence &&
+               suffix->writeSliceSequence != firstPending->writeSliceSequence &&
+               suffix->bytes.size() + acceptedFirstByte ==
+                   firstPending->bytes.size());
+        const auto partiallyAccepted =
+            fixture->session->firstClientAcceptanceObservability();
+        assert(!partiallyAccepted.firstExactFrameWriteCommitted);
+        assert(partiallyAccepted.outstandingFrameAcknowledgements == 0U);
+        assert(!partiallyAccepted.firstGenuineFrameAcknowledge);
+
+        // Avoid a heap allocation per DATA record: the production record
+        // size is bounded, and each current suffix is consumed synchronously.
+        std::array<std::uint8_t,
+                   kMaximumRdpDynamicVirtualChannelPacketBytes> received{};
+        const auto deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds{30};
+        std::size_t acceptedOuterBytes = acceptedFirstByte;
+        bool delivered = false;
+        for (std::size_t attempt = 0U;
+             attempt < 16384U &&
+             std::chrono::steady_clock::now() < deadline && !delivered;
+             ++attempt)
+        {
+            const auto pending =
+                fixture->broker.pendingR3GraphicsDynamicVirtualChannelWrite(
+                    *fixture->session, policy);
+            assert(pending && *pending &&
+                   pending->kind == RdpGraphicsDvcWriteKind::GraphicsFrameData);
+            const auto offered = pending->bytes;
+            assert(offered.size() <= received.size());
+            const auto sent =
+                fixture->connection.writeTlsApplicationData(offered);
+            if (sent.outcome != TlsApplicationIoOutcome::Progress)
+            {
+                assert(sent.bytes == 0U);
+                assert(sent.outcome == TlsApplicationIoOutcome::NeedRead ||
+                       sent.outcome == TlsApplicationIoOutcome::NeedWrite);
+                const auto polled = fixture->connection.pollSocketOnce(
+                    deadline, kMaximumTcpPollWait);
+                assert(polled.outcome == TcpConnectionPollOutcome::Dispatched ||
+                       polled.outcome == TcpConnectionPollOutcome::NoEvent);
+                continue;
+            }
+
+            assert(sent.bytes > 0U && sent.bytes <= offered.size());
+            auto receivedSlice = std::span{received}.first(sent.bytes);
+            readNativeTlsClientAll(
+                fixture->tls.client.get(), receivedSlice);
+            assert(std::equal(
+                receivedSlice.begin(), receivedSlice.end(), offered.begin()));
+            acceptedOuterBytes += sent.bytes;
+            const auto outcome =
+                fixture->broker.completeR3GraphicsDynamicVirtualChannelWrite(
+                    *fixture->session, policy, pending->replySequence,
+                    pending->writeSliceSequence, sent.bytes);
+            assert(outcome == Write::Pending || outcome == Write::Delivered);
+            delivered = outcome == Write::Delivered;
+        }
+        assert(delivered && acceptedOuterBytes > strideBytes * height);
+        assert(!fixture->broker.pendingR3GraphicsDynamicVirtualChannelWrite(
+            *fixture->session, policy));
+        const auto committed =
+            fixture->session->firstClientAcceptanceObservability();
+        assert(committed.firstClearCodecFramePrepared);
+        assert(committed.firstExactFrameWriteCommitted);
+        assert(committed.outstandingFrameAcknowledgements == 1U);
+        assert(!committed.firstGenuineFrameAcknowledge);
+
+        // A client FRAME_ACK is a separate inbound R1 TLS read and the
+        // original R2/R3 data/ACK handoff, never a local write inference.
+        const std::array<std::uint8_t, 22> clientFrameAck{{
+            0x30U, static_cast<std::uint8_t>(graphicsChannelId),
+            0x0dU, 0x00U, 0x00U, 0x00U, 0x14U, 0x00U,
+            0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U,
+            0x01U, 0x00U, 0x00U, 0x00U,
+            0x01U, 0x00U, 0x00U, 0x00U
+        }};
+        sendGraphics(clientFrameAck, Intake::GraphicsDataAccepted);
+        assert(!fixture->session->firstClientAcceptanceObservability()
+                    .firstGenuineFrameAcknowledge);
+        assert(fixture->broker.consumeR3GraphicsFrameAcknowledge(
+                   *fixture->session, policy) ==
+               RdpGraphicsFrameAcknowledgeIntake::Acknowledged);
+        const auto acknowledged =
+            fixture->session->firstClientAcceptanceObservability();
+        assert(acknowledged.firstExactFrameWriteCommitted);
+        assert(acknowledged.firstGenuineFrameAcknowledge);
+        assert(acknowledged.outstandingFrameAcknowledgements == 0U);
+        assert(fixture->broker.state() == MacConsoleAdmissionState::Admitted);
+        assert(fixture->session->phase() == McsSessionPhase::ShareActivated);
+        return;
+    }
+
     // Same owner and View scope, but a newly issued local grant changes the
     // R2 consent epoch between MAP and the first native framebuffer borrow.
     const std::uint64_t previousGrantGeneration =
@@ -10115,6 +10264,16 @@ void testMacProtectedGraphicsMappedFirstFrameConsentReplacementDenial()
     assert(!retired.firstExactFrameWriteCommitted);
     assert(retired.outstandingFrameAcknowledgements == 0U);
     assert(!retired.firstGenuineFrameAcknowledge);
+}
+
+void testMacProtectedGraphicsMappedFirstFrameConsentReplacementDenial()
+{
+    exerciseMacProtectedGraphicsMappedFirstFrameTransition(false);
+}
+
+void testMacProtectedGraphicsFirstFrameR1ReceiptClientAcknowledge()
+{
+    exerciseMacProtectedGraphicsMappedFirstFrameTransition(true);
 }
 
 void testMacProtectedPostJoinClipboardViewInputDenial()
@@ -14776,6 +14935,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedShareActivatedClipboardR2ClassifierDenial},
     {"macos-protected-graphics-mapped-first-frame-consent-replacement-denial",
      &testMacProtectedGraphicsMappedFirstFrameConsentReplacementDenial},
+    {"macos-protected-graphics-first-frame-r1-receipt-client-ack",
+     &testMacProtectedGraphicsFirstFrameR1ReceiptClientAcknowledge},
     {"macos-post-join-clipboard-view-input-denial",
      &testMacProtectedPostJoinClipboardViewInputDenial},
     {"macos-transport-admitted-clipboard-permission-denials",

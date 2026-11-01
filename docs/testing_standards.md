@@ -1,3 +1,24 @@
+## R4 protected first-frame R1 DATA receipt and independent client ACK (2026-11-01)
+
+Source parent `d014a6e46f29`. The preexisting mapped-before-first-frame
+consent replacement case exercises revocation before the first borrow, while
+`transport.tcp-owned-graphics-frame-slice` exercises real R1 DATA without
+the original concrete macOS R2 issuer. Reuse that mapped protected macOS fixture
+as a second behavior-named ordinary CTest: after CAPS/CREATE/MAP receipt
+completion, borrow synthetic contiguous BGRA synchronously and retire the
+source before outbound DATA; accept one real R1 TLS byte, check unchanged
+frame/reply identity and advanced suffix, drain every current R3 DATA record
+through the sole real R1 TLS writer, and assert frame delivery is still not
+a client ACK. Finally inject a separately received, syntactically valid client
+FRAME_ACK on the original joined DVC and consume it only through R2/R3/R4;
+assert one outstanding frame becomes zero. This is synthetic client data,
+not a real Microsoft-client ACK, native capture, product desktop visibility
+or owner admission. No production code, codec, CTest sanitizer census,
+third-party dependency or build root is changed. Connector-local compile
+and CTest NOT RUN; publication-SHA hosted CI PENDING.
+Next gate: same-SHA focused/full protocol and sanitizer qualification,
+then R10 runtime DVC scheduling and separately authorized R7 attachment.
+
 ## Original R1 TLS licensing replay before Valid Client delivery (2026-11-01)
 
 One new ordinary production-linked offline

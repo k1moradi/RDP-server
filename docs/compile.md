@@ -1,3 +1,13 @@
+## R4 macOS protected mapped-first-frame R1 DATA / ACK qualification (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build,
+run `ctest --test-dir build -C Debug -R '^security[.]macos-protected-graphics-(first-frame-r1-receipt-client-ack|mapped-first-frame-consent-replacement-denial)$' --output-on-failure`,
+then ordinary full CTest and the unchanged exact graphics sanitizer inventories
+(45 R4, 23 R3 DVC, 29 x264/BGRA). This is an offline production-linked
+loopback R1/R2/R3/R4 test with synthetic native pixels and synthetic client ACK;
+no LAN listener, TCC, ScreenCaptureKit or native input. Source parent
+`d014a6e46f29`; local build/CTest NOT RUN, publication-SHA CI PENDING.
+
 ## R3 licensing replay during partial Valid Client focused check (2026-11-01)
 
 No new dependency, executable, or build root. Reuse `~/rdp-server/build/`:

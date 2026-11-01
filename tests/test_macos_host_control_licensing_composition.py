@@ -18,6 +18,7 @@ def main() -> int:
     parser.add_argument("--header", required=True, type=Path)
     parser.add_argument("--check-share-activation", action="store_true")
     parser.add_argument("--check-graphics-control", action="store_true")
+    parser.add_argument("--check-frame-pump", action="store_true")
     args = parser.parse_args()
 
     source = args.source.read_text(encoding="utf-8")
@@ -251,6 +252,72 @@ def main() -> int:
                 "GraphicsReady status requires mapped R3 evidence")
         require("snapshot.nativeDesktopReady = nativeDesktop_.ready()" in status,
                 "nativeDesktopReady must remain separate")
+
+    if args.check_frame_pump:
+        frame_begin = source.find(
+            "MacRuntimeHostControl::serviceAcceptedClientGraphicsOnce("
+        )
+        frame_end = source.find("catch (const std::bad_alloc&)", frame_begin)
+        require(
+            frame_begin >= 0 and frame_end > frame_begin,
+            "cannot isolate macOS post-Graphics frame pump",
+        )
+        frame_pump = source[frame_begin:frame_end]
+        for token in (
+            "beginR3GraphicsSurfaceReconfiguration(",
+            "preflightR3GraphicsFramePublication(",
+            "nativeDesktop_.borrowFramebuffer(",
+            "beginR3GraphicsClearCodecFramePublication(",
+            "pendingR3GraphicsDynamicVirtualChannelWrite(",
+            "completeR3GraphicsDynamicVirtualChannelWrite(",
+            "classifyR3PostShareTpkt(",
+            "authorizeR3GraphicsDynamicVirtualChannelPdu(",
+            "consumeR3GraphicsFrameAcknowledge(",
+            "connection.writeTlsApplicationData(",
+            "connection.readTlsApplicationData(",
+            "cancelR3UnwrittenGraphicsFrame(",
+            "abortR3GraphicsFrame(",
+        ):
+            require(token in frame_pump, f"macOS frame pump missing: {token}")
+        for forbidden in (
+            "beginVerifiedR2GraphicsClearCodecFramePublication(",
+            "completeVerifiedR2GraphicsDynamicVirtualChannelWrite(",
+            "consumeVerifiedR2GraphicsFrameAcknowledge(",
+            "RuntimeHostStage::DesktopVisible",
+        ):
+            require(
+                forbidden not in frame_pump,
+                f"macOS frame pump bypassed owner/visibility boundary: {forbidden}",
+            )
+        require(
+            frame_pump.find("connection.writeTlsApplicationData(") <
+            frame_pump.find("preflightR3GraphicsFramePublication(") <
+            frame_pump.find("nativeDesktop_.borrowFramebuffer("),
+            "pending R3 DATA must drain before a new preflight/native borrow",
+        )
+        require(
+            "activeGraphicsFrameWritePending_" in frame_pump
+            and "graphicsFrameWriteNeedsRead" in frame_pump,
+            "frame pump must preserve one pending R3 write and R1 WANT direction",
+        )
+        service_begin = source.find(
+            "RuntimeHostResult MacRuntimeHostControl::serviceOnce() noexcept try"
+        )
+        service_end = source.find("catch (const std::bad_alloc&)", service_begin)
+        require(
+            service_begin >= 0 and service_end > service_begin,
+            "cannot isolate macOS HostControl serviceOnce",
+        )
+        service = source[service_begin:service_end]
+        require(
+            "nativeDesktop_.serviceOnce(&nativeObservation)" in service
+            and "serviceAcceptedClientGraphicsOnce(nativeObservation)" in service,
+            "R10 must consume only the current R7 service observation",
+        )
+        require(
+            "POLLERR | POLLHUP" in frame_pump and "POLLNVAL" in frame_pump,
+            "terminal socket readiness must be handed to the original R1 owner",
+        )
 
     # C++ member destruction is reverse declaration order. Service policy and
     # licensing material therefore must be declared before every accepted-client

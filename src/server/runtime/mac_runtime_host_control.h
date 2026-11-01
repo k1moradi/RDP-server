@@ -130,6 +130,8 @@ private:
     void retireAcceptedClient() noexcept;
     [[nodiscard]] RuntimeHostResult failClosedAfterAllocationFailure() noexcept;
     [[nodiscard]] RuntimeHostResult advanceAcceptedClientPreAdmissionOnce() noexcept;
+    [[nodiscard]] RuntimeHostResult serviceAcceptedClientGraphicsOnce(
+        const rdp::macos::MacNativeDesktopServiceObservation& observation) noexcept;
 
     // One serialized accepted-client admission path. These stages are not
     // credentials or native authorization and cannot be set by the GUI.
@@ -218,6 +220,14 @@ private:
     std::chrono::steady_clock::time_point activeClientDeadline_{};
     // Bounded DRDYNVC/CAPS/CREATE/MAP exchange, separate from pre-auth.
     std::chrono::steady_clock::time_point activeGraphicsControlDeadline_{};
+    // Post-GraphicsReady R10 scheduling owns only scalar freshness/progress.
+    // R7 owns native pixels; R3/R4 own frame bytes, receipts and ACK credit.
+    std::optional<std::chrono::steady_clock::time_point>
+        activeGraphicsResizeDeadline_{};
+    std::uint32_t activeNextGraphicsFrameId_{1U};
+    std::uint64_t activeLastNativeFrameSequence_{};
+    bool activeGraphicsFrameWritePending_{};
+    bool activeFirstFramebufferAvailable_{};
 };
 
 class MacPortableDesktopRuntime final

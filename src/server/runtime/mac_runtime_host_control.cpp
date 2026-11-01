@@ -262,8 +262,9 @@ struct MacRuntimeCredSspState final
     bool serverLicenseRequestWriteNeedsRead{};
     bool validClientWriteNeedsRead{};
     bool shareActivationWriteNeedsRead{};
-    // One R1 WANT direction hint; R3 owns graphics replies and slices.
+    // R1 WANT direction hints only; R3 owns graphics replies and slices.
     bool graphicsControlWriteNeedsRead{};
+    bool graphicsFrameWriteNeedsRead{};
 
     [[nodiscard]] bool prepareChallenge() noexcept
     {
@@ -319,6 +320,11 @@ void MacRuntimeHostControl::retireAcceptedClient() noexcept
     activeListenerGeneration_ = 0U;
     activeCredentialsVerified_ = false;
     activeAdmissionStage_ = AcceptedClientAdmissionStage::None;
+    activeGraphicsResizeDeadline_.reset();
+    activeNextGraphicsFrameId_ = 1U;
+    activeLastNativeFrameSequence_ = 0U;
+    activeGraphicsFrameWritePending_ = false;
+    activeFirstFramebufferAvailable_ = false;
     if (acceptedClientDiagnostics_.available)
     {
         acceptedClientDiagnostics_.preauthStage =
@@ -1051,6 +1057,7 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
 
                 activeAdmissionStage_ =
                     AcceptedClientAdmissionStage::GraphicsReady;
+                activeGraphicsResizeDeadline_.reset();
                 return {RuntimeHostError::None, false};
             }
 
@@ -1619,6 +1626,465 @@ catch (const std::bad_alloc&)
     return failClosedAfterAllocationFailure();
 }
 
+RuntimeHostResult
+MacRuntimeHostControl::serviceAcceptedClientGraphicsOnce(
+    const rdp::macos::MacNativeDesktopServiceObservation& observation) noexcept try
+{
+    using namespace rdp_server::server;
+    using Interest = transport::TcpConnectionIoInterest;
+    using TlsOutcome = transport::TlsApplicationIoOutcome;
+    using GraphicsWrite = transport::RdpGraphicsDvcWriteOutcome;
+    using GraphicsIntake = transport::RdpGraphicsDvcClientIntake;
+    using FrameAcknowledge = transport::RdpGraphicsFrameAcknowledgeIntake;
+    using Reconfiguration = transport::RdpGraphicsSurfaceReconfiguration;
+    using Readiness = transport::RdpGraphicsFramePublicationReadiness;
+
+    const auto retireGraphics =
+        [this](RuntimeHostError error) noexcept -> RuntimeHostResult {
+            retireAcceptedClient();
+            stage_ = listener_.valid()
+                ? RuntimeHostStage::ListenerAvailable
+                : RuntimeHostStage::Stopped;
+            return deny(error);
+        };
+    const auto retireStaleHost = [this]() noexcept -> RuntimeHostResult {
+        retireAcceptedClient();
+        stage_ = listener_.valid()
+            ? RuntimeHostStage::ListenerAvailable
+            : RuntimeHostStage::Stopped;
+        return deny(RuntimeHostError::HostSessionStale);
+    };
+
+    if (activeAdmissionStage_ != AcceptedClientAdmissionStage::GraphicsReady ||
+        activeConnection_ == nullptr || activeCredSsp_ == nullptr ||
+        activeMcsSession_ == nullptr || activeAdmissionBroker_ == nullptr ||
+        !deploymentPolicy_ || !activeConsentEpoch_.has_value() ||
+        !nativeDesktop_.active())
+        return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+
+    auto& connection = *activeConnection_;
+    auto& credSsp = *activeCredSsp_;
+    auto& session = *activeMcsSession_;
+    if (!connection.active() ||
+        connection.stage() != transport::PreauthStage::AwaitMcsConnectInitial ||
+        session.phase() != transport::McsSessionPhase::ShareActivated)
+        return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+
+    if (!ownerSharingAuthority_.authorizesAtEpoch(
+            activeAdmissionPermissionMask_, *activeConsentEpoch_) ||
+        !activeAdmissionBroker_->revalidate(security::kConsoleViewPermission))
+        return retireStaleHost();
+
+    const auto retireTransport =
+        [this](RuntimeHostError fallback) noexcept -> RuntimeHostResult {
+            using Termination = transport::TcpConnectionTermination;
+            const Termination termination = activeConnection_ != nullptr
+                ? activeConnection_->termination()
+                : Termination::Cancelled;
+            switch (termination)
+            {
+            case Termination::Open:
+                acceptedClientDiagnostics_.termination =
+                    RuntimeAcceptedClientTermination::ProtocolError;
+                break;
+            case Termination::OrderlyTlsClose:
+                acceptedClientDiagnostics_.termination =
+                    RuntimeAcceptedClientTermination::OrderlyTlsClose;
+                break;
+            case Termination::TransportError:
+                acceptedClientDiagnostics_.termination =
+                    RuntimeAcceptedClientTermination::TransportError;
+                break;
+            case Termination::TlsFailure:
+                acceptedClientDiagnostics_.termination =
+                    RuntimeAcceptedClientTermination::TlsFailure;
+                break;
+            case Termination::ProtocolError:
+                acceptedClientDiagnostics_.termination =
+                    RuntimeAcceptedClientTermination::ProtocolError;
+                break;
+            case Termination::Cancelled:
+                acceptedClientDiagnostics_.termination =
+                    RuntimeAcceptedClientTermination::Cancelled;
+                break;
+            case Termination::PeerEof:
+                acceptedClientDiagnostics_.termination =
+                    RuntimeAcceptedClientTermination::PeerEof;
+                break;
+            case Termination::PeerReset:
+                acceptedClientDiagnostics_.termination =
+                    RuntimeAcceptedClientTermination::PeerReset;
+                break;
+            case Termination::PeerTlsAlert:
+                acceptedClientDiagnostics_.termination =
+                    RuntimeAcceptedClientTermination::PeerTlsAlert;
+                break;
+            case Termination::LocalTlsFailure:
+                acceptedClientDiagnostics_.termination =
+                    RuntimeAcceptedClientTermination::LocalTlsFailure;
+                break;
+            case Termination::Timeout:
+                acceptedClientDiagnostics_.termination =
+                    RuntimeAcceptedClientTermination::Timeout;
+                break;
+            case Termination::OwnerCancellation:
+                acceptedClientDiagnostics_.termination =
+                    RuntimeAcceptedClientTermination::OwnerCancellation;
+                break;
+            }
+            const bool orderly =
+                termination == Termination::PeerEof ||
+                termination == Termination::OrderlyTlsClose;
+            retireAcceptedClient();
+            stage_ = listener_.valid()
+                ? RuntimeHostStage::ListenerAvailable
+                : RuntimeHostStage::Stopped;
+            if (orderly)
+            {
+                lastError_ = RuntimeHostError::None;
+                return {RuntimeHostError::None, false};
+            }
+            return deny(fallback);
+        };
+
+    enum class SocketReadiness : std::uint8_t
+    {
+        Ready,
+        NoEvent,
+        Failure,
+    };
+    const auto pollSocket =
+        [&connection](Interest interest, bool bufferedRead) noexcept {
+            if (interest != Interest::Read && interest != Interest::Write)
+                return SocketReadiness::Failure;
+            if (bufferedRead && interest == Interest::Read &&
+                connection.tlsApplicationReadReady())
+                return SocketReadiness::Ready;
+
+            const std::uintptr_t socket = connection.nativeSocket();
+            if (socket > static_cast<std::uintptr_t>(
+                             (std::numeric_limits<int>::max)()))
+                return SocketReadiness::Failure;
+            pollfd descriptor{};
+            descriptor.fd = static_cast<int>(socket);
+            descriptor.events =
+                interest == Interest::Read ? POLLIN : POLLOUT;
+            errno = 0;
+            const int count = ::poll(&descriptor, 1U, 0);
+            if (count < 0)
+                return errno == EINTR
+                    ? SocketReadiness::NoEvent
+                    : SocketReadiness::Failure;
+            if (count == 0)
+                return SocketReadiness::NoEvent;
+            if ((descriptor.revents & POLLNVAL) != 0)
+                return SocketReadiness::Failure;
+            return (descriptor.revents &
+                    (descriptor.events | POLLERR | POLLHUP)) != 0
+                ? SocketReadiness::Ready
+                : SocketReadiness::NoEvent;
+        };
+
+    if (activeGraphicsFrameWritePending_)
+    {
+        const auto pending =
+            activeAdmissionBroker_->pendingR3GraphicsDynamicVirtualChannelWrite(
+                session, *deploymentPolicy_);
+        if (!pending || !*pending ||
+            pending->kind !=
+                transport::RdpGraphicsDvcWriteKind::GraphicsFrameData)
+            return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+
+        const Interest writeInterest =
+            credSsp.graphicsFrameWriteNeedsRead
+                ? Interest::Read
+                : Interest::Write;
+        const SocketReadiness ready = pollSocket(writeInterest, false);
+        if (ready == SocketReadiness::Failure)
+            return connection.active()
+                ? retireGraphics(RuntimeHostError::GraphicsUnavailable)
+                : retireTransport(RuntimeHostError::GraphicsUnavailable);
+        if (ready == SocketReadiness::NoEvent)
+            return {RuntimeHostError::None, true};
+
+        const auto sent = connection.writeTlsApplicationData(pending->bytes);
+        if (sent.outcome == TlsOutcome::NeedRead ||
+            sent.outcome == TlsOutcome::NeedWrite)
+        {
+            if (sent.bytes != 0U)
+                return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+            credSsp.graphicsFrameWriteNeedsRead =
+                sent.outcome == TlsOutcome::NeedRead;
+            return {RuntimeHostError::None, true};
+        }
+        if (sent.outcome != TlsOutcome::Progress)
+            return retireTransport(RuntimeHostError::GraphicsUnavailable);
+        if (sent.bytes == 0U || sent.bytes > pending->bytes.size())
+            return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+
+        credSsp.graphicsFrameWriteNeedsRead = false;
+        const GraphicsWrite outcome =
+            activeAdmissionBroker_->completeR3GraphicsDynamicVirtualChannelWrite(
+                session, *deploymentPolicy_, pending->replySequence,
+                pending->writeSliceSequence, sent.bytes);
+        if (outcome == GraphicsWrite::Rejected)
+            return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+        if (outcome == GraphicsWrite::Pending)
+            return {RuntimeHostError::None, false};
+
+        activeGraphicsFrameWritePending_ = false;
+        return {RuntimeHostError::None, false};
+    }
+
+    const Interest readInterest = connection.ioInterest();
+    if (readInterest == Interest::Closed)
+        return retireTransport(RuntimeHostError::GraphicsUnavailable);
+    if (readInterest != Interest::Read && readInterest != Interest::Write)
+        return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+
+    const SocketReadiness networkReady = pollSocket(readInterest, true);
+    if (networkReady == SocketReadiness::Failure)
+        return connection.active()
+            ? retireGraphics(RuntimeHostError::GraphicsUnavailable)
+            : retireTransport(RuntimeHostError::GraphicsUnavailable);
+    if (networkReady == SocketReadiness::Ready)
+    {
+        const std::size_t target =
+            credSsp.firstMcsExpectedBytes == 0U
+                ? 4U
+                : credSsp.firstMcsExpectedBytes;
+        if (credSsp.firstMcsBytes >= target ||
+            target > credSsp.firstMcsTpkt.size())
+            return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+
+        const std::size_t remaining = target - credSsp.firstMcsBytes;
+        const auto intake = connection.readTlsApplicationData(
+            std::span(credSsp.firstMcsTpkt)
+                .subspan(credSsp.firstMcsBytes, remaining));
+        if (intake.outcome == TlsOutcome::NeedRead ||
+            intake.outcome == TlsOutcome::NeedWrite)
+            return {RuntimeHostError::None, true};
+        if (intake.outcome != TlsOutcome::Progress)
+            return retireTransport(RuntimeHostError::GraphicsUnavailable);
+        if (intake.bytes == 0U || intake.bytes > remaining)
+            return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+
+        credSsp.firstMcsBytes += intake.bytes;
+        if (credSsp.firstMcsExpectedBytes == 0U &&
+            credSsp.firstMcsBytes == 4U)
+        {
+            if (credSsp.firstMcsTpkt[0] != 3U ||
+                credSsp.firstMcsTpkt[1] != 0U)
+                return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+            credSsp.firstMcsExpectedBytes =
+                (static_cast<std::size_t>(credSsp.firstMcsTpkt[2]) << 8U) |
+                static_cast<std::size_t>(credSsp.firstMcsTpkt[3]);
+            if (credSsp.firstMcsExpectedBytes < 7U ||
+                credSsp.firstMcsExpectedBytes > credSsp.firstMcsTpkt.size())
+                return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+        }
+        if (credSsp.firstMcsExpectedBytes == 0U ||
+            credSsp.firstMcsBytes < credSsp.firstMcsExpectedBytes)
+            return {RuntimeHostError::None, false};
+
+        const auto completeTpkt =
+            std::span(credSsp.firstMcsTpkt)
+                .first(credSsp.firstMcsExpectedBytes);
+        const auto route =
+            activeAdmissionBroker_->classifyR3PostShareTpkt(
+                session, *deploymentPolicy_, completeTpkt);
+        using RouteKind = transport::RdpPostShareTpktRouteKind;
+        if (route.kind == RouteKind::UnsupportedOrMalformed)
+            return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+
+        if (route.kind == RouteKind::GraphicsDynamicVirtualChannel)
+        {
+            const GraphicsIntake graphics =
+                activeAdmissionBroker_->authorizeR3GraphicsDynamicVirtualChannelPdu(
+                    session, *deploymentPolicy_, completeTpkt);
+            credSsp.firstMcsBytes = 0U;
+            credSsp.firstMcsExpectedBytes = 0U;
+            if (graphics == GraphicsIntake::GraphicsDataFragmentAccepted)
+                return {RuntimeHostError::None, false};
+            if (graphics != GraphicsIntake::GraphicsDataAccepted)
+                return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+
+            const FrameAcknowledge acknowledged =
+                activeAdmissionBroker_->consumeR3GraphicsFrameAcknowledge(
+                    session, *deploymentPolicy_);
+            if (acknowledged == FrameAcknowledge::Rejected)
+                return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+            return {RuntimeHostError::None, false};
+        }
+
+        // R3 already bounded and classified these packets. This P1 increment
+        // creates no native input or Clipboard authority, so leave them inert.
+        if (route.kind == RouteKind::SlowPathInput ||
+            route.kind == RouteKind::ClipboardStaticChannel)
+        {
+            credSsp.firstMcsBytes = 0U;
+            credSsp.firstMcsExpectedBytes = 0U;
+            return {RuntimeHostError::None, false};
+        }
+        return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+    }
+
+    using NativeState = rdp::macos::MacNativeDesktopOwnerState;
+    if (observation.state != NativeState::Ready)
+        return {RuntimeHostError::None, true};
+    if (observation.pixelGeometry.widthPixels == 0U ||
+        observation.pixelGeometry.heightPixels == 0U ||
+        observation.geometryGeneration == 0U ||
+        observation.admittedSessionGeneration == 0U ||
+        observation.admittedSessionGeneration !=
+            nativeDesktop_.authorizationGeneration())
+        return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+
+    const auto now = std::chrono::steady_clock::now();
+    if (activeGraphicsResizeDeadline_.has_value() &&
+        now >= *activeGraphicsResizeDeadline_)
+        return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+
+    const Reconfiguration reconfiguration =
+        activeAdmissionBroker_->beginR3GraphicsSurfaceReconfiguration(
+            session, *deploymentPolicy_, observation.pixelGeometry);
+    switch (reconfiguration)
+    {
+    case Reconfiguration::Unchanged:
+        activeGraphicsResizeDeadline_.reset();
+        break;
+    case Reconfiguration::Deferred:
+        if (!activeGraphicsResizeDeadline_)
+            activeGraphicsResizeDeadline_ = now + std::chrono::seconds{6};
+        return {RuntimeHostError::None, true};
+    case Reconfiguration::Started:
+        if (!activeGraphicsResizeDeadline_)
+            activeGraphicsResizeDeadline_ = now + std::chrono::seconds{6};
+        activeGraphicsControlDeadline_ = *activeGraphicsResizeDeadline_;
+        activeAdmissionStage_ =
+            AcceptedClientAdmissionStage::GraphicsControlWritePending;
+        return {RuntimeHostError::None, false};
+    case Reconfiguration::Rejected:
+        return activeAdmissionBroker_->revalidate(
+                   security::kConsoleViewPermission)
+            ? retireGraphics(RuntimeHostError::GraphicsUnavailable)
+            : retireStaleHost();
+    }
+
+    if (!observation.frameAvailable ||
+        observation.latestFrameSequence == 0U ||
+        observation.latestFrameSequence == activeLastNativeFrameSequence_)
+        return {RuntimeHostError::None, true};
+    if (observation.latestFrameSequence < activeLastNativeFrameSequence_ ||
+        activeNextGraphicsFrameId_ == 0U)
+        return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+
+    const Readiness readiness =
+        activeAdmissionBroker_->preflightR3GraphicsFramePublication(
+            session, *deploymentPolicy_, activeNextGraphicsFrameId_);
+    if (readiness == Readiness::DeferredForFrameAcknowledge)
+        return {RuntimeHostError::None, true};
+    if (readiness != Readiness::Ready ||
+        !activeAdmissionBroker_->revalidate(
+            security::kConsoleViewPermission) ||
+        observation.admittedSessionGeneration !=
+            nativeDesktop_.authorizationGeneration())
+        return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+
+    const std::size_t width = observation.pixelGeometry.widthPixels;
+    if (width > (std::numeric_limits<std::size_t>::max)() / 4U)
+        return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+    const std::size_t minimumStrideBytes = width * 4U;
+
+    struct FramePublicationContext final
+    {
+        security::MacConsoleAdmissionBroker* broker{};
+        transport::McsSessionLifecycle* session{};
+        const RuntimeDeploymentPolicy* policy{};
+        std::uint32_t frameId{};
+        PixelSize pixelGeometry{};
+        std::uint64_t geometryGeneration{};
+        std::uint64_t admittedSessionGeneration{};
+        std::uint64_t frameSequence{};
+        std::size_t minimumStrideBytes{};
+        bool* firstFramebufferAvailable{};
+        bool publicationPrepared{};
+    } frameContext{
+        activeAdmissionBroker_.get(), &session, &*deploymentPolicy_,
+        activeNextGraphicsFrameId_, observation.pixelGeometry,
+        observation.geometryGeneration, observation.admittedSessionGeneration,
+        observation.latestFrameSequence, minimumStrideBytes,
+        &activeFirstFramebufferAvailable_, false};
+
+    const auto publishFrame = +[](
+        void* rawContext, const FramebufferView& framebuffer,
+        std::uint64_t geometryGeneration,
+        std::uint64_t admittedSessionGeneration,
+        std::uint64_t frameSequence) noexcept -> bool {
+        auto* context = static_cast<FramePublicationContext*>(rawContext);
+        if (context == nullptr || context->broker == nullptr ||
+            context->session == nullptr || context->policy == nullptr ||
+            context->firstFramebufferAvailable == nullptr ||
+            context->frameId == 0U || !framebuffer.valid() ||
+            framebuffer.widthPixels != context->pixelGeometry.widthPixels ||
+            framebuffer.heightPixels != context->pixelGeometry.heightPixels ||
+            framebuffer.strideBytes < context->minimumStrideBytes ||
+            geometryGeneration != context->geometryGeneration ||
+            admittedSessionGeneration != context->admittedSessionGeneration ||
+            frameSequence != context->frameSequence)
+            return false;
+
+        *context->firstFramebufferAvailable = true;
+        const auto pending =
+            context->broker->beginR3GraphicsClearCodecFramePublication(
+                *context->session, *context->policy,
+                context->frameId, framebuffer);
+        context->publicationPrepared =
+            pending.has_value() && *pending &&
+            pending->kind ==
+                transport::RdpGraphicsDvcWriteKind::GraphicsFrameData;
+        return context->publicationPrepared;
+    };
+
+    const bool borrowed = nativeDesktop_.borrowFramebuffer(
+        observation.latestFrameSequence,
+        rdp::macos::MacNativeDesktopFrameConsumer{
+            &frameContext, publishFrame});
+    if (!borrowed)
+    {
+        if (frameContext.publicationPrepared)
+            (void)activeAdmissionBroker_->abortR3GraphicsFrame(
+                session, *deploymentPolicy_);
+        if (!nativeDesktop_.active())
+            return retireGraphics(RuntimeHostError::NativeAuthorizationDenied);
+        return frameContext.publicationPrepared
+            ? retireGraphics(RuntimeHostError::GraphicsUnavailable)
+            : RuntimeHostResult{RuntimeHostError::None, true};
+    }
+    if (!frameContext.publicationPrepared)
+        return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+
+    // The native mailbox borrow has ended. Only owned R3/R4 bytes remain.
+    if (!ownerSharingAuthority_.authorizesAtEpoch(
+            activeAdmissionPermissionMask_, *activeConsentEpoch_) ||
+        !activeAdmissionBroker_->revalidate(security::kConsoleViewPermission))
+    {
+        (void)activeAdmissionBroker_->cancelR3UnwrittenGraphicsFrame(
+            session, *deploymentPolicy_);
+        return retireStaleHost();
+    }
+
+    activeLastNativeFrameSequence_ = observation.latestFrameSequence;
+    ++activeNextGraphicsFrameId_;
+    activeGraphicsFrameWritePending_ = true;
+    credSsp.graphicsFrameWriteNeedsRead = false;
+    return {RuntimeHostError::None, false};
+}
+catch (const std::bad_alloc&)
+{
+    return failClosedAfterAllocationFailure();
+}
+
 MacRuntimeHostControl::MacRuntimeHostControl() noexcept
     : ownerThread_(std::this_thread::get_id()),
       ownerEvidenceSource_(&defaultOwnerEvidence_),
@@ -2011,6 +2477,19 @@ RuntimeHostStatus MacRuntimeHostControl::status() const
     snapshot.nativeDesktopInitializing =
         nativeDesktop_.active() && !snapshot.nativeDesktopReady;
     snapshot.acceptedClientPreauthDiagnostics = acceptedClientDiagnostics_;
+    if (activeMcsSession_ != nullptr &&
+        activeAdmissionStage_ == AcceptedClientAdmissionStage::GraphicsReady)
+    {
+        const auto acceptance =
+            activeMcsSession_->firstClientAcceptanceObservability();
+        snapshot.acceptedClientPreauthDiagnostics.firstLiveGraphicsTrace =
+            projectRuntimeFirstLiveGraphicsTrace(
+                activeFirstFramebufferAvailable_,
+                acceptance.firstClearCodecFramePrepared,
+                acceptance.firstExactFrameWriteCommitted,
+                acceptance.outstandingFrameAcknowledgements,
+                acceptance.firstGenuineFrameAcknowledge);
+    }
 
     snapshot.clientDisconnected = listenerCurrent && activeConnection_ == nullptr && clientDisconnected_;
     if (activeConnection_ != nullptr && activeClientId_ != 0U)
@@ -2593,16 +3072,20 @@ RuntimeHostResult MacRuntimeHostControl::serviceOnce() noexcept try
         if (nativeDesktop_.active())
         {
             // Initialization is itself stateful native work, so an attached
-            // owner must be serviced before it reports Ready. A terminal native
-            // failure retires the complete accepted-client lifetime in the same
-            // owner-thread tick rather than leaving R2/R3 alive and retrying.
-            const auto nativeResult = nativeDesktop_.serviceOnce();
+            // owner must be serviced before it reports Ready. Retain only this
+            // tick's R7 observation; it is freshness, never frame authority.
+            rdp::macos::MacNativeDesktopServiceObservation nativeObservation{};
+            const auto nativeResult =
+                nativeDesktop_.serviceOnce(&nativeObservation);
             if (!nativeResult.succeeded())
             {
                 retireAcceptedClient();
                 stage_ = RuntimeHostStage::ListenerAvailable;
                 return deny(nativeResult.error);
             }
+            if (activeAdmissionStage_ ==
+                AcceptedClientAdmissionStage::GraphicsReady)
+                return serviceAcceptedClientGraphicsOnce(nativeObservation);
         }
     }
 

@@ -1,3 +1,9 @@
+## R10 macOS native frame-pump focused qualification (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build, run `runtime.macos-host-control-native-frame-pump-composition-contract` together with `graphics.frame-native-borrow-segmented-receipt-fence`, `security.macos-protected-graphics-mapped-first-frame-consent-replacement-denial`, `security.macos-protected-graphics-first-frame-exact-tls-receipt-client-ack` and `runtime.platform-native-desktop-macos-frame-observation-fail-closed`, then ordinary full Debug CTest. Repeat the full Release suite and applicable macOS native/security ASan/UBSan lanes on the exact publication SHA.
+
+No additional executable, build root or dependency is introduced. Connector-local compile/CTest is NOT RUN because the canonical checkout is unavailable; physical ScreenCaptureKit/client frame and ACK remain NOT RUN.
+
 ## R2 documentation-policy registry co-change (2026-11-01)
 
 Hosted SHA `acc77b33f63e19075ce40fda0bfd4ae3d1a953e2` was rejected by

@@ -1486,6 +1486,20 @@ set_tests_properties(
     runtime.macos-host-control-graphics-control-composition-contract
     PROPERTIES LABELS "runtime;macos;security;graphics;policy;offline" TIMEOUT 15)
 
+# R10 post-GraphicsReady composition reuses R7 observation/native borrow,
+# R2 authority, R3/R4 frame/ACK state and the sole original R1 TLS owner.
+add_test(NAME runtime.macos-host-control-native-frame-pump-composition-contract
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_host_control_licensing_composition.py"
+        --source "${PROJECT_SOURCE_DIR}/src/server/runtime/mac_runtime_host_control.cpp"
+        --header "${PROJECT_SOURCE_DIR}/src/server/runtime/mac_runtime_host_control.h"
+        --check-frame-pump)
+set_tests_properties(
+    runtime.macos-host-control-native-frame-pump-composition-contract
+    PROPERTIES
+        LABELS "runtime;macos;security;graphics;frame;transport;policy;offline"
+        TIMEOUT 15)
+
 # Only the original mapped R2/R3 GraphicsReady owner may construct the
 # downstream native desktop. This remains an offline composition contract:
 # no TCC prompt, capture session, framebuffer or client is created.

@@ -1,3 +1,9 @@
+## R10 macOS post-GraphicsReady native frame composition source review (2026-11-01)
+
+Parent `54ea7726bea07b8b3fe0b33004c4df8fac4c5289`: the dependency review found the former R4 blocker resolved by the native-borrow segmented-receipt fence, protected exact R1/R2/R3 frame/ACK fixture and genuine-ACK visibility correction. The new R10 path adds no socket, SSL/BIO, frame queue, packet framer, codec or ACK owner. It consumes the tick-local R7 observation, revalidates owner epoch and R2 View, asks R3/R4 for resize/credit, synchronously borrows the exact native frame and prepares owned ClearCodec bytes before returning from the callback. Only afterward may the original R1 writer accept R3 GraphicsFrameData slices. The same bounded accepted-client TPKT storage services post-Graphics reads and routes Graphics ACK through R2/R3/R4. Resize, stale sequence, authority loss, terminal transport, Stop and bad_alloc remain fail-closed; macOS DesktopVisible is not promoted from offline evidence.
+
+A new centralized source-composition CTest pins these ownership/order constraints while reusing, rather than duplicating, the existing production-backed native-borrow, mapped-consent and exact-TLS/ACK behavior tests. Local compile/focused/full CTest/sanitizers/benchmark NOT RUN because GitHub is not resolvable from the execution container and no owner checkout is mounted. Publication-SHA Actions and physical native/client validation remain pending/NOT RUN.
+
 ## R2 build-unblock registry co-change after documentation-policy denial (2026-11-01)
 
 Exact descendant `acc77b33f63e19075ce40fda0bfd4ae3d1a953e2`

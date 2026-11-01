@@ -1,3 +1,11 @@
+## R10 P1 macOS native observation -> R1 segmented frame/ACK pump (2026-11-01)
+
+**Authoring parent:** `54ea7726bea07b8b3fe0b33004c4df8fac4c5289`. R4's native-borrow segmented-receipt fence, protected exact-TLS/ACK fixture and genuine-ACK visibility correction are now on main, so the prior protocol/lifetime dependency is resolved. R10 now has one post-GraphicsReady owner path: the same tick services R7 and passes only its current observation; R2 View/consent, native authorization generation, R3 surface reconfiguration and R4 credit are checked before any framebuffer borrow. Exact sequence/geometry/stride are validated inside the synchronous R7 callback, which prepares existing R3/R4 ClearCodec bytes and returns before any TLS write.
+
+R10 drains only R3-owned GraphicsFrameData slices through the original R1 SSL/BIO writer, preserving WANT direction and committing only positive exact reply/write-slice receipts. With no write pending, the same accepted-client fixed TPKT storage continues the original R1 application reader, classifies post-Share traffic through R2/R3 and separately consumes genuine Graphics DATA/FRAME_ACK into R4. POLLERR/POLLHUP reach R1 for terminal classification; POLLNVAL remains local failure. Resize uses the existing R3 DELETE/CREATE/MAP sequence with a bounded deadline; stale native observations publish nothing; Stop/revocation/allocation failure retain the R2/R3 -> native -> proof/R1 retirement order. The first-frame trace is descriptive only and macOS DesktopVisible remains unasserted.
+
+**Validation:** source and centralized CTest composition review authored; local configure/build/full CTest/sanitizers NOT RUN because no canonical checkout is available. Exact publication-SHA hosted qualification is required. Physical ScreenCaptureKit pixels, Windows App/mstsc visibility and real client FRAME_ACK are NOT RUN/unauthorized. **Track A remains independently blocked at the client boundary:** no Linux R10 post-Type-2 scheduler defect is demonstrated; missing evidence is first-party Type-2 TLS receipt/decryption, CredSSP acceptance and Type-3 construction/submission for the same physical attempt.
+
 ## Build qualification follow-up — central CTest registry co-change (2026-11-01)
 
 The named-RAII build fix at `acc77b33` is semantically correct but its

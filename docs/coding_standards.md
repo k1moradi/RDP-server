@@ -1,3 +1,9 @@
+## R10 macOS post-GraphicsReady native frame pump remains one-owner (2026-11-01)
+
+After protected mapped GraphicsReady and native attachment, R10 may retain only the current R7 MacNativeDesktopServiceObservation as a non-authorizing freshness selector. Before native borrow it must revalidate the original owner consent epoch, R2 View authority, R3 mapped geometry and R4 frame credit. Resize uses R3 DELETE/CREATE/MAP and a bounded remap deadline; ACK exhaustion defers before native borrow. The synchronous R7 borrow validates exact frame sequence, geometry generation, admitted native generation, dimensions and stride, and invokes only the existing R2-protected R3 ClearCodec preparation. The borrow ends before any R1 TLS write.
+
+R10 owns no frame buffer, codec, ACK window, packet framer or second socket reader. It drains only R3 GraphicsFrameData write views through the original R1 TLS writer and commits only positive accepted bytes with the exact reply/write-slice tuple; WANT and zero bytes advance nothing. The existing accepted-client TPKT buffer continues the sole bounded post-Graphics reader, classifies through R2/R3 and consumes genuine Graphics DATA/FRAME_ACK through R4. Slow-path input and Clipboard are not granted by this increment. Native readiness, encoded bytes and outbound delivery do not publish DesktopVisible; physical client visibility remains a separate acceptance gate.
+
 ## Explicit RAII empty returns must name the wrapper type (2026-11-01)
 
 For a move-only RAII wrapper whose constructor is `explicit`, do not return

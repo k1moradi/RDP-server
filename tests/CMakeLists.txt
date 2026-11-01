@@ -2185,6 +2185,17 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "protocol;security;transport;tls;licensing;admission;offline"
                 TIMEOUT 60)
 
+        # One genuinely accepted R1 Server License Request byte is not full
+        # delivery: early client licensing retires the original R2/R3/R1.
+        add_test(NAME security.macos-protected-client-licensing-before-partial-server-request-delivery-denial
+            COMMAND "${test_target}"
+                "macos-protected-client-licensing-before-partial-server-request-delivery-denial")
+        set_tests_properties(
+            security.macos-protected-client-licensing-before-partial-server-request-delivery-denial
+            PROPERTIES
+                LABELS "protocol;security;transport;tls;licensing;admission;offline"
+                TIMEOUT 60)
+
         # Real receipt-complete licensing followed by a partial Demand Active
         # write must reject early Confirm Active and late original receipts.
         add_test(NAME security.macos-protected-licensed-share-premature-confirm-partial-demand-denial

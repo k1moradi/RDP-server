@@ -9343,7 +9343,8 @@ void testMacProtectedPersonalLicensingContextSubstitutionDenials()
 void exerciseMacProtectedPersonalDesktopLicensingReceipts(
     bool denyPrematureConfirmAfterPartialDemand,
     bool denyReplayedClientDuringPartialValidClient,
-    bool denyFinalValidClientCallbackRevocation = false)
+    bool denyFinalValidClientCallbackRevocation = false,
+    bool denyPrematureClientDuringPartialServerRequest = false)
 {
     using rdp_server::server::runtime::RuntimeDeploymentPolicy;
     using rdp_server::server::runtime::RuntimeLicensingContext;
@@ -9390,6 +9391,46 @@ void exerciseMacProtectedPersonalDesktopLicensingReceipts(
     assert(remaining && remaining->replySequence == first->replySequence);
     assert(remaining->writeSliceSequence != first->writeSliceSequence);
     assert(remaining->bytes.size() + acceptedFirst == first->bytes.size());
+
+    if (denyPrematureClientDuringPartialServerRequest)
+    {
+        // One actual R1 TLS byte was accepted, but the Server License
+        // Request's original reply and slice still own an unwritten suffix.
+        assert(fixture->session->phase() ==
+               McsSessionPhase::AwaitServerLicenseRequest);
+        assert(fixture->session->licensingPhase() ==
+               RdpLicensingPhase::NotStarted);
+        const auto pendingReplySequence = remaining->replySequence;
+        const auto pendingSliceSequence = remaining->writeSliceSequence;
+        auto prematureLicensing = makeMaximumClientLicensingTpkt();
+        assert(fixture->session->allocatedUserId() == 1002U);
+        prematureLicensing[8] = 0U;
+        prematureLicensing[9] = 1U;
+        writeNativeTlsClientAll(fixture->tls.client.get(), prematureLicensing);
+        std::array<std::uint8_t, kMaximumInitialMcsTpktBytes> received{};
+        readOwnedRuntimeTlsAll(fixture->connection, received);
+        assert(received == prematureLicensing);
+        assert(!fixture->broker.authorizeR3PersonalDesktopClientLicensingMessage(
+            *fixture->session, policy, *licensing.credential(), received));
+
+        // Valid but premature Client Licensing cannot commit the server
+        // request, resurrect its generation or grant future Share traffic.
+        assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(fixture->session->phase() == McsSessionPhase::Closed);
+        assert(fixture->session->licensingPhase() == RdpLicensingPhase::Closed);
+        assert(fixture->connection.stage() == PreauthStage::Closed);
+        assert(!fixture->session->firstClientAcceptanceObservability()
+                    .shareActivated);
+        assert(fixture->broker.completeR3PersonalDesktopServerLicenseRequestWrite(
+            *fixture->session, policy, pendingReplySequence,
+            pendingSliceSequence, 1U) == RequestReceipt::Rejected);
+        assert(!borrowRequest());
+        assert(!fixture->broker.authorizeR3PersonalDesktopValidClientWrite(
+            *fixture->session, policy));
+        assert(!fixture->broker.authorizeR3PersonalDesktopMacDemandActiveProfile(
+            *fixture->session, policy, RdpDemandActiveFeature::None));
+        return;
+    }
 
     // Keep the test bounded: a single normal nonblocking TLS write usually
     // accepts the remaining small request. Drain the actual client TLS bytes
@@ -9713,6 +9754,11 @@ void testMacProtectedPersonalDesktopClientLicensingReplayDuringPartialValidClien
 void testMacProtectedValidClientFinalWriteCallbackRevocation()
 {
     exerciseMacProtectedPersonalDesktopLicensingReceipts(false, false, true);
+}
+
+void testMacProtectedPersonalDesktopClientLicensingBeforePartialServerRequestDeliveryDenial()
+{
+    exerciseMacProtectedPersonalDesktopLicensingReceipts(false, false, false, true);
 }
 
 void testMacProtectedPersonalDesktopLicensingDenials()
@@ -15431,6 +15477,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedPersonalDesktopLicensingDenials},
     {"macos-protected-client-licensing-replay-partial-valid-client-denial",
      &testMacProtectedPersonalDesktopClientLicensingReplayDuringPartialValidClientDenial},
+    {"macos-protected-client-licensing-before-partial-server-request-delivery-denial",
+     &testMacProtectedPersonalDesktopClientLicensingBeforePartialServerRequestDeliveryDenial},
     {"macos-protected-personal-desktop-share-activation-receipts",
      &testMacProtectedPersonalDesktopShareActivationReceipts},
     {"macos-protected-personal-desktop-graphics-control-receipts",

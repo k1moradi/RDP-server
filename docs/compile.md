@@ -1,3 +1,14 @@
+## R3 partial Server License Request premature licensing CTest (2026-11-01)
+
+Reuse only `~/rdp-server/build/`; no new executable/dependency. Following canonical Debug configure/build, run:
+
+```sh
+ctest --test-dir build -C Debug -R '^security[.]macos-protected-client-licensing-(before-partial-server-request-delivery-denial|replay-partial-valid-client-denial)$' --output-on-failure
+ctest --test-dir build -C Debug --output-on-failure
+```
+
+Repeat existing full Release and security/native sanitizer suites on exact publication SHA. Local configure/build/CTest/benchmark NOT RUN; Linux/macOS/Windows hosted qualification PENDING. No physical client, credential or native desktop operation.
+
 ## R4 native-frame observation handoff qualification (2026-11-01)
 
 No new target, dependency, build root or platform service. On macOS after the canonical Debug configure/build in `~/rdp-server/build/`, run `ctest --test-dir build -C Debug -R '^runtime[.]platform-native-desktop-macos-(frame-observation-fail-closed|gated-composition|authenticated-session-denials)$' --output-on-failure`, then the ordinary full Debug/Release CTests, existing macOS native owner lifecycle tests and applicable R7/R9 sanitizer lanes on the same SHA. Windows/Linux must still compile and run their full applicable CTest gates; the new CTest is macOS-only. Connector-local configure/build/CTest and benchmarks NOT RUN; publication-SHA hosted qualification PENDING. Real native display/ScreenCaptureKit/client pixels, client FRAME_ACK and Input/Clipboard NOT RUN.

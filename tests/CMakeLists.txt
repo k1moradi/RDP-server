@@ -2201,11 +2201,11 @@ function(add_rdp_test source_file suite behavior)
         # R8 production R2 post-Share classification must retire joined
         # CLIPRDR traffic without independent macOS Clipboard authority.
         # Keep this separate from the fixed 107-case sanitizer census.
-        add_test(NAME security.macos-share-activated-clipboard-r2-classifier-denial
+        add_test(NAME security.macos-share-activated-clipboard-scope-classifier-denial
             COMMAND "${test_target}"
-                "macos-share-activated-clipboard-r2-classifier-denial")
+                "macos-share-activated-clipboard-scope-classifier-denial")
         set_tests_properties(
-            security.macos-share-activated-clipboard-r2-classifier-denial
+            security.macos-share-activated-clipboard-scope-classifier-denial
             PROPERTIES
                 LABELS "security;native-authorization;transport;tls;mcs;admission;offline"
                 TIMEOUT 60)

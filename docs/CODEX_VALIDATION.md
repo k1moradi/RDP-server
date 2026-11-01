@@ -1,3 +1,23 @@
+## macOS Clipboard scope classifier CTest taxonomy configure unblock (2026-11-01)
+
+At source SHA `1447dd0ccf4570eb161111e5fbda2799a704a294`, hosted Actions `41295246420` failed
+**during CMake configure** across Ubuntu, macOS and Windows. The first fatal
+boundary was the central `get_property(... TESTS)` registry check rejecting
+the internal `-r2-` token in
+`security.macos-share-activated-clipboard-r2-classifier-denial`. This was a CTest
+name policy defect, not a demonstrated production Clipboard/RDP defect.
+Rename only the registered behavior and its existing dispatch selection to
+`security.macos-share-activated-clipboard-scope-classifier-denial`; keep the
+same production-linked test function, View/Input-only native scope denial,
+FORMAT_LIST/FILECONTENTS assertions, R1/R2/R3 owner lifetime, fixed sanitizer
+census and executable dependency graph. Source registry review PASS; local
+configure/build/CTest NOT RUN (no `~/rdp-server` checkout and container
+GitHub DNS unavailable). Publication-SHA hosted configure/Debug/Release/full
+CTest and applicable sanitizers PENDING. Physical macOS Admission/Clipboard,
+Windows App, first frame and native input remain NOT RUN/unauthorized.
+Next gate: exact-SHA hosted configure first; then inspect any independent
+compile/test failures and their first failing boundary.
+
 ## Post-R10 macOS Share fixture and source-contract CI diagnosis (2026-11-01)
 
 Reviewed `5190e13a59be2a83520927a411cb9863bbdd5371` after R10's `fc7126df` Share integration and
@@ -57,7 +77,7 @@ macOS/Windows App acceptance still NOT RUN.
 
 ## R8 protected post-Share R2 classifier audit (2026-11-01)
 
-**Parent reviewed:** `675655a30d47aa9ed389eac77c1ec6e708c0bdfd`. Added one ordinary production-backed synthetic `security.macos-share-activated-clipboard-r2-classifier-denial`, which calls the **concrete R2 post-Share classifier**, not the R3 test-access classifier. Each fresh R1 TLS/R2/R3 ShareActivated fixture has joined cliprdr and View|Input, but no native Clipboard lease; FORMAT_LIST and FILECONTENTS packets must produce an unsupported route, revoke the original owners and reject late activated Clipboard/write/receipt access. No native owner or file destination is created and licensing/native proof remain synthetic. Exact CTest and dispatch registration reviewed; build/focused/full execution and post-publication hosted CI PENDING.
+**Parent reviewed:** `675655a30d47aa9ed389eac77c1ec6e708c0bdfd`. Added one ordinary production-backed synthetic `security.macos-share-activated-clipboard-scope-classifier-denial`, which calls the **concrete R2 post-Share classifier**, not the R3 test-access classifier. Each fresh R1 TLS/R2/R3 ShareActivated fixture has joined cliprdr and View|Input, but no native Clipboard lease; FORMAT_LIST and FILECONTENTS packets must produce an unsupported route, revoke the original owners and reject late activated Clipboard/write/receipt access. No native owner or file destination is created and licensing/native proof remain synthetic. Exact CTest and dispatch registration reviewed; build/focused/full execution and post-publication hosted CI PENDING.
 
 **Earlier exact-SHA evidence, not reattributed to this change:** `751d9d0a` Actions `41293848769`: macOS full Debug and Release CTest **852/852 PASS** each, existing R8 post-Join and post-Share denials **PASS**, fixed ASan/UBSan clipboard **107/107 PASS**, X11 callback **3/3 PASS**, file destination finalization **1/1 PASS**, static CLIPRDR **9/9 PASS**. No physical Clipboard operations, FILECONTENTS delivery, OS lease or client acceptance performed.
 

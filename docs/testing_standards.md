@@ -1,3 +1,23 @@
+## macOS Clipboard scope classifier CTest taxonomy configure unblock (2026-11-01)
+
+At source SHA `1447dd0ccf4570eb161111e5fbda2799a704a294`, hosted Actions `41295246420` failed
+**during CMake configure** across Ubuntu, macOS and Windows. The first fatal
+boundary was the central `get_property(... TESTS)` registry check rejecting
+the internal `-r2-` token in
+`security.macos-share-activated-clipboard-r2-classifier-denial`. This was a CTest
+name policy defect, not a demonstrated production Clipboard/RDP defect.
+Rename only the registered behavior and its existing dispatch selection to
+`security.macos-share-activated-clipboard-scope-classifier-denial`; keep the
+same production-linked test function, View/Input-only native scope denial,
+FORMAT_LIST/FILECONTENTS assertions, R1/R2/R3 owner lifetime, fixed sanitizer
+census and executable dependency graph. Source registry review PASS; local
+configure/build/CTest NOT RUN (no `~/rdp-server` checkout and container
+GitHub DNS unavailable). Publication-SHA hosted configure/Debug/Release/full
+CTest and applicable sanitizers PENDING. Physical macOS Admission/Clipboard,
+Windows App, first frame and native input remain NOT RUN/unauthorized.
+Next gate: exact-SHA hosted configure first; then inspect any independent
+compile/test failures and their first failing boundary.
+
 ## macOS protected Share source/fixture qualification correction (2026-11-01)
 
 The R10 real-licensed positive Share test must advertise `drdynvc`
@@ -50,7 +70,7 @@ connector. Exact publication-SHA Linux/macOS/Windows hosted CI: PENDING.
 
 ## R8 protected post-Share R2 classifier denial (2026-11-01)
 
-Keep ordinary `security.macos-share-activated-clipboard-r2-classifier-denial` separate from the fixed 107-case clipboard sanitizer labels and the existing R3-only post-Share route/activated-channel denial. Reuse the real accepted R1 HYBRID/TLS and concrete R2/R3 production Share receipt fixture, staging only Licensed and synthetic native evidence; start a new fixture per FORMAT_LIST and FILECONTENTS packet. After all joins and ShareActivated, require View|Input without Clipboard, R2 packet-classification denial and terminal retirement, followed by rejected late R8 route/queue/receipt operations. No product-valid issuer, native clipboard owner, file destination or physical OS side effect. Authoring parent `675655a30d47aa9ed389eac77c1ec6e708c0bdfd`; static source/registry PASS, new case runtime NOT RUN until exact-publication-SHA CI.
+Keep ordinary `security.macos-share-activated-clipboard-scope-classifier-denial` separate from the fixed 107-case clipboard sanitizer labels and the existing R3-only post-Share route/activated-channel denial. Reuse the real accepted R1 HYBRID/TLS and concrete R2/R3 production Share receipt fixture, staging only Licensed and synthetic native evidence; start a new fixture per FORMAT_LIST and FILECONTENTS packet. After all joins and ShareActivated, require View|Input without Clipboard, R2 packet-classification denial and terminal retirement, followed by rejected late R8 route/queue/receipt operations. No product-valid issuer, native clipboard owner, file destination or physical OS side effect. Authoring parent `675655a30d47aa9ed389eac77c1ec6e708c0bdfd`; static source/registry PASS, new case runtime NOT RUN until exact-publication-SHA CI.
 
 ## R5 implicit X11 destruction: separate sanitizer proof (2026-11-01)
 

@@ -1,3 +1,15 @@
+## macOS Clipboard CTest name policy focused gate (2026-11-01)
+
+In the existing `~/rdp-server/build/` root, reconfigure using the canonical
+Debug command and verify CMake no longer rejects the old internal `-r2-`
+CTest taxonomy. Then compile and run
+`ctest --test-dir build -C Debug -R '^security[.]macos-share-activated-clipboard-scope-classifier-denial$' --output-on-failure`
+and complete ordinary Debug/Release CTests; preserve existing fixed sanitizer
+selections. The test remains offline/synthetic, not physical native acceptance.
+At review parent `1447dd0ccf4570eb161111e5fbda2799a704a294` all three hosted protocol configure lanes FAILED
+before compilation due to the old test name. Connector-local configure/build
+NOT RUN; publication-SHA CI PENDING.
+
 ## R3/R10 macOS protected Share positive and source-guard unblock (2026-11-01)
 
 No production build target, link graph, third-party dependency or native

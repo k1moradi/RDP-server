@@ -14728,7 +14728,7 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedPostMcsSemanticAuditLoss},
     {"macos-share-activated-clipboard-permission-denial",
      &testMacProtectedShareActivatedClipboardPermissionDenial},
-    {"macos-share-activated-clipboard-r2-classifier-denial",
+    {"macos-share-activated-clipboard-scope-classifier-denial",
      &testMacProtectedShareActivatedClipboardR2ClassifierDenial},
     {"macos-protected-graphics-mapped-first-frame-consent-replacement-denial",
      &testMacProtectedGraphicsMappedFirstFrameConsentReplacementDenial},

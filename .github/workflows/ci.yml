@@ -1350,6 +1350,11 @@ jobs:
             tcp-owned-tls-read-want-interleaved-frame-write
           build/tests/test_linux_runtime_direct_ntlm_lifecycle \
             direct-ntlm-post-type2-partial-tls-record
+          # R1: original accepted SSL/BIO + immediate FIN across three
+          # independent clients; direct invocation makes SKIP 77 a failure.
+          # This is additive to (not part of) the fixed Clipboard census.
+          build/tests/test_linux_runtime_direct_ntlm_lifecycle \
+            direct-ntlm-post-type2-fin-tls-boundaries-reconnect
           build/tests/test_linux_runtime_direct_ntlm_lifecycle \
             connection-target-identity-retained-across-peer-retry
           build/tests/test_linux_runtime_direct_ntlm_lifecycle \

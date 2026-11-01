@@ -889,6 +889,8 @@ class OwnerEvidenceTests(unittest.TestCase):
              "FIRST_CLIENT_ERROR_INVALID"),
             ("first_client_error", "provider_code_exact", {"detail": private_marker},
              "FIRST_CLIENT_ERROR_INVALID"),
+            ("first_client_error", "provider_category_exact", chr(0xD800),
+             "FIRST_CLIENT_ERROR_INVALID"),
             ("first_client_error", "event_time_utc", private_marker,
              "FIRST_CLIENT_ERROR_INVALID"),
             ("first_client_error", "event_time_utc", [private_marker],
@@ -913,6 +915,8 @@ class OwnerEvidenceTests(unittest.TestCase):
                                      "unknown")
                     self.assertEqual(summary["client_error"]["source"], "not-observed")
                     self.assertIsNone(summary["client_error"]["event_time_utc"])
+                    self.assertFalse(summary["client_error"]["provider_category_present"])
+                    self.assertFalse(summary["client_error"]["provider_code_present"])
 
         for missing in ("first_client_error", "provider_code_exact"):
             with self.subTest(missing=missing):

@@ -1545,8 +1545,8 @@ add_test(NAME interop.windows-client-ab-invalid-first-error-redaction-denials
 set_tests_properties(interop.windows-client-ab-invalid-first-error-redaction-denials
     PROPERTIES LABELS "interop;offline;security;evidence" TIMEOUT 15)
 
-# R6 malformed macOS collector first-error fields must not reflect private
-# strings/lists/dicts, and validation exceptions must not expose paths.
+# R6 malformed macOS collector first-error fields (including invalid
+# UTF-8/lone surrogates) must not reflect private data or exception paths.
 add_test(NAME interop.windows-client-ab-malformed-macos-first-error-projection-denials
     COMMAND "${Python3_EXECUTABLE}"
         "${PROJECT_SOURCE_DIR}/tests/test_macos_windows_app_owner_evidence.py"

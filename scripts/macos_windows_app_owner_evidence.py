@@ -950,10 +950,16 @@ def build_redacted_summary(
 
     for field in ("provider_category_exact", "provider_code_exact"):
         value = first_error.get(field)
-        if (value is not None and
-                (not isinstance(value, str) or not value or
-                 len(value.encode("utf-8")) > MAX_TEXT_BYTES)):
-            first_error_invalid = True
+        if value is not None:
+            if not isinstance(value, str) or not value:
+                first_error_invalid = True
+            else:
+                try:
+                    if len(value.encode("utf-8")) > MAX_TEXT_BYTES:
+                        first_error_invalid = True
+                except UnicodeError:
+                    # A JSON-escaped lone surrogate is not valid UTF-8 text.
+                    first_error_invalid = True
     provider_category_present = isinstance(
         first_error.get("provider_category_exact"), str
     ) and bool(first_error.get("provider_category_exact"))
@@ -990,6 +996,8 @@ def build_redacted_summary(
         first_category = "unknown"
         first_source = _NOT_OBSERVED
         first_event_time = None
+        provider_category_present = False
+        provider_code_present = False
 
     if first_category == _NOT_OBSERVED:
         limitations.append("FIRST_CLIENT_ERROR_NOT_OBSERVED")

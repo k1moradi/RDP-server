@@ -12,8 +12,27 @@ def main() -> int:
     parser.add_argument("--check-centralized-callers", action="store_true")
     parser.add_argument("--check-share-without-graphics", action="store_true")
     parser.add_argument("--check-graphics-native-attach", action="store_true")
+    parser.add_argument("--check-native-namespace", action="store_true")
+    parser.add_argument("--header", type=Path)
     args = parser.parse_args()
     text = args.source.read_text(encoding="utf-8")
+    if args.check_native_namespace:
+        if args.header is None:
+            raise SystemExit("macOS native namespace contract requires --header")
+        header_text = args.header.read_text(encoding="utf-8")
+        for label, source_text in (("header", header_text), ("source", text)):
+            without_global_qualification = source_text.replace("::rdp::macos::", "")
+            if "rdp::macos::MacNative" in without_global_qualification:
+                raise SystemExit(f"macOS native {label} uses nested rdp namespace")
+        for required in (
+            "::rdp::macos::MacNativeDesktopServiceObservation",
+            "::rdp::macos::MacNativeDesktopOwnerState",
+            "::rdp::macos::MacNativeDesktopFrameConsumer",
+        ):
+            if required not in header_text + text:
+                raise SystemExit(f"macOS native global namespace token missing: {required}")
+        print("macOS native owner global namespace contract PASS")
+        return 0
     start = text.find("void MacRuntimeHostControl::retireAcceptedClient() noexcept")
     stop = text.find("RuntimeHostResult\nMacRuntimeHostControl::failClosedAfterAllocationFailure() noexcept", start)
     if start < 0 or stop <= start:
@@ -104,7 +123,7 @@ def main() -> int:
             raise SystemExit("cannot isolate active native service path")
         native_service = service[native_service_start:]
         if (
-            "nativeDesktop_.serviceOnce()" not in native_service or
+            "nativeDesktop_.serviceOnce(" not in native_service or
             "retireAcceptedClient();" not in native_service or
             native_retirement in native_service
         ):
@@ -162,7 +181,7 @@ def main() -> int:
         service = text[service_start:service_stop]
         if (
             "if (nativeDesktop_.active())" not in service or
-            "nativeDesktop_.serviceOnce()" not in service or
+            "nativeDesktop_.serviceOnce(" not in service or
             "retireAcceptedClient();" not in service
         ):
             raise SystemExit("active native initialization is not serviced fail-closed")

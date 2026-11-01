@@ -131,7 +131,7 @@ private:
     [[nodiscard]] RuntimeHostResult failClosedAfterAllocationFailure() noexcept;
     [[nodiscard]] RuntimeHostResult advanceAcceptedClientPreAdmissionOnce() noexcept;
     [[nodiscard]] RuntimeHostResult serviceAcceptedClientGraphicsOnce(
-        const rdp::macos::MacNativeDesktopServiceObservation& observation) noexcept;
+        const ::rdp::macos::MacNativeDesktopServiceObservation& observation) noexcept;
 
     // One serialized accepted-client admission path. These stages are not
     // credentials or native authorization and cannot be set by the GUI.

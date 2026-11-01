@@ -1429,6 +1429,17 @@ add_test(NAME runtime.macos-native-retirement-single-owner-callers
 set_tests_properties(runtime.macos-native-retirement-single-owner-callers
     PROPERTIES LABELS "runtime;macos;security;offline;lifecycle" TIMEOUT 15)
 
+# HostControl is nested under rdp_server while native owner types live in
+# the global ::rdp::macos namespace. Keep that lookup explicit.
+add_test(NAME runtime.macos-native-owner-global-namespace-contract
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_native_proof_retirement_order.py"
+        --source "${PROJECT_SOURCE_DIR}/src/server/runtime/mac_runtime_host_control.cpp"
+        --header "${PROJECT_SOURCE_DIR}/src/server/runtime/mac_runtime_host_control.h"
+        --check-native-namespace)
+set_tests_properties(runtime.macos-native-owner-global-namespace-contract
+    PROPERTIES LABELS "runtime;macos;security;offline;compile-contract" TIMEOUT 15)
+
 
 # R10 now has real R2-protected Share, but no Graphics DVC/native frame.
 # Pin the distinct non-authorizing GUI status without synthetic admission.

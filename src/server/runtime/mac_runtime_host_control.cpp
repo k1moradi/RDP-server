@@ -1628,7 +1628,7 @@ catch (const std::bad_alloc&)
 
 RuntimeHostResult
 MacRuntimeHostControl::serviceAcceptedClientGraphicsOnce(
-    const rdp::macos::MacNativeDesktopServiceObservation& observation) noexcept try
+    const ::rdp::macos::MacNativeDesktopServiceObservation& observation) noexcept try
 {
     using namespace rdp_server::server;
     using Interest = transport::TcpConnectionIoInterest;
@@ -1932,7 +1932,7 @@ MacRuntimeHostControl::serviceAcceptedClientGraphicsOnce(
         }
     }
 
-    using NativeState = rdp::macos::MacNativeDesktopOwnerState;
+    using NativeState = ::rdp::macos::MacNativeDesktopOwnerState;
     if (observation.state != NativeState::Ready)
         return {RuntimeHostError::None, true};
     if (observation.pixelGeometry.widthPixels == 0U ||
@@ -2057,7 +2057,7 @@ MacRuntimeHostControl::serviceAcceptedClientGraphicsOnce(
 
     const bool borrowed = nativeDesktop_.borrowFramebuffer(
         observation.latestFrameSequence,
-        rdp::macos::MacNativeDesktopFrameConsumer{
+        ::rdp::macos::MacNativeDesktopFrameConsumer{
             &frameContext, publishFrame});
     if (!borrowed)
     {
@@ -3083,7 +3083,7 @@ RuntimeHostResult MacRuntimeHostControl::serviceOnce() noexcept try
             // Initialization is itself stateful native work, so an attached
             // owner must be serviced before it reports Ready. Retain only this
             // tick's R7 observation; it is freshness, never frame authority.
-            rdp::macos::MacNativeDesktopServiceObservation nativeObservation{};
+            ::rdp::macos::MacNativeDesktopServiceObservation nativeObservation{};
             const auto nativeResult =
                 nativeDesktop_.serviceOnce(&nativeObservation);
             if (!nativeResult.succeeded())

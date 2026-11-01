@@ -1,3 +1,9 @@
+## R10/R7 macOS native namespace and service-contract unblock (2026-11-01)
+
+- Authoring parent `7b3d517f9f6a5d857940f6f74f145eda43814e57`. Hosted macOS compilation on earlier exact SHA `cfa3ce82c99d4ced19164c4d731e81ffbe9bc531` failed because Mac HostControl is nested under `rdp_server::server::runtime` while native owner types live in global `::rdp::macos`; Clang explicitly reported the intended global namespace. Current main still had five unqualified `rdp::macos::MacNative...` references.
+- Later R10 work already services the native owner with `nativeDesktop_.serviceOnce(&nativeObservation)` and retires the complete accepted client on failure, but two offline source-contract checks still froze the obsolete no-argument spelling. Qualify only the native owner type names globally, match the stable service-call prefix, and add `runtime.macos-native-owner-global-namespace-contract`. R1 TLS/NTLM, authorization, frame, credential and physical-client behavior are unchanged.
+- Source/registration review PASS. Canonical local build/CTest/sanitizers are NOT RUN in this connector environment; exact publication-SHA hosted macOS compile/full CI remains required.
+
 ## R9 P0 — preserve run identity in SHA-mismatch self-test (2026-11-01)
 
 - Authoring parent `d331f8f7716cdb645acb34068dc703e254a69d40`. The prior R9 run-provenance hardening correctly requires a positive outer workflow `run.id`, matching job `run_id`, and matching artifact `workflow_run.id/head_sha`, but its own SHA-mismatch negative self-test still omitted `run.id`. The classifier therefore rejected the fixture as `INVALID_RUN` before reaching the intended `SHA_MISMATCH` assertion, causing both fast CI structure guards to fail.

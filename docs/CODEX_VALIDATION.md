@@ -1,3 +1,9 @@
+## macOS native namespace compile blocker and stale service-source contract — 2026-11-01
+
+Reviewed current parent `7b3d517f9f6a5d857940f6f74f145eda43814e57`, earlier hosted macOS compiler diagnostics, current R10 Mac HostControl and the native-proof source-contract harness. Production already calls `serviceOnce(&nativeObservation)` and funnels failure through `retireAcceptedClient()`; the old `serviceOnce()` source literal was stale. Five native owner type references also remained unqualified inside nested `rdp_server`, matching Clang's prior `did you mean ::rdp::macos` diagnostics.
+
+The correction globally qualifies only those native owner types, broadens only the stable service-call source token, and registers a dedicated offline namespace contract. R1 TLS/BIO/NTLM and physical Windows gates are untouched. Source review PASS; local canonical build/CTest/sanitizers/benchmarks NOT RUN. Hosted exact-SHA macOS compile/full CI PENDING.
+
 ## R9 exact-run self-test fixture correction — 2026-11-01
 
 Reviewed current parent `d331f8f7716cdb645acb34068dc703e254a69d40` after the new exact-run provenance checks landed. GitHub structure runs for both the R9 commit and its R7 descendant failed before roadmap validation because `verify_r9_qualification_matrix.py --self-test` called `evaluate()` for the SHA-mismatch case with no outer `run.id`. That violates the strengthened input contract and produces `INVALID_RUN`, so the test never evaluates `SHA_MISMATCH`.

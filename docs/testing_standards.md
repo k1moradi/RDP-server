@@ -1,3 +1,27 @@
+## R2 PersonalDesktop credential-substitution regression phase correction (2026-11-01)
+
+Reviewed `0bf6730c2e0137b49e9b96a52860a8218f1a8c31` after the CTest registry taxonomy unblock. The new
+`security.macos-protected-personal-licensing-context-substitution-denials`
+already checks a byte-equivalent replacement identity after original R2
+selection, but its second credential-substitution assertion passed an empty
+TPKT while R3 was still `AwaitServerLicenseRequest`. That could pass merely
+because the licensing message was premature, without exercising the actual
+credential-substitution gate. Preserve the same dedicated CTest and production
+R1/R2/R3 fixture. First prove that the replacement identity independently
+prepares a valid original Server License Request; then commit actual accepted
+R1 TLS Request bytes through the protected R2 receipt to
+`AwaitClientLicenseResponse`, deliver a complete bounded
+`CLIENT_NEW_LICENSE_REQUEST` through client TLS and retry with the different
+licensing credential object. Require original broker/R3/R1 terminal retirement
+and reject late original borrows. No new production API, protocol bypass,
+native lease, Clipboard permission or second reader/writer. The substituted
+credential also differs cryptographically; only the byte-equivalent identity
+case isolates address identity from value equality. Source/registration review
+PASS; connector-local compilation and focused/full CTest NOT RUN due missing
+checkout and GitHub DNS. Hosted exact-SHA CTest and sanitizers PENDING; test
+CredSSP/native authority remains synthetic, physical macOS Admission and
+Microsoft-client acceptance NOT RUN/unauthorized.
+
 ## R5 implicit held-state nested RAII source-chain CTest (2026-11-01)
 
 The ordinary offline

@@ -1,3 +1,27 @@
+## R2 PersonalDesktop credential-substitution regression phase correction (2026-11-01)
+
+Reviewed `0bf6730c2e0137b49e9b96a52860a8218f1a8c31` after the CTest registry taxonomy unblock. The new
+`security.macos-protected-personal-licensing-context-substitution-denials`
+already checks a byte-equivalent replacement identity after original R2
+selection, but its second credential-substitution assertion passed an empty
+TPKT while R3 was still `AwaitServerLicenseRequest`. That could pass merely
+because the licensing message was premature, without exercising the actual
+credential-substitution gate. Preserve the same dedicated CTest and production
+R1/R2/R3 fixture. First prove that the replacement identity independently
+prepares a valid original Server License Request; then commit actual accepted
+R1 TLS Request bytes through the protected R2 receipt to
+`AwaitClientLicenseResponse`, deliver a complete bounded
+`CLIENT_NEW_LICENSE_REQUEST` through client TLS and retry with the different
+licensing credential object. Require original broker/R3/R1 terminal retirement
+and reject late original borrows. No new production API, protocol bypass,
+native lease, Clipboard permission or second reader/writer. The substituted
+credential also differs cryptographically; only the byte-equivalent identity
+case isolates address identity from value equality. Source/registration review
+PASS; connector-local compilation and focused/full CTest NOT RUN due missing
+checkout and GitHub DNS. Hosted exact-SHA CTest and sanitizers PENDING; test
+CredSSP/native authority remains synthetic, physical macOS Admission and
+Microsoft-client acceptance NOT RUN/unauthorized.
+
 ## R5 nested implicit X11 held-state teardown chain (2026-11-01)
 
 **Reviewed main parent:** `50be63b0b39ce6e831b3009e07a0020d7bd3b28d`. The previously landed
@@ -138,7 +162,7 @@ At source SHA `1447dd0ccf4570eb161111e5fbda2799a704a294`, hosted Actions `412952
 **during CMake configure** across Ubuntu, macOS and Windows. The first fatal
 boundary was the central `get_property(... TESTS)` registry check rejecting
 the internal `-r2-` token in
-`security.macos-share-activated-clipboard-r2-classifier-denial`. This was a CTest
+`security.macos-share-activated-clipboard-scope-classifier-denial`. This was a CTest
 name policy defect, not a demonstrated production Clipboard/RDP defect.
 Rename only the registered behavior and its existing dispatch selection to
 `security.macos-share-activated-clipboard-scope-classifier-denial`; keep the

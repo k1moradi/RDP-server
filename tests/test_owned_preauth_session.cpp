@@ -9096,20 +9096,89 @@ void testMacProtectedPersonalLicensingContextSubstitutionDenials()
         assertRetired(*fixture);
     }
 
-    // A second valid licensing service credential cannot substitute for the
-    // original object during Client Licensing, irrespective of its contents.
+    // A separately configured but byte-equivalent identity remains valid as
+    // the *first* R2 choice. The denial above must therefore be attributable
+    // to changing its original object, not to an invalid ProductInfo/chain.
+    {
+        auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture();
+        assert(fixture->broker.authorizeR3PersonalDesktopLicensingMode(
+            *fixture->session, policy));
+        const auto first =
+            fixture->broker.authorizeR3PersonalDesktopServerLicenseRequestWrite(
+                *fixture->session, policy, replacementIdentity, *credential);
+        assert(first && *first);
+        fixture->broker.revoke(MacConsoleAdmissionRevocationReason::OwnerStop);
+        assertRetired(*fixture);
+    }
+
+    // Exercise the credential-substitution operation in the correct R3
+    // phase, with actual Server License Request bytes delivered through the
+    // original R1 TLS writer and a complete structurally valid client PDU.
+    // An empty packet before request delivery would deny for phase/structure
+    // regardless of the R2 credential-object continuity check.
     RuntimeLicensingContext replacementLicensing;
     assert(replacementLicensing.configureGeneratedApplicationIdentity());
     {
         auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture();
         assert(fixture->broker.authorizeR3PersonalDesktopLicensingMode(
             *fixture->session, policy));
-        const auto pending =
-            fixture->broker.authorizeR3PersonalDesktopServerLicenseRequestWrite(
-                *fixture->session, policy, *identity, *credential);
-        assert(pending && *pending);
+
+        bool requestDelivered = false;
+        const auto deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds{5};
+        for (std::size_t attempt = 0U;
+             attempt < 512U && std::chrono::steady_clock::now() < deadline;
+             ++attempt)
+        {
+            const auto pending =
+                fixture->broker.authorizeR3PersonalDesktopServerLicenseRequestWrite(
+                    *fixture->session, policy, *identity, *credential);
+            assert(pending && *pending);
+            const auto written =
+                fixture->connection.writeTlsApplicationData(pending->bytes);
+            if (written.outcome != TlsApplicationIoOutcome::Progress)
+            {
+                assert(written.bytes == 0U);
+                assert(written.outcome == TlsApplicationIoOutcome::NeedRead ||
+                       written.outcome == TlsApplicationIoOutcome::NeedWrite);
+                const auto polled = fixture->connection.pollSocketOnce(
+                    deadline, kMaximumTcpPollWait);
+                assert(polled.outcome == TcpConnectionPollOutcome::Dispatched ||
+                       polled.outcome == TcpConnectionPollOutcome::NoEvent);
+                continue;
+            }
+            assert(written.bytes > 0U && written.bytes <= pending->bytes.size());
+            std::vector<std::uint8_t> clientReceived(written.bytes);
+            readNativeTlsClientAll(fixture->tls.client.get(), clientReceived);
+            assert(std::equal(
+                clientReceived.begin(), clientReceived.end(),
+                pending->bytes.begin()));
+            const auto receipt =
+                fixture->broker.completeR3PersonalDesktopServerLicenseRequestWrite(
+                    *fixture->session, policy, pending->replySequence,
+                    pending->writeSliceSequence, written.bytes);
+            if (receipt == RdpServerLicenseRequestWriteOutcome::Delivered)
+            {
+                requestDelivered = true;
+                break;
+            }
+            assert(receipt == RdpServerLicenseRequestWriteOutcome::Pending);
+        }
+        assert(requestDelivered);
+        assert(fixture->session->phase() ==
+               McsSessionPhase::AwaitClientLicenseResponse);
+
+        auto clientLicensing = makeMaximumClientLicensingTpkt();
+        clientLicensing[8] = 0U;
+        clientLicensing[9] = 1U;
+        writeNativeTlsClientAll(fixture->tls.client.get(), clientLicensing);
+        std::array<std::uint8_t, kMaximumInitialMcsTpktBytes> received{};
+        readOwnedRuntimeTlsAll(fixture->connection, received);
+        assert(received == clientLicensing);
+
         assert(!fixture->broker.authorizeR3PersonalDesktopClientLicensingMessage(
-            *fixture->session, policy, *replacementLicensing.credential(), {}));
+            *fixture->session, policy, *replacementLicensing.credential(),
+            received));
         assertRetired(*fixture);
         assert(!fixture->broker.authorizeR3PersonalDesktopServerLicenseRequestWrite(
             *fixture->session, policy, *identity, *credential));

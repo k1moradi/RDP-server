@@ -80,6 +80,11 @@ def evaluate(expected_sha: str, current_sha: str,
         raise ValueError("INVALID_JOBS")
     if not isinstance(artifacts_payload, dict) or not isinstance(artifacts_payload.get("artifacts"), list):
         raise ValueError("INVALID_ARTIFACTS")
+    # Matching SHA alone cannot bind independently obtained job and artifact
+    # JSON snapshots to this specific Actions run.
+    run_id = run.get("id")
+    if not isinstance(run_id, int) or isinstance(run_id, bool) or run_id <= 0:
+        raise ValueError("INVALID_RUN")
     source_matches = run["head_sha"] == expected_sha
     jobs = jobs_payload["jobs"]
     artifacts = artifacts_payload["artifacts"]
@@ -95,6 +100,8 @@ def evaluate(expected_sha: str, current_sha: str,
             lanes[lane] = "AMBIGUOUS"
         elif not matching:
             lanes[lane] = "NOT_RUN"
+        elif matching[0].get("run_id") != run_id:
+            lanes[lane] = "RUN_MISMATCH"
         else:
             job_status = classify_job(matching[0])
             if job_status != "JOB_PASS" or required_step is None:
@@ -128,6 +135,10 @@ def evaluate(expected_sha: str, current_sha: str,
         sspi_artifact = "AMBIGUOUS"
     elif not matching_artifacts:
         sspi_artifact = "NOT_PRESENT"
+    elif (not isinstance(matching_artifacts[0].get("workflow_run"), dict)
+          or matching_artifacts[0]["workflow_run"].get("id") != run_id
+          or matching_artifacts[0]["workflow_run"].get("head_sha") != expected_sha):
+        sspi_artifact = "RUN_MISMATCH"
     elif matching_artifacts[0].get("expired") is not False:
         sspi_artifact = "EXPIRED_OR_INVALID"
     else:
@@ -162,8 +173,14 @@ def self_test() -> None:
         {"name": "r9-clean-windows-portable-gui", "status": "queued", "conclusion": None},
         {"name": "r9-credssp-owner-candidate", "status": "completed", "conclusion": "skipped"},
     ]}
-    artifacts = {"artifacts": [{"name": "r9-microsoft-interop-" + sha, "expired": False}]}
-    run = {"head_sha": sha}
+    run_id = 41318750637
+    for job in jobs["jobs"]:
+        job["run_id"] = run_id
+    artifacts = {"artifacts": [
+        {"name": "r9-microsoft-interop-" + sha, "expired": False,
+         "workflow_run": {"id": run_id, "head_sha": sha}}
+    ]}
+    run = {"id": run_id, "head_sha": sha}
     report = evaluate(sha, sha, run, jobs, artifacts)
     if not (report["lanes"]["linux_debug"] == "JOB_PASS"):
         raise AssertionError("R9 self-test denial failed")
@@ -179,7 +196,7 @@ def self_test() -> None:
         raise AssertionError("R9 self-test denial failed")
     missing_step_report = evaluate(sha, sha, run, {"jobs": [
         {"name": "protocol (ubuntu-latest)", "status": "completed", "conclusion": "success",
-         "steps": []}
+         "run_id": run_id, "steps": []}
     ]}, artifacts)
     if not (missing_step_report["lanes"]["linux_debug"] == "STEPS_UNVERIFIED"):
         raise AssertionError("R9 self-test denial failed")
@@ -202,6 +219,27 @@ def self_test() -> None:
         raise AssertionError("R9 self-test denial failed")
     if not (wrong["sspi_artifact"] == "SHA_MISMATCH"):
         raise AssertionError("R9 self-test denial failed")
+    # A different run at the same SHA cannot supply a green job or artifact.
+    foreign_job = {"jobs": [{**jobs["jobs"][0], "run_id": run_id + 1}]}
+    if evaluate(sha, sha, run, foreign_job, artifacts)["lanes"]["linux_debug"] != "RUN_MISMATCH":
+        raise AssertionError("foreign job accepted")
+    unbound_job = {"jobs": [{key: value for key, value in jobs["jobs"][0].items()
+                            if key != "run_id"}]}
+    if evaluate(sha, sha, run, unbound_job, artifacts)["lanes"]["linux_debug"] != "RUN_MISMATCH":
+        raise AssertionError("unbound job accepted")
+    for foreign_binding in ({"id": run_id + 1, "head_sha": sha},
+                            {"id": run_id, "head_sha": other}, None):
+        foreign_artifacts = {"artifacts": [
+            {**artifacts["artifacts"][0], "workflow_run": foreign_binding}
+        ]}
+        if evaluate(sha, sha, run, jobs, foreign_artifacts)["sspi_artifact"] != "RUN_MISMATCH":
+            raise AssertionError("foreign artifact accepted")
+    try:
+        evaluate(sha, sha, {"head_sha": sha}, jobs, artifacts)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("unbound run accepted")
     duplicate = {"jobs": jobs["jobs"] + [jobs["jobs"][0]]}
     if not (evaluate(sha, sha, run, duplicate, artifacts)["lanes"]["linux_debug"] == "AMBIGUOUS"):
         raise AssertionError("R9 self-test denial failed")

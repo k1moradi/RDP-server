@@ -1,3 +1,9 @@
+## R9 same-SHA job/artifact run-provenance correction — 2026-11-01
+
+- Reviewed exact parent `260a70aa384baabcefb21e5b31b4e54605aad028`. R2's later preference backend tests strengthen atomic retention, but the desktop executable still does not link/consume R2 preferences; GUI restart and stale restored-interface invalidation remain R7 integration work, not PASS.
+- Found the R9 exact-run evidence-splicing flaw: outer run `head_sha` validation did not bind each separately retrieved job/artifact JSON record to that same workflow run. GitHub REST jobs expose `run_id`; artifacts expose `workflow_run.id/head_sha`. The corrected classifier requires matching values and returns `RUN_MISMATCH` for foreign or missing provenance; synthetic denials cover same-SHA other-run jobs, missing job ID, foreign artifact run ID/SHA, missing artifact binding and missing parent run ID. SSPI content and physical client acceptance remain separate.
+- Ordinary full CTest and both fast CI structure jobs already invoke the extended self-test. Fixed native/sanitizer inventories unchanged; local build/full CTest/sanitizers/benchmarks NOT RUN in this connector-only environment. Hosted corrective-SHA CI PENDING. No owner/manual workflow, credential/trust or native physical test dispatched.
+
 ## R4 P1 pending FRAME_ACK retirement fence (2026-11-01)
 
 Reviewed current-main parent `986b5886b3e3ae20796dc817aefb87e6d803643e` plus AGENTS, VISION, ROADMAP, all four standards, CODEX_VALIDATION, R7 macOS mailbox/frame observation, R10 `serviceAcceptedClientGraphicsOnce`, R3 graphics segmentation/receipt handling, R4 ClearCodec/presentation/ACK window and the two existing retirement regressions before editing. The dependency review shows R10 `2e91f7336dafeda7e003bc07c5da94b91fa487bc` and subsequent first-frame/fairness/callback corrections are already ancestors of this parent; no R10 integration blocker remains for this R4 correction.

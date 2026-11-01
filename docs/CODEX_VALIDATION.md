@@ -1,3 +1,30 @@
+## R2/R7 preference success cleanup scope follow-up (2026-11-01)
+
+Reviewed refreshed current-main parent `2497d525503a3037bacc9910bd15d001ac87fba6`, the R2 secure non-secret
+preference store, R7 restored-settings/save-retry/write-coalescing and
+same-index-interface implementation, Qt fake-host tests and current R10/CI
+dependency state. R7 `30d67dac` correctly coalesces spin-box writes and clears
+a recovered preference-storage error, and R7 `2497d525` correctly persists a
+same-index explicit interface choice. The success/no-op preference paths still
+used unconditional `userFacingError_.clear()`. Because that field also owns
+fixed credential/permission/listener/disconnect/export action failures, an
+unrelated failure could disappear merely from reselecting the same interface or
+successfully changing a port.
+
+The correction scopes cleanup to exactly the two preference persistence errors
+while preserving all other last-action diagnostics. New ordinary offline
+`gui.offscreen-rapid-preferences-preserve-unrelated-action-error` covers both
+the no-op and successful-store paths. Existing failed-save retry still proves
+that a later Stored result clears the preference-specific failure and preserves
+the pending manual Username. No R2 schema/file permission, credential, consent,
+listener, Sharing, native session or protocol behavior changes.
+
+R7 coalescing structure run 41354808219 PASS; its heavy primary workflow was
+still QUEUED at review. Connector-local canonical build, focused/full
+Debug/Release CTest, ASan/UBSan, benchmarks and physical clients are NOT RUN.
+Next gate: exact-publication-SHA hosted structure plus cross-platform full
+compile/CTest, then owner-native/physical gates only where separately required.
+
 ## R7 same-index automatic-interface save correction (2026-11-01)
 
 Review of descendant `50f0e3902b39b673e32714d6364ea5032e202572`,

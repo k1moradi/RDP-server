@@ -1362,6 +1362,18 @@ void DesktopWindow::saveOwnerPreferences()
     if (preferencesAccess_.save == nullptr)
         return;
 
+    const QString invalidPreferencesError = QStringLiteral(
+        "Preferences contain an invalid non-secret value.");
+    const QString unavailablePreferencesError = QStringLiteral(
+        "Private preferences could not be saved on this computer.");
+    const auto clearPreferenceActionError = [this,
+                                              &invalidPreferencesError,
+                                              &unavailablePreferencesError] {
+        if (userFacingError_ == invalidPreferencesError ||
+            userFacingError_ == unavailablePreferencesError)
+            userFacingError_.clear();
+    };
+
     // Explicit owner widget events only. An untouched CLI override or
     // initial local-OS Username suggestion must never be saved implicitly.
     auto candidate = savedPreferences_;
@@ -1395,7 +1407,7 @@ void DesktopWindow::saveOwnerPreferences()
     if (sameUserPreferences(candidate, savedPreferences_))
     {
         usernameOwnerEdited_ = false;
-        userFacingError_.clear();
+        clearPreferenceActionError();
         refresh();
         return;
     }
@@ -1404,8 +1416,7 @@ void DesktopWindow::saveOwnerPreferences()
     if (!rdp_server::server::runtime::encodeRuntimeUserPreferences(
             candidate, encoded))
     {
-        userFacingError_ = QStringLiteral(
-            "Preferences contain an invalid non-secret value.");
+        userFacingError_ = invalidPreferencesError;
         refresh();
         return;
     }
@@ -1418,12 +1429,11 @@ void DesktopWindow::saveOwnerPreferences()
     {
         savedPreferences_ = std::move(candidate);
         usernameOwnerEdited_ = false;
-        userFacingError_.clear();
+        clearPreferenceActionError();
     }
     else
     {
-        userFacingError_ = QStringLiteral(
-            "Private preferences could not be saved on this computer.");
+        userFacingError_ = unavailablePreferencesError;
     }
     refresh();
 }

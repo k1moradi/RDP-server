@@ -1044,6 +1044,50 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (mode == "rapid-preferences-preserve-unrelated-action-error")
+    {
+        fakeLoadStatus = RuntimeUserPreferencesStorageStatus::Loaded;
+        fakeSaveStatus = RuntimeUserPreferencesStorageStatus::Stored;
+        fakePreferenceSaves = 0;
+        fakeStoredPreferences = {
+            "stored-owner", "ethernet-1", 3390U, false, 22U};
+        FakeRuntimeHost candidate;
+        prepareReadyHost(candidate);
+        candidate.credentialSetupSucceeds = false;
+        HostControl candidateHost(candidate);
+        DesktopWindow window(candidateHost, nullptr, kFakePreferences);
+        auto* configure = requiredButton(window, "configureOsAccount");
+        auto* interfaces = window.findChild<QComboBox*>("lanInterface");
+        auto* port = window.findChild<QSpinBox*>("sharingPort");
+        auto* error = requiredLabel(window, "hostErrorExplanation");
+        assert(configure && interfaces && port && error);
+        assert(configure->isEnabled());
+
+        configure->click();
+        const QString unrelatedError = QStringLiteral(
+            "Existing OS Account access could not be configured.");
+        assert(error->text().contains(unrelatedError));
+        assert(candidate.credentialSetupCalls == 1);
+
+        // A no-op preference activation must not erase another action's
+        // failure merely because the stored preference record is unchanged.
+        assert(QMetaObject::invokeMethod(
+            interfaces, "activated", Qt::DirectConnection,
+            Q_ARG(int, interfaces->currentIndex())));
+        assert(fakePreferenceSaves == 0);
+        assert(error->text().contains(unrelatedError));
+
+        // Nor may a successful changed preference store consume that
+        // unrelated diagnostic; only preference-storage errors are cleared.
+        port->setValue(3391);
+        assert(fakePreferenceSaves == 1);
+        assert(fakeStoredPreferences.port == 3391U);
+        assert(error->text().contains(unrelatedError));
+        assert(candidate.startCalls == 0);
+        assert(candidate.permissionSetupCalls == 0);
+        return 0;
+    }
+
     if (mode == "rapid-preferences-failed-save-retry")
     {
         fakeLoadStatus = RuntimeUserPreferencesStorageStatus::Loaded;

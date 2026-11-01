@@ -1,3 +1,14 @@
+## R7 preference recovery preserves unrelated action errors (2026-11-01)
+
+The ordinary `gui.offscreen-rapid-preferences-preserve-unrelated-action-error`
+CTest reuses the existing single-QApplication fake-R10 fixture and memory-only
+R2 callbacks. It first creates a failed Existing OS Account action, then proves
+both a no-op restored-interface activation and a successful changed-port save
+leave that unrelated fixed error visible. This complements the failed-save
+retry case, which still requires a later successful store to clear the
+preference-storage error itself, and the same-index activation regression.
+No credential, permission, listener or native I/O succeeds in this fixture.
+
 ## R7 same-index interface preference activation (2026-11-01)
 
 The existing dedicated

@@ -1,3 +1,14 @@
+## Preference success cleanup must not erase unrelated action diagnostics (2026-11-01)
+
+R7's `userFacingError_` is shared by preference persistence and unrelated
+credential, permission, listener, disconnect and diagnostic-export actions.
+A successful or no-op non-secret preference save may clear only the two fixed
+preference errors (invalid preference record and private-storage unavailable).
+It must preserve any other last-action error. Keep the existing last-successful
+snapshot, failed-save retry semantics, same-index interface intent, write
+coalescing and R2 atomic storage; do not create a second error owner or
+background preference writer.
+
 ## Explicit same-index interface activation is a manual preference action (2026-11-01)
 
 For the R7 LAN selector, `QComboBox::activated` is the owner action;

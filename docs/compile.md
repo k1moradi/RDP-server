@@ -1,3 +1,14 @@
+## R7 preference error-scope focused qualification (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. After canonical Debug configure/build:
+```sh
+ctest --test-dir build -C Debug -R '^gui[.]offscreen-rapid-preferences-(preserve-unrelated-action-error|write-coalescing|failed-save-retry|restart-cli-precedence|invalid-replaced-interface)$' --output-on-failure
+ctest --test-dir build -C Debug --output-on-failure
+```
+Repeat full Release CTest and applicable existing GUI/package sanitizer lanes
+on the exact publication SHA. Connector-local configure/build/CTest/sanitizers
+remain NOT RUN; hosted exact-SHA execution is the next gate.
+
 ## R3 P0 — make the coalesced Share fixture prove one successful TLS write (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build, run:

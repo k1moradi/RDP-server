@@ -1,3 +1,26 @@
+## R7 P0 follow-up — preference recovery preserves unrelated diagnostics (2026-11-01)
+
+**Authoring parent:** `2497d525503a3037bacc9910bd15d001ac87fba6`. R2 secure non-secret storage, R7 restore/save
+integration, write coalescing and same-index owner interface persistence are
+present. Review found one remaining shared-UI-state regression: successful or
+no-op preference persistence unconditionally cleared `userFacingError_`, which
+also represents unrelated credential, permission, listener, disconnect and
+export failures. Scope success cleanup to the two fixed preference persistence
+errors only. Add ordinary
+`gui.offscreen-rapid-preferences-preserve-unrelated-action-error` proving both
+a no-op restored-interface activation and successful changed-port save retain a
+prior failed Existing OS Account action. Existing failed-save retry continues
+to require a later Stored result to clear only its preference error.
+
+**Dependency state:** no R2/R7/R10 source-composition blocker remains for this
+offline preference path. R7 coalescing fast structure run 41354808219 PASS;
+heavy cross-platform workflow remained QUEUED at review, so compile/full CTest
+is still the verification gate rather than a demonstrated source failure.
+Connector-local build/CTest/sanitizers/benchmarks and physical clients are NOT
+RUN. Next gate is exact-publication-SHA hosted structure plus Debug/Release full
+CTest/package lanes; physical Microsoft-client/native-owner acceptance remains
+separate from preferences.
+
 ## R7 P0 — same-index interface owner action now persists stable ID (2026-11-01)
 
 After the R2 storage, R7 restore and R10 endpoint boundaries were all present,

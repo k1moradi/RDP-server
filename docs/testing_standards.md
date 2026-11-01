@@ -1,3 +1,22 @@
+## R5 RandR-held input owner implicit retirement (2026-11-01)
+
+The new ordinary Xvfb `x11.desktop-resource-randr-held-key-button-implicit-retirement`
+case must use the existing production aggregate/actual XTEST link interceptor,
+not a second controller or forged R2 authority. Hold a key and button together;
+rebuild actual XShm/XDamage with RandR; require the exact same XCB/input owner,
+new capture generation, rejected stale-generation input, no second XTEST posts
+for repeated current-generation makes and still-held native key/button state.
+Implicitly destroy the aggregate, assert zero KEY_RELEASE/BUTTON_RELEASE posts
+and closed original XCB descriptor; the shared fixture then restores Xvfb state
+out of band and verifies fresh-owner held bookkeeping, capture and Damage.
+This extends (does not replace) the original two held-state/no-post and
+queued-Damage implicit-destructor behavioral tests. Register in centralized
+tests/CMakeLists.txt and full CTest, outside both the fixed 45-case R5 X11
+ASan/UBSan census and the unmodified two-case supplemental lane. No physical
+seat0, live input, R2 lease, R4 frame or Clipboard is exercised. Static source/
+registration review PASS, local compile/CTest/ASan/UBSan NOT RUN; exact-SHA
+hosted qualification PENDING.
+
 ## R8 permission-only route observation consumption regression (2026-11-01)
 
 Add ordinary production-backed `runtime.clipboard-permission-only-route-observation-consumption` to existing `test_r8_r3_clipboard_bridge`, outside the fixed 107-case Clipboard sanitizer census. A protected route visit followed by permission-only observation discard must not prepare initialization or Format Data until a new `channelVisitor()` visit. Strengthen the native-publication source contract so network publication and native paste each discard the permission-only observation between fresh R2 visit and adapter call. No fake native grant, live X11 clipboard, TLS writer or second route controller.

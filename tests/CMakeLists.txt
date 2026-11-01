@@ -5036,6 +5036,20 @@ if(TARGET rdp-server-linux-x11-desktop)
             PROPERTIES
                 LABELS "x11;linux-adapter;native;synthetic-display;security;generation"
                 TIMEOUT 20)
+        # Unlike the preexisting combined-held test, this exercises a real
+        # RandR XShm/XDamage rebuild between the original key/button makes
+        # and implicit teardown. The XTEST held owner must be preserved.
+        # Ordinary Xvfb CTest; the fixed R9 45-case sanitizer set is untouched.
+        add_test(NAME x11.desktop-resource-randr-held-key-button-implicit-retirement
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_desktop_resources>
+                randr-held-key-button-implicit-retirement)
+        set_tests_properties(
+            x11.desktop-resource-randr-held-key-button-implicit-retirement
+            PROPERTIES
+                LABELS "x11;linux-adapter;native;synthetic-display;security;generation"
+                TIMEOUT 20)
         add_test(NAME x11.desktop-resource-authority-retirement-queued-damage-isolation
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
                 "-screen 0 1280x720x24 -nolisten tcp -noreset"

@@ -1,3 +1,15 @@
+## R5 combined held input across RandR and implicit teardown (2026-11-01)
+
+Use only `~/rdp-server/build/`. After the canonical Debug configure/build,
+run `ctest --test-dir build -C Debug -R '^x11[.]desktop-resource-(implicit-held-key-button-no-xtest|randr-held-key-button-implicit-retirement)$' --output-on-failure`,
+then ordinary full Debug CTest; reconfigure this **same** root for Release and
+run full CTest. Exact-SHA hosted Linux Debug/Release, existing 45-case R9
+native X11 ASan/UBSan selector and the independent existing two-case aggregate
+sanitizer lane are required without inventory changes. The new RandR composite
+is outside the fixed/selective sanitizer lanes until separately admitted.
+Local configure/build/focused/full CTest and ASan/UBSan NOT RUN in this
+connector-only environment; physical X11/client acceptance NOT RUN.
+
 ## R8 permission-only route observation focused qualification (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. After canonical Debug configure/build:

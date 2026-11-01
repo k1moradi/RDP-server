@@ -1,3 +1,37 @@
+## R5 RandR-held aggregate input lifetime, distinct implicit teardown behavioral CTest (2026-11-01)
+
+**Source parent:** `ff75c65c8d3f7ecc08d4eda3a1a6455868eff2a3`. The previously requested both-held key/button
+implicit destruction Xvfb regression is already on main and was hosted-green at
+`cec34430fa9cc0626a11cdb5b650c83226ecce8d`; source-only destructor
+contracts alone were not treated as behavioral evidence. Added a new **distinct**
+ordinary production-backed Xvfb case for the otherwise separately tested seam:
+hold both inputs through RandR XShm/XDamage replacement, prove the original
+native XCB/input lifetime persists, no stale/duplicate input posts, new
+geometry-bound capture, and then implicit aggregate teardown with zero native
+release posts, closed descriptor, fresh owner and no inherited held bookkeeping.
+Reuse original production XTEST interception and fixture-owned cleanup; no
+production native semantics changed, no second R2/R10 authority, no Clipboard.
+Shared CTest registry updated; fixed 45 native X11 cases and two-case
+supplemental sanitizer selector unchanged.
+
+**First-frame audit:** R10 protects the original accepted client and native
+seat0 with fresh R2 selection/authorization, bounded XCB/XDamage dispatch,
+RandR/capture-generation checking, synchronous borrowed BGRA consumption
+before R1 send, exact positive frame receipt accounting and independent
+client FRAME_ACK before DesktopVisible. Stop and terminal native loss use
+no-XTEST retirement; frame publication after revoked callbacks is forbidden.
+R4 owns only frame layout/credit and R10 the sole accepted-client/XCB lifetime.
+Physical owner-authenticated Type 3, seat0, first frame, complete outbound
+receipts, inbound ACK, keyboard/mouse, Stop and fresh reconnect **NOT RUN**.
+
+**Verification:** C++ source, existing behavior fixture, production
+dependency/linkage and shared CTest registration inspection PASS.
+Canonical owner-local Debug/Release configure/build, focused/full CTest,
+ASan/UBSan and benchmarks **NOT RUN** (no local `~/rdp-server/`
+checkout; the shell cannot resolve GitHub). New exact-SHA hosted CI **PENDING**.
+Current physical Windows App peer-FIN happens before Type 3 and is no
+authorization to change X11 or execute physical capture/input.
+
 ## R2 preferences remaining warning-clean correction (2026-11-01)
 
 Initial `6d9a9617f2ffa0bc218a4c7e4180ba580e79b945`, Actions 41341138295: Windows MSVC builds the preferences target and its dedicated CTest 55 passes in 0.02 s. R2 `acc77b33` fixes the first explicit-RAII compile blocker and R9 `3a78e4f2` preserves exact POSIX 0700/0600 plus protected current-user Windows DACL validation. Two independent source blockers remain in the same evidence: Windows Clang 23 rejects the POSIX-only filename constant as unused, and Linux portable-bootstrap GCC 15 diagnoses the reserve/push encoder with `-Werror=free-nonheap-object`.

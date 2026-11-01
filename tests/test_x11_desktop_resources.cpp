@@ -1731,7 +1731,7 @@ syntheticPointerMask(xcb_connection_t &connection,
 }
 
 void
-syntheticXvfbImplicitHeldKeyboardAndButtonDestruction()
+syntheticXvfbImplicitHeldKeyboardAndButtonDestruction(bool resizeBeforeDestruction)
 {
     // Dedicated isolated Xvfb: no real seat0, privileged R2 identity, or
     // networked accepted client. Do not call the graceful disconnect path.
@@ -1781,6 +1781,53 @@ syntheticXvfbImplicitHeldKeyboardAndButtonDestruction()
         assert(syntheticHeldKeymap(*helper) != baselineKeys);
         assert((syntheticPointerMask(*helper, screen->root) &
                 XCB_BUTTON_MASK_1) != 0U);
+
+        if (resizeBeforeDestruction)
+        {
+            // Rebuild real XShm/XDamage under RandR while BOTH native inputs
+            // remain held. The one XCB/XTEST controller must stay owned by
+            // the same aggregate; no cleanup release or duplicate make is
+            // permitted when only the geometry generation changes.
+            constexpr PixelSize resizedGeometry{1024U, 600U};
+            requireSyntheticRandrRebuild(
+                originalOwner, *helper, screen->root, resizedGeometry);
+            assert(originalOwner.nativeConnection() == originalConnection);
+            assert(originalOwner.fileDescriptor() == retiredDescriptor);
+            assert(originalOwner.sourceGeometry() == resizedGeometry);
+            const std::uint64_t resizedGeneration =
+                originalOwner.captureGeneration();
+            assert(resizedGeneration != inputGeneration);
+            assert(!originalOwner.nativeGeometryIsCurrent(
+                retiredGeometry, nativeSessionGeneration));
+
+            // The stale generation cannot inject. Repeated makes on the
+            // current generation must recognize BOTH already-held inputs.
+            assert(!X11DesktopResourcesBehaviorTestAccess::handleSyntheticInput(
+                originalOwner, inputGeneration,
+                X11KeyInput{0x61U, 0x1eU, false, true}));
+            assert(!X11DesktopResourcesBehaviorTestAccess::handleSyntheticInput(
+                originalOwner, inputGeneration,
+                X11PointerButtonInput{140, 140, 1U, true}));
+            assert(X11DesktopResourcesBehaviorTestAccess::handleSyntheticInput(
+                originalOwner, resizedGeneration,
+                X11KeyInput{0x61U, 0x1eU, false, true}));
+            assert(X11DesktopResourcesBehaviorTestAccess::handleSyntheticInput(
+                originalOwner, resizedGeneration,
+                X11PointerButtonInput{140, 140, 1U, true}));
+            synchronizeXcbConnection(*originalConnection);
+            assert(observedXtestRequests.keyPresses == 1U);
+            assert(observedXtestRequests.buttonPresses == 1U);
+            assert(observedXtestRequests.keyReleases == 0U);
+            assert(observedXtestRequests.buttonReleases == 0U);
+            assert(syntheticHeldKeymap(*helper) != baselineKeys);
+            assert((syntheticPointerMask(*helper, screen->root) &
+                    XCB_BUTTON_MASK_1) != 0U);
+
+            // The replacement geometry-bound capture remains functional.
+            const FramebufferView resizedFrame =
+                originalOwner.capture(resizedGeneration, damageRectangle);
+            assert(resizedFrame.valid());
+        }
 
         // Leave pending XDamage in the original XCB queue; no retirement
         // callback may resurrect this generation after scope exit.
@@ -2902,7 +2949,12 @@ main(int argc, char **argv)
     }
     if (behavior == "implicit-held-key-button-destructor-no-xtest")
     {
-        syntheticXvfbImplicitHeldKeyboardAndButtonDestruction();
+        syntheticXvfbImplicitHeldKeyboardAndButtonDestruction(false);
+        return 0;
+    }
+    if (behavior == "randr-held-key-button-implicit-retirement")
+    {
+        syntheticXvfbImplicitHeldKeyboardAndButtonDestruction(true);
         return 0;
     }
     if (behavior == "authority-retirement-queued-damage-isolation")

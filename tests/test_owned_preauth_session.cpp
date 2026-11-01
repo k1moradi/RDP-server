@@ -8027,6 +8027,25 @@ macProtectedHybridGraphicsConnectInitial()
         coreHeader.begin(), coreHeader.end());
     assert(core != gccBytes.end());
 
+    // The protected frame-receipt CTest reuses this graphics GCC fixture.
+    // Keep its offline negotiated surface bounded; independent codec and
+    // segmented-frame tests retain large-frame coverage.
+    constexpr std::uint16_t kFixtureWidthPixels = 128U;
+    constexpr std::uint16_t kFixtureHeightPixels = 96U;
+    const std::size_t clientCoreOffset =
+        static_cast<std::size_t>(core - gccBytes.begin());
+    constexpr std::size_t kDesktopWidthOffset = 8U;
+    constexpr std::size_t kDesktopHeightOffset = 10U;
+    assert(clientCoreOffset + kDesktopHeightOffset + 2U <= gccBytes.size());
+    gccBytes[clientCoreOffset + kDesktopWidthOffset] =
+        static_cast<std::uint8_t>(kFixtureWidthPixels);
+    gccBytes[clientCoreOffset + kDesktopWidthOffset + 1U] =
+        static_cast<std::uint8_t>(kFixtureWidthPixels >> 8U);
+    gccBytes[clientCoreOffset + kDesktopHeightOffset] =
+        static_cast<std::uint8_t>(kFixtureHeightPixels);
+    gccBytes[clientCoreOffset + kDesktopHeightOffset + 1U] =
+        static_cast<std::uint8_t>(kFixtureHeightPixels >> 8U);
+
     constexpr std::size_t kEarlyCapabilityFlagsBodyOffset = 140U;
     const std::size_t earlyCapabilityFlagsOffset =
         static_cast<std::size_t>(core - gccBytes.begin()) + 4U +
@@ -8062,6 +8081,8 @@ macProtectedHybridGraphicsConnectInitial()
     const auto gcc = parseGccConferenceCreate(reparsed.value.gccUserData);
     assert(gcc);
     assert(gccClientSupportsDynamicVirtualChannelGraphics(gcc.settings));
+    assert(gcc.settings.requestedWidth == kFixtureWidthPixels);
+    assert(gcc.settings.requestedHeight == kFixtureHeightPixels);
     assert(gcc.settings.channelCount == 3U);
     assert(std::string_view(gcc.settings.channels[0].name.data()) == "rdpdr");
     assert(std::string_view(gcc.settings.channels[1].name.data()) == "cliprdr");
@@ -10474,7 +10495,9 @@ void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
         // Commit one genuine R1 TLS plaintext byte, then insist on the exact
         // R3 suffix tuple. Neither encoding nor a partial DATA receipt
         // records client decode progress or an outstanding ACK.
-        const std::size_t firstFrameWireBytes = firstPending->bytes.size();
+        // This is the first MCS/DVC record, not the entire R4 frame.
+        const std::size_t firstRecordPlaintextBytes =
+            firstPending->bytes.size();
         const std::size_t acceptedFirstByte =
             writeOneMacProtectedPlaintextByte(*fixture, firstPending->bytes);
         assert(acceptedFirstByte == 1U);
@@ -10491,7 +10514,7 @@ void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
                suffix->replySequence == firstPending->replySequence &&
                suffix->writeSliceSequence != firstPending->writeSliceSequence &&
                suffix->bytes.size() + acceptedFirstByte ==
-                   firstFrameWireBytes);
+                   firstRecordPlaintextBytes);
         const auto partiallyAccepted =
             fixture->session->firstClientAcceptanceObservability();
         assert(!partiallyAccepted.firstExactFrameWriteCommitted);
@@ -10505,6 +10528,11 @@ void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
         const auto deadline =
             std::chrono::steady_clock::now() + std::chrono::seconds{30};
         std::size_t acceptedOuterBytes = acceptedFirstByte;
+        std::size_t expectedOuterBytes = firstRecordPlaintextBytes;
+        std::size_t currentRecordAcceptedBytes = acceptedFirstByte;
+        std::size_t currentRecordPlaintextBytes = firstRecordPlaintextBytes;
+        std::uint64_t currentRecordReplySequence =
+            firstPending->replySequence;
         bool delivered = false;
         for (std::size_t attempt = 0U;
              attempt < 16384U &&
@@ -10516,6 +10544,24 @@ void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
                     *fixture->session, policy);
             assert(pending && *pending &&
                    pending->kind == RdpGraphicsDvcWriteKind::GraphicsFrameData);
+            if (pending->replySequence != currentRecordReplySequence)
+            {
+                // New replies begin only after complete acceptance of
+                // the preceding outer record and its suffixes.
+                assert(pending->replySequence > currentRecordReplySequence);
+                assert(currentRecordAcceptedBytes ==
+                       currentRecordPlaintextBytes);
+                currentRecordReplySequence = pending->replySequence;
+                currentRecordPlaintextBytes = pending->bytes.size();
+                assert(currentRecordPlaintextBytes != 0U);
+                assert(expectedOuterBytes <=
+                    (std::numeric_limits<std::size_t>::max)() -
+                        currentRecordPlaintextBytes);
+                expectedOuterBytes += currentRecordPlaintextBytes;
+                currentRecordAcceptedBytes = 0U;
+            }
+            assert(pending->bytes.size() + currentRecordAcceptedBytes ==
+                   currentRecordPlaintextBytes);
             const auto offered = pending->bytes;
             assert(offered.size() <= received.size());
             const auto sent =
@@ -10539,6 +10585,7 @@ void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
             assert(std::equal(
                 receivedSlice.begin(), receivedSlice.end(), offered.begin()));
             acceptedOuterBytes += sent.bytes;
+            currentRecordAcceptedBytes += sent.bytes;
             const auto outcome =
                 fixture->broker.completeR3GraphicsDynamicVirtualChannelWrite(
                     *fixture->session, policy, pending->replySequence,
@@ -10547,7 +10594,8 @@ void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
             delivered = outcome == Write::Delivered;
         }
         assert(delivered);
-        assert(acceptedOuterBytes == firstFrameWireBytes);
+        assert(currentRecordAcceptedBytes == currentRecordPlaintextBytes);
+        assert(acceptedOuterBytes == expectedOuterBytes);
         // A Delivered receipt already proves that R3 consumed the final
         // frame suffix. The protected pending-write broker is a positive
         // borrow, not a read-only "is empty" probe: invoking it with no

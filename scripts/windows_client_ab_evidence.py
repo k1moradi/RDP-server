@@ -283,6 +283,26 @@ def _client_event_failures(stages: object, evidence: object, binding: object,
     return failures
 
 
+def _client_source_digests(stages: object, evidence: object) -> set[str]:
+    """Original client records can support several stages of one attempt.
+
+    The same original record must not be assigned to two different clients.
+    """
+    if not isinstance(stages, dict) or not isinstance(evidence, dict):
+        return set()
+    digests: set[str] = set()
+    for stage in CLIENT_SECURITY_STAGES:
+        if not _is_allowed(stages.get(stage), {"PASS", "FAIL"}):
+            continue
+        event = evidence.get(stage)
+        if not isinstance(event, dict):
+            continue
+        digest = event.get("source_record_sha256")
+        if isinstance(digest, str) and SHA256.fullmatch(digest):
+            digests.add(digest.lower())
+    return digests
+
+
 def _server_type3_failures(stage: object, evidence: object, binding: object,
                            prefix: str) -> list[str]:
     """Server Type 3 must be pinned to its originating attempt, not a neighbor."""
@@ -509,6 +529,13 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
     failures.extend(_client_event_failures(
         windows["client_security_stages"], windows["client_stage_evidence"],
         windows["source_binding"], "WINDOWS"))
+    # A digest of one original client event is not two independent attempts.
+    # No private digest or source text is included in the public denial.
+    if (_client_source_digests(
+            macos_row["client_security_stages"], macos_row["client_stage_evidence"]) &
+            _client_source_digests(
+                windows["client_security_stages"], windows["client_stage_evidence"])):
+        failures.append("AB_CLIENT_SOURCE_RECORD_REUSED")
     failures.extend(_server_type3_failures(
         macos_manifest.get("server_stage_matrix"),
         macos_row["server_type3_evidence"], macos_row["source_binding"], "MACOS"))

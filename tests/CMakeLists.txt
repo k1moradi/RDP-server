@@ -1545,6 +1545,16 @@ add_test(NAME interop.windows-client-ab-invalid-first-error-redaction-denials
 set_tests_properties(interop.windows-client-ab-invalid-first-error-redaction-denials
     PROPERTIES LABELS "interop;offline;security;evidence" TIMEOUT 15)
 
+# R6 malformed macOS collector first-error fields must not reflect private
+# strings/lists/dicts, and validation exceptions must not expose paths.
+add_test(NAME interop.windows-client-ab-malformed-macos-first-error-projection-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_windows_app_owner_evidence.py"
+        --script "${PROJECT_SOURCE_DIR}/scripts/macos_windows_app_owner_evidence.py"
+        -k macos_private_first_error_summary_fields_fail_closed)
+set_tests_properties(interop.windows-client-ab-malformed-macos-first-error-projection-denials
+    PROPERTIES LABELS "interop;macos;offline;security;evidence" TIMEOUT 15)
+
 # R6 nested malformed private A/B evidence: fixed redacted FAIL.
 add_test(NAME interop.windows-client-ab-malformed-nested-evidence-denials
     COMMAND "${Python3_EXECUTABLE}"

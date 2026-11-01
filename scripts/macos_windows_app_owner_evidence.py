@@ -45,6 +45,7 @@ _FIRST_ERROR_CATEGORIES = (
     _NOT_OBSERVED,
 )
 _FIRST_ERROR_SOURCES = ("core", "ui", "ui-error", "core-and-ui", _NOT_OBSERVED)
+_UI_ERROR_CODE = re.compile(r"(?:0[xX][0-9a-fA-F]{1,8}|[0-9]{1,10})\Z")
 
 
 def _bounded_text(value: str, name: str) -> str:
@@ -917,33 +918,89 @@ def build_redacted_summary(
     )
     failures.extend(timing_failures)
 
+    # The private collector is untrusted even if its CLI emits fixed choices.
+    # Copy only bounded public codes and valid first-error metadata.
     ui_error_code = manifest.get("client_error_code")
-    first_error = manifest.get("first_client_error")
-    if not isinstance(first_error, dict):
-        first_error = {}
-        limitations.append("FIRST_CLIENT_ERROR_NOT_OBSERVED")
-    first_category = first_error.get("normalized_category", _NOT_OBSERVED)
-    first_source = first_error.get("source", _NOT_OBSERVED)
+    if (not isinstance(ui_error_code, str) or
+            (ui_error_code != _NOT_RECORDED and
+             _UI_ERROR_CODE.fullmatch(ui_error_code) is None)):
+        failures.append("CLIENT_UI_CODE_INVALID")
+        ui_error_code = _NOT_RECORDED
+
+    private_first_error = manifest.get("first_client_error")
+    first_error = private_first_error if isinstance(private_first_error, dict) else {}
+    first_error_invalid = (
+        not isinstance(private_first_error, dict) or set(first_error) != {
+            "normalized_category", "source", "provider_category_exact",
+            "provider_code_exact", "event_time_local", "event_time_utc"
+        }
+    )
+    private_category = first_error.get("normalized_category")
+    private_source = first_error.get("source")
+    first_category = (
+        private_category if isinstance(private_category, str)
+        and private_category in _FIRST_ERROR_CATEGORIES else "unknown"
+    )
+    first_source = (
+        private_source if isinstance(private_source, str)
+        and private_source in _FIRST_ERROR_SOURCES else _NOT_OBSERVED
+    )
+    if first_category != private_category or first_source != private_source:
+        first_error_invalid = True
+
+    for field in ("provider_category_exact", "provider_code_exact"):
+        value = first_error.get(field)
+        if (value is not None and
+                (not isinstance(value, str) or not value or
+                 len(value.encode("utf-8")) > MAX_TEXT_BYTES)):
+            first_error_invalid = True
     provider_category_present = isinstance(
         first_error.get("provider_category_exact"), str
     ) and bool(first_error.get("provider_category_exact"))
     provider_code_present = isinstance(
         first_error.get("provider_code_exact"), str
     ) and bool(first_error.get("provider_code_exact"))
-    event_time_present = isinstance(first_error.get("event_time_utc"), str)
+
+    first_event_time = first_error.get("event_time_utc")
+    local_event_time = first_error.get("event_time_local")
+    if (first_event_time is None) != (local_event_time is None):
+        first_error_invalid = True
+    if first_event_time is not None:
+        try:
+            if _parse_utc(first_event_time, "first-error UTC time") != _parse_utc(
+                    local_event_time, "first-error local time"):
+                first_error_invalid = True
+        except ValueError:
+            first_error_invalid = True
+
+    if first_category == _NOT_OBSERVED:
+        if (first_source != _NOT_OBSERVED or
+                any(first_error.get(field) is not None for field in (
+                    "provider_category_exact", "provider_code_exact",
+                    "event_time_local", "event_time_utc"))):
+            first_error_invalid = True
+    elif first_source == _NOT_OBSERVED:
+        first_error_invalid = True
+    if first_category not in ("unknown", _NOT_OBSERVED) and not provider_category_present:
+        failures.append("FIRST_CLIENT_ERROR_CLASSIFICATION_UNGROUNDED")
+        first_error_invalid = True
+
+    if first_error_invalid:
+        failures.append("FIRST_CLIENT_ERROR_INVALID")
+        first_category = "unknown"
+        first_source = _NOT_OBSERVED
+        first_event_time = None
 
     if first_category == _NOT_OBSERVED:
         limitations.append("FIRST_CLIENT_ERROR_NOT_OBSERVED")
     elif first_category == "unknown":
         limitations.append("FIRST_CLIENT_ERROR_UNTYPED")
-    elif not provider_category_present:
-        failures.append("FIRST_CLIENT_ERROR_CLASSIFICATION_UNGROUNDED")
 
     if isinstance(ui_error_code, str) and ui_error_code.lower() == "0x204" and (
         first_category in ("unknown", _NOT_OBSERVED) or not provider_category_present
     ):
         limitations.append("BARE_0X204_NOT_TYPED")
-    if first_category not in (_NOT_OBSERVED,) and not event_time_present:
+    if first_category != _NOT_OBSERVED and first_event_time is None:
         limitations.append("FIRST_CLIENT_ERROR_TIME_UNAVAILABLE")
 
     pair_failures, pair_summary = _pair_failures(manifest, pair)
@@ -995,7 +1052,7 @@ def build_redacted_summary(
             "source": first_source,
             "provider_category_present": provider_category_present,
             "provider_code_present": provider_code_present,
-            "event_time_utc": first_error.get("event_time_utc"),
+            "event_time_utc": first_event_time,
             "cross_source_order": "ORDER_UNDETERMINED",
         },
         "logging": {
@@ -1196,8 +1253,13 @@ def main(argv: list[str]) -> int:
             return 0 if summary["evidence_status"] == "PASS" else 3
 
         manifest = build_manifest(parse_collect_args(argv))
-    except (OSError, ValueError, json.JSONDecodeError, plistlib.InvalidFileException) as exc:
-        print(f"macOS Windows App evidence: {exc}", file=sys.stderr)
+    except (OSError, ValueError, TypeError, AttributeError,
+            json.JSONDecodeError, plistlib.InvalidFileException) as exc:
+        if argv and argv[0] == "validate":
+            # Private file errors may include paths or source text.
+            print("macOS Windows App evidence: private record invalid", file=sys.stderr)
+        else:
+            print(f"macOS Windows App evidence: {exc}", file=sys.stderr)
         return 2
     json.dump(manifest, sys.stdout, indent=2, sort_keys=True)
     sys.stdout.write("\n")

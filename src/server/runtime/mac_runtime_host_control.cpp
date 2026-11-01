@@ -2008,13 +2008,14 @@ MacRuntimeHostControl::serviceAcceptedClientGraphicsOnce(
         std::uint64_t frameSequence{};
         std::size_t minimumStrideBytes{};
         bool* firstFramebufferAvailable{};
+        bool callbackReached{};
         bool publicationPrepared{};
     } frameContext{
         activeAdmissionBroker_.get(), &session, &*deploymentPolicy_,
         activeNextGraphicsFrameId_, observation.pixelGeometry,
         observation.geometryGeneration, observation.admittedSessionGeneration,
         observation.latestFrameSequence, minimumStrideBytes,
-        &activeFirstFramebufferAvailable_, false};
+        &activeFirstFramebufferAvailable_, false, false};
 
     const auto publishFrame = +[](
         void* rawContext, const FramebufferView& framebuffer,
@@ -2022,7 +2023,12 @@ MacRuntimeHostControl::serviceAcceptedClientGraphicsOnce(
         std::uint64_t admittedSessionGeneration,
         std::uint64_t frameSequence) noexcept -> bool {
         auto* context = static_cast<FramePublicationContext*>(rawContext);
-        if (context == nullptr || context->broker == nullptr ||
+        if (context == nullptr)
+            return false;
+        // Only a pre-callback stale mailbox is retryable. If invoked,
+        // invalid metadata or failed R3 preparation must retire the client.
+        context->callbackReached = true;
+        if (context->broker == nullptr ||
             context->session == nullptr || context->policy == nullptr ||
             context->firstFramebufferAvailable == nullptr ||
             context->frameId == 0U || !framebuffer.valid() ||
@@ -2057,7 +2063,7 @@ MacRuntimeHostControl::serviceAcceptedClientGraphicsOnce(
                 session, *deploymentPolicy_);
         if (!nativeDesktop_.active())
             return retireGraphics(RuntimeHostError::NativeAuthorizationDenied);
-        return frameContext.publicationPrepared
+        return frameContext.callbackReached
             ? retireGraphics(RuntimeHostError::GraphicsUnavailable)
             : RuntimeHostResult{RuntimeHostError::None, true};
     }

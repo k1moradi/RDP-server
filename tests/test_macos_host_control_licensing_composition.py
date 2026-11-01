@@ -19,6 +19,7 @@ def main() -> int:
     parser.add_argument("--check-share-activation", action="store_true")
     parser.add_argument("--check-graphics-control", action="store_true")
     parser.add_argument("--check-frame-pump", action="store_true")
+    parser.add_argument("--check-frame-borrow-callback-failure", action="store_true")
     args = parser.parse_args()
 
     source = args.source.read_text(encoding="utf-8")
@@ -337,6 +338,46 @@ def main() -> int:
         require(
             "acceptedClientPreauthDiagnostics.firstLiveGraphicsTrace" not in status,
             "pre-auth diagnostics must not own post-Graphics frame trace",
+        )
+
+    if args.check_frame_borrow_callback_failure:
+        # A rejected native mailbox sequence (no callback) is retryable;
+        # a rejected callback after R7 supplied its pixels is terminal.
+        frame_begin = source.find(
+            "MacRuntimeHostControl::serviceAcceptedClientGraphicsOnce("
+        )
+        frame_end = source.find("catch (const std::bad_alloc&)", frame_begin)
+        require(frame_begin >= 0 and frame_end > frame_begin,
+                "cannot isolate R10 original-owner graphics callback")
+        frame_pump = source[frame_begin:frame_end]
+        callback_start = frame_pump.find("const auto publishFrame = +[](")
+        borrow_start = frame_pump.find(
+            "const bool borrowed = nativeDesktop_.borrowFramebuffer("
+        )
+        failed_start = frame_pump.find("if (!borrowed)", borrow_start)
+        accepted_start = frame_pump.find(
+            "if (!frameContext.publicationPrepared)", failed_start
+        )
+        require(0 <= callback_start < borrow_start < failed_start < accepted_start,
+                "callback, native borrow and rejected-borrow split lost")
+        callback = frame_pump[callback_start:borrow_start]
+        rejection = frame_pump[failed_start:accepted_start]
+        require(
+            "bool callbackReached{};" in frame_pump
+            and "bool publicationPrepared{};" in frame_pump
+            and "context->callbackReached = true;" in callback
+            and callback.find("context->callbackReached = true;") <
+                callback.find("beginR3GraphicsClearCodecFramePublication("),
+            "R10 must record a callback before its R3 frame attempt",
+        )
+        require(
+            "if (frameContext.publicationPrepared)" in rejection
+            and "abortR3GraphicsFrame(" in rejection
+            and "if (!nativeDesktop_.active())" in rejection
+            and "return frameContext.callbackReached" in rejection
+            and "? retireGraphics(RuntimeHostError::GraphicsUnavailable)" in rejection
+            and ": RuntimeHostResult{RuntimeHostError::None, true}" in rejection,
+            "invoked callback failure must retire; stale pre-callback miss may retry",
         )
 
     # C++ member destruction is reverse declaration order. Service policy and

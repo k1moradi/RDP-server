@@ -1,3 +1,7 @@
+## R4 macOS rejected native-borrow callback fail-close regression (2026-11-01)
+
+Ordinary offline `runtime.macos-host-control-native-frame-callback-rejection-retires` reuses `test_macos_host_control_licensing_composition.py` and tests the exact R10 source-contract split: a pre-callback frame-sequence miss may retry, but once the native callback is invoked it must mark invocation before R3 preparation; any failed borrow after invocation is terminal, and a prepared R3 frame is aborted using the existing owner. This is an additive *source-contract* test, not an executed native/ScreenCaptureKit, R2 admission, R1 wire, or physical client test; the existing protected exact-TLS/ACK and R4 segmented-payload behavior CTests are independent. Fixed 23 Graphics DVC sanitizer cases and the two separately selected R4 retirement cases are unchanged. Source/CTest inspection PASS on `6ac35d364cba5b76abad45cfc4d6fb927a0d0d84`; local CTest/sanitizers NOT RUN; exact publication-SHA hosted CI PENDING.
+
 ## R5 RandR-held input owner implicit retirement (2026-11-01)
 
 The new ordinary Xvfb `x11.desktop-resource-randr-held-key-button-implicit-retirement`

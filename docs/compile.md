@@ -1,3 +1,7 @@
+## R4 macOS native borrow callback rejection focused qualification (2026-11-01)
+
+Use the single `~/rdp-server/build/` root. After canonical Debug configure/build run `ctest --test-dir build -C Debug -R '^runtime[.]macos-host-control-native-frame-(pump-composition-contract|callback-rejection-retires)$' --output-on-failure` and `ctest --test-dir build -C Debug -R '^graphics[.]frame-(native-borrow-segmented-receipt-fence|delivery-session-retirement-before-ack|partial-data-retirement-successor-generation)$' --output-on-failure`, then ordinary full Debug and Release CTest and the existing sanitizer lanes. No new native dependency, binary, build root, listener or physical desktop action. Authoring baseline `6ac35d364cba5b76abad45cfc4d6fb927a0d0d84`: source review PASS; local build/focused/full CTest/ASan/UBSan NOT RUN; hosted exact-SHA qualification PENDING.
+
 ## R5 combined held input across RandR and implicit teardown (2026-11-01)
 
 Use only `~/rdp-server/build/`. After the canonical Debug configure/build,

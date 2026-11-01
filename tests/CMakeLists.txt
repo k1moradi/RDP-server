@@ -1501,6 +1501,20 @@ set_tests_properties(
         LABELS "runtime;macos;security;graphics;frame;transport;policy;offline"
         TIMEOUT 15)
 
+# R10 native mailbox misses before the callback may retry. Once the
+# synchronous callback ran, invalid frame/R3 preparation must retire instead.
+# Source-only regression reuses the existing macOS composition test runner.
+add_test(NAME runtime.macos-host-control-native-frame-callback-rejection-retires
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_host_control_licensing_composition.py"
+        --source "${PROJECT_SOURCE_DIR}/src/server/runtime/mac_runtime_host_control.cpp"
+        --header "${PROJECT_SOURCE_DIR}/src/server/runtime/mac_runtime_host_control.h"
+        --check-frame-borrow-callback-failure)
+set_tests_properties(
+    runtime.macos-host-control-native-frame-callback-rejection-retires
+    PROPERTIES LABELS "runtime;macos;security;graphics;frame;retirement;offline"
+        TIMEOUT 15)
+
 # Only the original mapped R2/R3 GraphicsReady owner may construct the
 # downstream native desktop. This remains an offline composition contract:
 # no TCC prompt, capture session, framebuffer or client is created.

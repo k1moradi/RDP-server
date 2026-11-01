@@ -1,3 +1,19 @@
+## R5 implicit XCB/Damage destructor native fixture (2026-11-01)
+
+The existing `test_x11_desktop_resources` binary gains only the behavior
+`x11.desktop-resource-implicit-destruction-queued-damage-isolation`; there
+is no new target or dependency. It registers conditionally with ephemeral
+`xvfb-run` and `-noreset` and is not part of the fixed R9 45-case
+instrumented native census. On the canonical `~/rdp-server/build/`,
+run the offline source guard separately, and only in an authorized ephemeral
+Xvfb/CI test environment run the new native CTest; then the established
+45-case R9 ASan/UBSan selector and full Debug/Release CTest at the same
+publication SHA. This connector environment cannot clone the repository
+and the user has prohibited actual X server/XTEST execution here:
+local configure, compile, new native CTest, full CTest, ASan/UBSan **NOT RUN**.
+Exact parent reviewed: `e4534704900c4a3ef890e55aa35e91a76653f0ec`.
+New publication-SHA CI **PENDING**.
+
 ## R7 oversized ICC metadata offline qualification (2026-11-01)
 
 In the existing `~/rdp-server/build/` root, configure/build the normal Debug

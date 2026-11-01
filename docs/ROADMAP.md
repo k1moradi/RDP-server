@@ -1,3 +1,48 @@
+## R5 implicit X11 owner scope-exit / session-replacement gate (2026-11-01)
+
+**Reviewed parent:** `e4534704900c4a3ef890e55aa35e91a76653f0ec`.
+The destructor now terminally calls `retireAfterAuthorizationLoss()`, not
+graceful `disconnect()`. Original input is retired without XTEST cleanup,
+native XCB/XShm/Damage/pointer children retire before the display, and
+RandR only replaces geometry-bound children while retaining XTEST held state.
+The former obsolete RandR source-guard failure is corrected on this parent;
+do not reintroduce its old cleanup call.
+
+- [x] Source audit of implicit destructor, graceful versus suppressing
+  teardown, stale XDamage, in-flight frame callback retirement, keyboard
+  mapping loss, RandR bounds retention and R5 anti-splice pins v4.
+- [x] Add one independent Xvfb production-owner regression for scope-exit
+  teardown with queued XDamage, closure of the original XCB descriptor,
+  replacement-generation denial and new-only Damage/XShm publication.
+  It deliberately does not fabricate native R2 Admission or inject XTEST.
+- [ ] Exact publication-SHA offline
+  `x11.desktop-resource-implicit-retirement-no-xtest-contract`,
+  `x11.input-native-failure-terminal-retirement-no-xtest`,
+  `x11.input-randr-bounds-update-held-state-no-cleanup`, new native
+  implicit-owner fixture and full Debug/Release CTest.
+- [ ] Fixed 45-case R5 native ASan/UBSan CTest census on the same exact
+  publication SHA, including independently observed child/XShm cleanup.
+  The added ordinary Xvfb CTest is outside this fixed 45-case selector.
+- [ ] Aggregate-held key/button **implicit** destructor end-to-end native
+  zero-XTEST proof remains separate: the existing held-state controller
+  fixtures and the aggregate source contract are not that same behavioral
+  observation. Do not synthesize R2 authority to manufacture it.
+- [ ] R9's same-SHA qualification and manual candidate, plus distinct
+  owner permission, before any physical Linux X11 acceptance, input or
+  seat0 capture. No native physical tests or client evidence ran here.
+
+**Verification:** GitHub source/registry inspection PASS at reviewed
+parent. Local configure/build/CTest/ASan/UBSan **NOT RUN**: the connector
+cannot access a networked checkout and this task disallows running any
+X server or XTEST injection. Exact-SHA hosted CI on the parent was
+**QUEUED** at review; new publication-SHA CI **PENDING**.
+Independent original R1 socket, R2 native authority, authenticated
+session, Share, first real frame, complete R1 write, inbound client
+FRAME_ACK, RandR, input, terminal no-post and fresh reconnect all remain
+**NOT RUN / unauthorized** for physical acceptance. See the existing
+owner-private contract in
+[LINUX_X11_OWNER_PRIVATE_EVIDENCE.md](LINUX_X11_OWNER_PRIVATE_EVIDENCE.md).
+
 ## R3 PersonalDesktop one-shot licensing fence and Demand/Confirm Active handoff (2026-11-01)
 
 **Source review parent:** `e4534704900c4a3ef890e55aa35e91a76653f0ec`.

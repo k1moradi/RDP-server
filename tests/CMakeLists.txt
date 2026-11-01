@@ -4569,6 +4569,20 @@ if(TARGET rdp-server-linux-x11-desktop)
                 "-screen 0 1280x720x24 -nolisten tcp"
                 $<TARGET_FILE:test_x11_desktop_resources>
                 randr-stale-damage-isolation)
+        # Implicit RAII teardown closes the original XCB owner and discards
+        # queued Damage before the next capture generation. No XTEST input,
+        # synthetic R2 lease or live seat0 session is used by this test.
+        # It remains outside R9's fixed 45-case X11 sanitizer census.
+        add_test(NAME x11.desktop-resource-implicit-destruction-queued-damage-isolation
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_desktop_resources>
+                implicit-owner-destruction-queued-damage-isolation)
+        set_tests_properties(
+            x11.desktop-resource-implicit-destruction-queued-damage-isolation
+            PROPERTIES
+                LABELS "x11;linux-adapter;native;synthetic-display;security;generation"
+                TIMEOUT 20)
         add_test(NAME x11.desktop-resource-authority-retirement-queued-damage-isolation
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
                 "-screen 0 1280x720x24 -nolisten tcp -noreset"

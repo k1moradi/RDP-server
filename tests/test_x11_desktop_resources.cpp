@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -15,6 +16,8 @@
 #include <span>
 #include <string_view>
 #include <vector>
+
+#include <fcntl.h>
 
 #include <xcb/randr.h>
 #include <xcb/xcb.h>
@@ -1538,6 +1541,94 @@ syntheticXvfbReentrantAuthorityLossDuringDamageDispatch()
     assert(!replacement.valid());
 }
 
+
+void
+syntheticXvfbImplicitOwnerDestructionQueuedDamageIsolation()
+{
+    constexpr std::uint64_t nativeSessionGeneration = 925U;
+    constexpr Rectangle damageRectangle{0, 0, 8, 6};
+    const char *display = syntheticDisplay();
+
+    int helperScreenNumber = -1;
+    XcbConnection helper = connectHelper(display, helperScreenNumber);
+    xcb_screen_t *screen = screenFor(*helper, helperScreenNumber);
+    assert(screen->root_depth == 24U);
+
+    X11NativeGeometryObservation retiredGeometry{};
+    int retiredDescriptor = -1;
+    {
+        X11DesktopResources originalOwner(display, kCaptureArenaPixels);
+        requireValidResources(originalOwner, "implicit native owner destruction");
+        retiredGeometry =
+            originalOwner.observeNativeGeometry(nativeSessionGeneration);
+        assert(retiredGeometry.valid());
+        retiredDescriptor = originalOwner.fileDescriptor();
+        assert(retiredDescriptor >= 0);
+
+        xcb_connection_t *const originalConnection =
+            originalOwner.nativeConnection();
+        assert(originalConnection != nullptr);
+        const std::uint64_t oldNotificationCount =
+            originalOwner.damageNotificationCount();
+        drawSyntheticPattern(
+            *helper, screen->root, damageRectangle, kFirstPixelPattern);
+        synchronizeXcbConnection(*originalConnection);
+        assert(originalOwner.damageNotificationCount() == oldNotificationCount);
+        assert(!originalOwner.damagePending());
+
+        // The original R2 permission may already be gone at scope exit.
+        // Do not call explicit disconnect() or synthesize a positive lease.
+        // This fixture posts no native input; held-key/button no-post behavior
+        // is independently tested by the XTEST controller's Xvfb regressions.
+    }
+
+    // Implicit destruction must release its XCB socket, not just hide it
+    // behind an invalid capture generation. Native memory/resource leaks still require an instrumented run.
+    errno = 0;
+    assert(fcntl(retiredDescriptor, F_GETFD) == -1);
+    assert(errno == EBADF);
+
+    X11DesktopResources replacement(display, kCaptureArenaPixels);
+    requireValidResources(replacement, "owner after implicit destruction");
+    const X11NativeGeometryObservation replacementGeometry =
+        replacement.observeNativeGeometry(nativeSessionGeneration);
+    assert(replacementGeometry.valid());
+    assert(replacementGeometry.captureGeneration !=
+           retiredGeometry.captureGeneration);
+    assert(!replacement.nativeGeometryIsCurrent(
+        retiredGeometry, nativeSessionGeneration));
+    assert(!replacement.capture(
+        retiredGeometry.captureGeneration, damageRectangle).valid());
+
+    xcb_connection_t *const replacementConnection =
+        replacement.nativeConnection();
+    assert(replacementConnection != nullptr);
+    synchronizeXcbConnection(*replacementConnection);
+    bool workMayRemain = false;
+    assert(replacement.processEvents(
+               64U, &workMayRemain, false) == ConnectionStatus::Ok);
+    assert(!workMayRemain);
+    assert(replacement.damageNotificationCount() == 0U);
+    assert(!replacement.damagePending());
+
+    DamageRegion staleDamage;
+    assert(replacement.snapshotDamage(staleDamage));
+    assert(staleDamage.rectangles().empty());
+
+    const std::uint64_t newNotificationCount =
+        replacement.damageNotificationCount();
+    drawSyntheticPattern(
+        *helper, screen->root, damageRectangle, kSecondPixelPattern);
+    requireSyntheticDamage(
+        replacement, newNotificationCount, damageRectangle);
+    const FramebufferView newFrame =
+        replacement.capture(replacementGeometry.captureGeneration,
+                            damageRectangle);
+    requireCapturedPattern(
+        newFrame, damageRectangle, damageRectangle, kSecondPixelPattern);
+    // Replacement also uses implicit no-post native retirement.
+}
+
 void
 syntheticXvfbAuthorityRetirementQueuedDamageIsolation()
 {
@@ -2542,6 +2633,11 @@ main(int argc, char **argv)
     if (behavior == "reentrant-authority-loss-damage-dispatch")
     {
         syntheticXvfbReentrantAuthorityLossDuringDamageDispatch();
+        return 0;
+    }
+    if (behavior == "implicit-owner-destruction-queued-damage-isolation")
+    {
+        syntheticXvfbImplicitOwnerDestructionQueuedDamageIsolation();
         return 0;
     }
     if (behavior == "authority-retirement-queued-damage-isolation")

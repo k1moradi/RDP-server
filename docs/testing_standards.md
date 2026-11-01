@@ -1,3 +1,21 @@
+## R5 implicit-destructor native XCB/Damage reconnect regression (2026-11-01)
+
+The dedicated `x11.desktop-resource-implicit-destruction-queued-damage-isolation`
+ordinary Xvfb behavior CTest complements, but does not replace, the existing
+`x11.desktop-resource-implicit-retirement-no-xtest-contract` offline
+source guard. Queue actual XDamage on the original XCB owner and let
+`X11DesktopResources` leave scope with no explicit disconnect or terminal
+call. Assert its original file descriptor is closed (EBADF), the replacement
+capture generation rejects retired observations and pixels, old queued
+XDamage never reaches the new owner, and only a new post-replacement draw
+can yield current Damage/XShm pixels. Keep the ephemeral `-noreset` Xvfb
+fixture independent of owner seat0, credentials and fabricated native R2
+admission. It does **not** seed aggregate-held XTEST state or prove native
+XTEST zero-post by itself: the existing input-controller held-key/button
+Xvfb tests and the destructor source guard independently fence those paths.
+This new case stays outside the exact R9 45-case native ASan/UBSan selector;
+do not relabel it as physical-client acceptance.
+
 ## R3 premature Client Licensing after fully joined Client Info (2026-11-01)
 
 The ordinary offline `transport.mcs-macos-client-licensing-before-server-request-denial`

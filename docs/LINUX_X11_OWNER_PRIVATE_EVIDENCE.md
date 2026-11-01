@@ -6,6 +6,30 @@ Xvfb frame, or Windows App Type 2 receipt is **not** a Linux seat0/R2 result.
 Do not conduct live desktop capture, XTEST input, desktop/seat inspection or
 client connections without explicit authorization from the affected owner.
 
+## R5 implicit destructor source qualification — 2026-11-01
+
+The inspected R5 parent is `e4534704900c4a3ef890e55aa35e91a76653f0ec`.
+After that parent's implicit no-post destructor fix, an independently
+registered Xvfb test exercises queued XDamage, implicit XCB owner teardown,
+closed original FD, and replacement capture isolation. This fixture never
+obtains a real R2 lease or posts XTEST input. The aggregate-held key/button
+destructor path still requires independently authorized future proof;
+the separate XTEST-controller held-state tests and offline destructor source
+contract are narrower, non-physical evidence.
+
+Before claiming any **real** acceptance, independently bind the nominated
+exact publication SHA, original R1 accepted socket, current R2 lease and
+native session/owner-consent epoch, R3 Share/GraphicsReady, R5 geometry and
+first XShm frame, complete R1 frame-byte receipt, genuinely inbound
+current R3/R4 client FRAME_ACK, owner-authorized keyboard/mouse and RandR
+activity, terminal zero-post/zero-frame retirement, and a **new** R1
+socket/R2 owner on reconnect. The initial native/ACK owner pins and
+reconnect must agree; an old frame ID or stale ACK-window credit never
+authorizes a fresh session or proves client-visible presentation.
+Current physical state: **NOT RUN / unauthorized**. Native 45/45 and
+exact-publication-SHA CI: **PENDING**. No private credentials or XIDs
+are made public.
+
 ## Qualification before an owner attempt
 
 1. The R9 owner nominates **one exact 40-hex main source SHA**. Check Linux

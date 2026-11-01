@@ -1,3 +1,35 @@
+## R5 implicit-destructor queued-Damage replacement boundary (2026-11-01)
+
+Source parent reviewed: `e4534704900c4a3ef890e55aa35e91a76653f0ec`.
+R5's destructor delegates to terminal `retireAfterAuthorizationLoss()`;
+XTEST input retires without native release before XI2/Damage/XShm/cursor,
+and the sole XCB display closes last. The explicit healthy
+`disconnect()` is the only full-owner cleanup-release opt-in.
+RandR preserves the original XTEST controller and only changes bounds.
+The dedicated existing source-only destructor contract is inspected at
+that parent; the previous obsolete RandR source guard is not rewritten.
+
+Added one distinct production-backed `test_x11_desktop_resources` Xvfb
+behavior: implicit scope exit after queued original-owner Damage must close
+the old XCB descriptor and prevent stale observation/Damage/pixels from
+crossing into the next native owner. It does not send XTEST input or
+manufacture R2 positive authorization; existing XTEST-controller regressions
+pin held-key/button retirement separately. Added a single ordinary CTest,
+not included in R9's fixed 45-case native sanitizer census. The offline
+R5 socket/native-authority/first-frame/inbound-ACK v4 pin validator remains
+unchanged: R1 accepted bytes alone cannot establish client reception.
+
+**Verification:** GitHub source/registration review PASS at the parent;
+current-head local CMake/build, source CTests, Xvfb behavior, full CTest and
+45-case ASan/UBSan NOT RUN (no networked owner checkout; no X server or
+XTEST injection authorized in this session). Existing parent workflow
+structure guard PASS; exact-parent protocol CI QUEUED at review.
+Publication-SHA CI PENDING. Physical R2 seat0, client Share/GraphicsReady,
+first-frame/ACK, input/resize and reconnect NOT RUN / unauthorized.
+Next gate: exact publication SHA focused source contract + RandR regression,
+new Xvfb behavior, native 45/45 and full CTest; owner/private acceptance only
+after separately authorized physical conditions.
+
 ## R3 protected PersonalDesktop licensing fence review (2026-11-01)
 
 Source parent: `e4534704900c4a3ef890e55aa35e91a76653f0ec`.

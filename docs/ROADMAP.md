@@ -1,3 +1,29 @@
+## R5 P1 — terminal aggregate held-input authority loss and first-desktop handoff (2026-11-01)
+
+Reviewed current `main` parent `723d3e5948c6150f6487900a69bc6668a6be65dd` after the originally requested both-held implicit-destructor gap was already closed by `cec34430` and kept by `5edb1d33`. Exact hosted R5 evidence already records the fixed **45/45** native X11 ASan/UBSan selector and the separate **2/2** implicit-destructor lane PASS. Do not duplicate that proof or reinterpret the owner's physical authentication failure: the Windows App attempt still ends before client NTLM Type 3, so none of the Linux native stages below has been reached.
+
+A distinct aggregate lifetime gap remained. The constituent `x11.input-native-authority-retirement-no-native-post` already holds a key and button across `X11InputController::retireWithoutNativeInput()`, while `x11.desktop-resource-implicit-held-key-button-no-xtest` covers aggregate scope destruction. No behavior test directly held both inputs and then invoked the production aggregate's explicit terminal `X11DesktopResources::retireAfterAuthorizationLoss()` path used by R10. New ordinary Xvfb `x11.desktop-resource-authority-loss-held-key-button-no-xtest` reuses the existing production aggregate and link-time XTEST counter, queues real synthetic XDamage, performs terminal retirement before destructor entry, requires zero key/button release posts, closed XCB ownership, invalid retired capture provenance, no successor held bookkeeping, zero inherited Damage and successful fresh XShm/XDamage capture. It uses no real seat0, listener, credential or R2 grant. No production behavior changes; the fixed 45-case selector and existing 2-case supplemental implicit-destructor lane are unchanged.
+
+**Linux first-frame/native-owner audit:** R10 constructs exactly one R5 aggregate only after the original accepted client reaches GraphicsReady and the protected R2 application-traffic check succeeds. Native selection supplies the admission/session generations; every service tick revalidates R2, the native-change generation and X11 owner, drains a bounded X11 event batch, then revalidates R2 before input or capture. RandR rebuilds only XShm/XDamage/geometry children and calls `X11InputController::updateBounds()`, preserving the admitted input owner and its held bookkeeping. Frame publication rechecks current native geometry/session, R3 surface reconfiguration and R4 credit before the synchronous `consumeR4Frame()` borrow; the callback must return before later R1 TLS write work. DesktopVisible remains gated on an independently consumed genuine matching client FRAME_ACK. Terminal authority loss and Stop retire native state through `retireAfterAuthorizationLoss()`, never a graceful cleanup release. No second XCB, capture, input, codec, ACK window or accepted-client authority is warranted.
+
+| R9 Linux first-real-desktop stage | Status | Required evidence |
+| --- | --- | --- |
+| Original accepted R1 connection | **NOT RUN** | owner-approved physical candidate bound to one accepted-client ID |
+| Client NTLM Type 3 / authenticated original connection | **NOT RUN** | physical client progress beyond the current pre-Type-3 blocker |
+| Fresh authenticated R2 View/Input proof | **NOT RUN** | same accepted connection, current owner consent/native proof |
+| Native seat0 audit and original R5 X11 owner | **NOT RUN** | current unlocked physical X11 seat0 and matching admission/session generations |
+| First R5 capture frame | **NOT RUN** | current RandR/capture generation and synchronous XShm borrow |
+| Complete R4/R3/R1 frame receipts | **NOT RUN** | exact positive accepted-byte completion on the original R1 writer |
+| Actual inbound matching client FRAME_ACK | **NOT RUN** | independently received/consumed ACK for that publication |
+| Keyboard and mouse | **NOT RUN** | fresh R2 Input check per callback through the same R5 owner |
+| RandR resize with admitted input owner preserved | **NOT RUN** | physical resize plus current generation/held-state evidence |
+| Stop | **NOT RUN** | native retirement before accepted-client/listener teardown, no unauthorized releases |
+| Fresh reconnect | **NOT RUN** | new accepted-client/native generations after Stop |
+
+**R4/R10 handoff:** R4 continues to own frame layout/codec credit and genuine ACK membership; R10 continues to own the single accepted-client scheduler and is the only caller that may compose R2 -> R5 -> R4/R3 -> R1. R5 contributes only the existing synchronous native borrow and authorized input sink. Clipboard remains disabled and no native physical operation was performed.
+
+Validation in this connector session: source/ownership/CTest/dependency review **PASS**. Canonical local configure/build/focused/full Debug+Release CTest, the new Xvfb case, sanitizers and benchmarks are **NOT RUN** because no canonical checkout is mounted. Exact-publication-SHA hosted CI is **PENDING**. Physical R1/R2/R5/R4/R10 acceptance remains **NOT RUN / authorization-gated**; the current product blocker is upstream before NTLM Type 3, not native X11.
+
 ## R7 P0 follow-up — preference recovery preserves unrelated diagnostics (2026-11-01)
 
 **Authoring parent:** `2497d525503a3037bacc9910bd15d001ac87fba6`. R2 secure non-secret storage, R7 restore/save

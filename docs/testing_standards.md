@@ -1,3 +1,9 @@
+## R5 P1 — terminal aggregate held-input authority loss and first-desktop handoff (2026-11-01)
+
+Keep ordinary `x11.desktop-resource-authority-loss-held-key-button-no-xtest` as the aggregate-level terminal-authority counterpart to the already-qualified implicit destructor case. Under disposable Xvfb it must drive the real aggregate input controller to one held key plus one held mouse button, count actual production `xcb_test_fake_input` calls through the existing link wrapper, queue synthetic XDamage, call `X11DesktopResources::retireAfterAuthorizationLoss()` before scope exit and observe **zero** native key/button release posts. The old XCB descriptor and capture generation must be dead; a replacement owner must inherit neither held bookkeeping nor Damage, reject the retired generation and complete fresh XShm/XDamage capture.
+
+This test is intentionally distinct from constituent `x11.input-native-authority-retirement-no-native-post`, aggregate `x11.desktop-resource-implicit-held-key-button-no-xtest`, queued-Damage authority retirement and RandR held-state coverage. Do not fuse those boundaries. Keep the R9 native X11 sanitizer selector fixed at **45 cases** and keep the separately qualified **2-case** implicit-destructor lane unchanged; the new explicit-authority aggregate case participates in ordinary full CTest. No real seat0, R2 permission, physical input or Clipboard is allowed.
+
 ## R7 preference recovery preserves unrelated action errors (2026-11-01)
 
 The ordinary `gui.offscreen-rapid-preferences-preserve-unrelated-action-error`

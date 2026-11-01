@@ -1730,8 +1730,15 @@ syntheticPointerMask(xcb_connection_t &connection,
     return mask;
 }
 
+enum class AggregateHeldInputRetirement : std::uint8_t
+{
+    ImplicitDestruction,
+    AuthorizationLoss,
+};
+
 void
-syntheticXvfbImplicitHeldKeyboardAndButtonDestruction()
+syntheticXvfbHeldKeyboardAndButtonTerminalRetirement(
+    AggregateHeldInputRetirement retirement)
 {
     // Dedicated isolated Xvfb: no real seat0, privileged R2 identity, or
     // networked accepted client. Do not call the graceful disconnect path.
@@ -1752,7 +1759,7 @@ syntheticXvfbImplicitHeldKeyboardAndButtonDestruction()
     observeXtestRequests = true;
     {
         X11DesktopResources originalOwner(display, kCaptureArenaPixels);
-        requireValidResources(originalOwner, "held key/button implicit owner");
+        requireValidResources(originalOwner, "held key/button terminal owner");
         retiredGeometry =
             originalOwner.observeNativeGeometry(nativeSessionGeneration);
         assert(retiredGeometry.valid());
@@ -1792,7 +1799,28 @@ syntheticXvfbImplicitHeldKeyboardAndButtonDestruction()
         drawSyntheticPattern(
             *helper, screen->root, damageRectangle, kFirstPixelPattern);
         synchronizeXcbConnection(*originalConnection);
-        // Implicit destruction is the terminal path, with both inputs held.
+        if (retirement == AggregateHeldInputRetirement::AuthorizationLoss)
+        {
+            // This is R10's terminal native-owner path after authority loss.
+            // It must clear held bookkeeping before any child or XCB owner
+            // disappears, without posting compensating native releases.
+            originalOwner.retireAfterAuthorizationLoss();
+            assert(!originalOwner.valid());
+            assert(originalOwner.nativeConnection() == nullptr);
+            assert(originalOwner.fileDescriptor() == -1);
+            assert(originalOwner.captureGeneration() == 0U);
+            assert(!originalOwner.nativeGeometryIsCurrent(
+                retiredGeometry, nativeSessionGeneration));
+            assert(!X11DesktopResourcesBehaviorTestAccess::handleSyntheticInput(
+                originalOwner, inputGeneration,
+                X11KeyInput{0x61U, 0x1eU, false, false}));
+            assert(!X11DesktopResourcesBehaviorTestAccess::handleSyntheticInput(
+                originalOwner, inputGeneration,
+                X11PointerButtonInput{140, 140, 1U, false}));
+            assert(observedXtestRequests.keyReleases == 0U);
+            assert(observedXtestRequests.buttonReleases == 0U);
+        }
+        // Otherwise scope exit exercises the implicit terminal path.
     }
     assert(observedXtestRequests.keyPresses == 1U);
     assert(observedXtestRequests.buttonPresses == 1U);
@@ -1801,8 +1829,8 @@ syntheticXvfbImplicitHeldKeyboardAndButtonDestruction()
     observeXtestRequests = false;
 
     // The aggregate must retire all children, including XDamage and XShm,
-    // before closing the sole XCB descriptor. ASan/LSan also covers the
-    // destroyed input's held slots and native child allocations.
+    // before closing the sole XCB descriptor. The replacement checks below
+    // also prove no held-state/capture generation survives this owner.
     errno = 0;
     assert(fcntl(retiredDescriptor, F_GETFD) == -1);
     assert(errno == EBADF);
@@ -1892,6 +1920,20 @@ syntheticXvfbImplicitHeldKeyboardAndButtonDestruction()
     requireCapturedPattern(
         frame, damageRectangle, damageRectangle, kSecondPixelPattern);
     replacement.retireAfterAuthorizationLoss();
+}
+
+void
+syntheticXvfbImplicitHeldKeyboardAndButtonDestruction()
+{
+    syntheticXvfbHeldKeyboardAndButtonTerminalRetirement(
+        AggregateHeldInputRetirement::ImplicitDestruction);
+}
+
+void
+syntheticXvfbAuthorityLossHeldKeyboardAndButtonRetirement()
+{
+    syntheticXvfbHeldKeyboardAndButtonTerminalRetirement(
+        AggregateHeldInputRetirement::AuthorizationLoss);
 }
 
 void
@@ -2908,6 +2950,11 @@ main(int argc, char **argv)
     if (behavior == "implicit-held-key-button-destructor-no-xtest")
     {
         syntheticXvfbImplicitHeldKeyboardAndButtonDestruction();
+        return 0;
+    }
+    if (behavior == "authority-loss-held-key-button-no-xtest")
+    {
+        syntheticXvfbAuthorityLossHeldKeyboardAndButtonRetirement();
         return 0;
     }
     if (behavior == "authority-retirement-queued-damage-isolation")

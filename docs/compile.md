@@ -1,3 +1,14 @@
+## R5 P1 — terminal aggregate held-input authority loss and first-desktop handoff (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build, run:
+
+```
+ctest --test-dir build -C Debug -R '^(x11[.]desktop-resource-(implicit-held-key-button-no-xtest|authority-loss-held-key-button-no-xtest|authority-retirement-queued-damage-isolation)|x11[.]input-(native-authority-retirement-no-native-post|randr-bounds-update-held-state-no-cleanup))$' --output-on-failure
+ctest --test-dir build -C Debug --output-on-failure
+```
+
+Reconfigure/reuse that same build root for Release and run full Release CTest. Run the existing applicable sanitizer lanes without changing the fixed **45-case** R5 native selector or the existing **2-case** supplemental implicit-destructor selection. No new executable, dependency, build root or benchmark is introduced. Connector-local configure/build/CTest/sanitizers/benchmarks are **NOT RUN**.
+
 ## R7 preference error-scope focused qualification (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. After canonical Debug configure/build:

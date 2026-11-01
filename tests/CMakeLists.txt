@@ -5099,6 +5099,20 @@ if(TARGET rdp-server-linux-x11-desktop)
             PROPERTIES
                 LABELS "x11;linux-adapter;native;synthetic-display;security;generation"
                 TIMEOUT 20)
+        # Explicit terminal authority loss is a distinct aggregate boundary
+        # from implicit destruction and the constituent XTEST controller test.
+        # Keep it in ordinary full CTest, outside the fixed 45-case native
+        # selector and unchanged two-case supplemental destructor lane.
+        add_test(NAME x11.desktop-resource-authority-loss-held-key-button-no-xtest
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_desktop_resources>
+                authority-loss-held-key-button-no-xtest)
+        set_tests_properties(
+            x11.desktop-resource-authority-loss-held-key-button-no-xtest
+            PROPERTIES
+                LABELS "x11;linux-adapter;native;synthetic-display;security;generation"
+                TIMEOUT 20)
         # Keep full RandR event-drain coverage separate from the aggregate
         # both-held destructor proof. Exact b93a54b5 Ubuntu CI showed the
         # synthetic combined sequence can terminally retire before rebuild;

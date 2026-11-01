@@ -8787,6 +8787,141 @@ makeMacProtectedAwaitServerLicenseRequestFixture(
     return fixture;
 }
 
+// Production-backed Windows-client batch regression: several complete joins
+// arrive in ONE client TLS application write. R2/R3 must keep
+// join reply/slice ownership until every original R1 byte is accepted. Only
+// THEN may the client send Client Info; this fixture grants no real OS
+// admission or licensing authority.
+void testMacProtectedBatchedChannelJoinsClientInfoTlsReceipts()
+{
+    auto fixture = makeMacProtectedAwaitChannelJoinFixture();
+    const std::uint32_t allocatedUserId = fixture->session->allocatedUserId();
+    const std::uint16_t ioChannelId = fixture->session->allocatedIoChannelId();
+    assert(allocatedUserId != 0U && ioChannelId != 0U);
+
+    std::vector<std::uint16_t> channelsToJoin;
+    const auto staticChannels = fixture->session->allocatedStaticChannelIds();
+    channelsToJoin.reserve(2U + staticChannels.size());
+    channelsToJoin.push_back(static_cast<std::uint16_t>(allocatedUserId));
+    channelsToJoin.push_back(ioChannelId);
+    channelsToJoin.insert(
+        channelsToJoin.end(), staticChannels.begin(), staticChannels.end());
+
+    constexpr std::size_t kChannelJoinTpktBytes = 12U;
+    std::vector<std::uint8_t> clientBatch;
+    clientBatch.reserve(channelsToJoin.size() * kChannelJoinTpktBytes);
+    for (const std::uint16_t channelId : channelsToJoin)
+    {
+        const auto join = macProtectedChannelJoinTpkt(
+            allocatedUserId, channelId);
+        clientBatch.insert(clientBatch.end(), join.begin(), join.end());
+    }
+    writeNativeTlsClientAll(fixture->tls.client.get(), clientBatch);
+
+    // Read ONLY complete original R1-owned TPKTs. R3 owns the bounded
+    // queued channel indices even when the client batches all requests.
+    for (std::size_t index = 0U; index < channelsToJoin.size(); ++index)
+    {
+        std::array<std::uint8_t, kChannelJoinTpktBytes> receivedJoin{};
+        readOwnedRuntimeTlsAll(fixture->connection, receivedJoin);
+        assert(receivedJoin == macProtectedChannelJoinTpkt(
+            allocatedUserId, channelsToJoin[index]));
+        assert(fixture->broker.revalidate(kConsoleViewPermission));
+        const auto outcome = fixture->broker.authorizeR3ChannelJoin(
+            *fixture->session, receivedJoin);
+        assert(outcome == (index == 0U
+            ? McsJoinStartOutcome::ReplyPending
+            : McsJoinStartOutcome::Buffered));
+        assert(!fixture->session->channelJoinConfirmed(channelsToJoin[index]));
+        assert(!fixture->session->firstClientAcceptanceObservability()
+                    .mcsEstablished);
+    }
+
+    // Positive accepted R1 TLS bytes, not a prepared confirmation or a
+    // zero-byte receipt, must complete each queued R3 reply in order.
+    std::uint64_t previousReplySequence = 0U;
+    for (std::size_t index = 0U; index < channelsToJoin.size(); ++index)
+    {
+        const auto firstView =
+            fixture->broker.authorizeR3ChannelJoinConfirmWrite(
+                *fixture->session);
+        assert(firstView && !firstView->bytes.empty());
+        assert(firstView->replySequence != 0U);
+        assert(firstView->replySequence != previousReplySequence);
+        previousReplySequence = firstView->replySequence;
+        // The client sent the original channel IDs, and R3 must emit the
+        // exact MS-RDPBCGR/T.125 Join Confirm for this queued channel.
+        const auto joinRequestTpkt = macProtectedChannelJoinTpkt(
+            allocatedUserId, channelsToJoin[index]);
+        const auto parsedJoin = parseMcsChannelRequest(joinRequestTpkt);
+        assert(parsedJoin);
+        const auto expectedConfirm = encodeMcsChannelJoinConfirm(
+            parsedJoin.request, allocatedUserId, channelsToJoin);
+        assert(expectedConfirm);
+        const auto expectedBytes = expectedConfirm.bytes();
+        const std::size_t replyBytes = firstView->bytes.size();
+        assert(replyBytes == expectedBytes.size());
+        assert(std::equal(
+            firstView->bytes.begin(), firstView->bytes.end(),
+            expectedBytes.begin()));
+        assert(fixture->broker.completeR3ChannelJoinConfirmWrite(
+                   *fixture->session, firstView->replySequence,
+                   firstView->writeSliceSequence, 0U) ==
+               McsJoinWriteOutcome::Pending);
+        const auto afterZero =
+            fixture->broker.authorizeR3ChannelJoinConfirmWrite(
+                *fixture->session);
+        assert(afterZero &&
+               afterZero->replySequence == firstView->replySequence &&
+               afterZero->writeSliceSequence == firstView->writeSliceSequence &&
+               afterZero->bytes.size() == replyBytes);
+
+        for (std::size_t accepted = 0U; accepted < replyBytes; ++accepted)
+        {
+            const auto pending =
+                fixture->broker.authorizeR3ChannelJoinConfirmWrite(
+                    *fixture->session);
+            assert(pending && pending->replySequence == previousReplySequence);
+            assert(pending->bytes.size() == replyBytes - accepted);
+            const std::size_t bytes =
+                writeOneMacProtectedPlaintextByte(*fixture, pending->bytes);
+            assert(bytes == 1U);
+            const auto result =
+                fixture->broker.completeR3ChannelJoinConfirmWrite(
+                    *fixture->session, pending->replySequence,
+                    pending->writeSliceSequence, bytes);
+            assert(result == (accepted + 1U == replyBytes
+                ? McsJoinWriteOutcome::Confirmed
+                : McsJoinWriteOutcome::Pending));
+            assert(fixture->session->channelJoinConfirmed(channelsToJoin[index]) ==
+                   (accepted + 1U == replyBytes));
+        }
+        assert(fixture->session->firstClientAcceptanceObservability()
+                   .mcsEstablished == (index + 1U == channelsToJoin.size()));
+    }
+
+    // MS-RDPBCGR Client Info follows ALL server Join Confirms, not merely
+    // the client's batched Join Requests. The same R1 and R2/R3 lifetime
+    // now routes it through the fully joined global-I/O channel.
+    const auto clientInfo = macProtectedClientInfoTpkt(
+        allocatedUserId, ioChannelId);
+    writeNativeTlsClientAll(fixture->tls.client.get(), clientInfo);
+    std::array<std::uint8_t, 46> receivedClientInfo{};
+    readOwnedRuntimeTlsAll(fixture->connection, receivedClientInfo);
+    assert(receivedClientInfo == clientInfo);
+    assert(fixture->broker.revalidate(kConsoleViewPermission));
+    const auto info = fixture->broker.authorizeR3ClientInfoPacket(
+        *fixture->session, receivedClientInfo);
+    assert(info && info->unicode && !info->hasExtendedInfo);
+    assert(fixture->session->phase() ==
+           McsSessionPhase::AwaitServerLicenseRequest);
+    assert(!fixture->session->firstClientAcceptanceObservability()
+                .shareActivated);
+    fixture->ownerAuthority.revoke(OwnerConsentRevocationReason::Stop);
+    assert(fixture->session->phase() == McsSessionPhase::Closed);
+    assert(fixture->connection.stage() == PreauthStage::Closed);
+}
+
 void testMacProtectedChannelJoinClientInfoAfterAttach()
 {
     auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture();
@@ -15467,6 +15602,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedServerLicenseRequestPartialWriteCallbackRevocation},
     {"macos-protected-valid-client-final-write-callback-revocation",
      &testMacProtectedValidClientFinalWriteCallbackRevocation},
+    {"macos-protected-batched-channel-joins-client-info-tls-receipts",
+     &testMacProtectedBatchedChannelJoinsClientInfoTlsReceipts},
     {"macos-protected-channel-join-client-info-after-attach",
      &testMacProtectedChannelJoinClientInfoAfterAttach},
     {"macos-protected-personal-desktop-licensing-receipts",

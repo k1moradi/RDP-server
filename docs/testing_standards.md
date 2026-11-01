@@ -1,3 +1,7 @@
+## Protected R1/R2/R3 batched Channel Join with post-confirm Client Info (2026-11-01)
+
+The dedicated ordinary `security.macos-protected-batched-channel-joins-client-info-tls-receipts` CTest reuses the existing production-linked `test_owned_preauth_session` executable and original R1 SSL/BIO plus concrete R2/R3 fixture, rather than another synthetic MCS packet-only state machine. Send all distinct allocated user/I/O/static Channel Join Requests in one client TLS write, receive each as an original complete R1 TPKT and require R3 `ReplyPending` then bounded `Buffered`. Drain ordered Join Confirms only through actual one-byte positive R1 TLS writes, fresh protected R2 visits and exact R3 reply/write-slice receipts; a zero-byte receipt cannot change either sequence. Assert no confirmed membership or MCS-established observation before the corresponding completed reply. Send Client Info only **after all confirmations**, through the same TLS owner, and require `AwaitServerLicenseRequest` without licensing/Share/native promotion. Keep existing synthetic batched-join, sequential protected-join, malformed Client Info and partial licensing/replay cases unchanged. Source/registry review PASS; connector-local compile/focused/full CTest/ASan/UBSan NOT RUN, exact-publication-SHA CI PENDING; never claim physical client evidence from fixture authority.
+
 ## R7 desktop CLI offline regression contract (2026-11-01)
 
 Extend the existing Qt test_desktop_gui_offline fake-R10 executable, with

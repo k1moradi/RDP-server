@@ -2196,6 +2196,18 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "protocol;security;transport;tls;mcs;admission;offline"
                 TIMEOUT 20)
 
+        # A real coalesced client TLS batch: R2/R3 buffer allocated joins,
+        # R1 confirms each queued reply by exact accepted bytes, then Client
+        # Info is consumed after a distinct client write and no native admission.
+        add_test(NAME security.macos-protected-batched-channel-joins-client-info-tls-receipts
+            COMMAND "${test_target}"
+                "macos-protected-batched-channel-joins-client-info-tls-receipts")
+        set_tests_properties(
+            security.macos-protected-batched-channel-joins-client-info-tls-receipts
+            PROPERTIES
+                LABELS "protocol;security;transport;tls;mcs;admission;offline"
+                TIMEOUT 30)
+
         # R10 protected PersonalDesktop licensing through original R1 TLS.
         # Genuine native admission is never synthesized by the offline fixture.
         foreach(licensing_case IN ITEMS receipts denials)

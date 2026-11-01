@@ -54,6 +54,10 @@ ERROR_CATEGORIES = {
 }
 ERROR_SOURCES = {"core", "ui", "ui-error", "core-and-ui", "windows-ui",
                  "owner-approved-diagnostic", "not-observed"}
+MACOS_FIRST_ERROR_FIELDS = {
+    "normalized_category", "source", "provider_category_exact",
+    "provider_code_exact", "event_time_local", "event_time_utc",
+}
 SHA40 = re.compile(r"[0-9a-fA-F]{40}\Z")
 SHA256 = re.compile(r"[0-9a-fA-F]{64}\Z")
 PROFILE = re.compile(r"[a-zA-Z0-9._-]{1,96}\Z")
@@ -556,10 +560,7 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
     macos_first_error = macos_manifest.get("first_client_error")
     if (not _is_allowed(macos_error_category, ERROR_CATEGORIES)
             or not isinstance(macos_first_error, dict)
-            or set(macos_first_error) != {
-                "normalized_category", "source", "provider_category_exact",
-                "provider_code_exact", "event_time_utc"
-            }
+            or set(macos_first_error) != MACOS_FIRST_ERROR_FIELDS
             or not _is_allowed(macos_first_error.get("source"), ERROR_SOURCES)):
         failures.append("MACOS_FIRST_ERROR_INVALID")
     else:
@@ -567,8 +568,14 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
             for name in ("provider_category_exact", "provider_code_exact"):
                 if macos_first_error[name] is not None:
                     _text(macos_first_error[name], f"macOS first error {name}")
-            if macos_first_error["event_time_utc"] is not None:
-                _utc(macos_first_error["event_time_utc"], "macOS first error event")
+            local_time = macos_first_error["event_time_local"]
+            utc_time = macos_first_error["event_time_utc"]
+            if (local_time is None) != (utc_time is None):
+                raise ValueError("macOS first error time pair is incomplete")
+            if local_time is not None and (
+                    _utc(local_time, "macOS first error local time") !=
+                    _utc(utc_time, "macOS first error UTC time")):
+                raise ValueError("macOS first error time pair is inconsistent")
         except ValueError:
             failures.append("MACOS_FIRST_ERROR_INVALID")
 

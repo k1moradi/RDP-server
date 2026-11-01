@@ -963,6 +963,34 @@ class OwnerEvidenceTests(unittest.TestCase):
                     self.assertEqual(
                         summary["windows"]["first_client_error_category"], "unknown")
 
+        # The macOS collector owns a six-field private first-error schema:
+        # local and UTC timestamps are a pair and provider values stay private.
+        for field, value in (
+            ("provider_category_exact", [private_marker]),
+            ("provider_code_exact", {"detail": private_marker}),
+            ("event_time_local", [private_marker]),
+            ("event_time_utc", {"detail": private_marker}),
+            ("source", [private_marker]),
+        ):
+            with self.subTest(platform="macos", first_error_field=field):
+                manifest = evidence.build_manifest(self.options)
+                pair = self._paired_record(manifest)
+                manifest["first_client_error"][field] = value
+                summary = ab_evidence.validate_pair(manifest, pair)
+                self.assertEqual(summary["evidence_status"], "FAIL")
+                self.assertIn("MACOS_FIRST_ERROR_INVALID",
+                              summary["evidence_failures"])
+                self.assertEqual(summary["macos"]["first_client_error_category"],
+                                 "unknown")
+                self.assertNotIn(private_marker, json.dumps(summary, sort_keys=True))
+
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        del manifest["first_client_error"]["event_time_local"]
+        summary = ab_evidence.validate_pair(manifest, pair)
+        self.assertEqual(summary["evidence_status"], "FAIL")
+        self.assertIn("MACOS_FIRST_ERROR_INVALID", summary["evidence_failures"])
+
         # An unreadable private path must not be reflected in CLI stderr.
         error_output = io.StringIO()
         normal_output = io.StringIO()

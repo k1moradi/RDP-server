@@ -1,3 +1,7 @@
+## R6 macOS first-error source schema compatibility (2026-11-01)
+
+The paired R6 validator consumes the existing macOS owner manifest's private six-field first-error object, which includes both `event_time_local` and `event_time_utc`. Do not reuse the Windows five-field shape for that source. Valid macOS evidence must remain accepted; malformed provider category/code, source, missing timestamp fields or non-string local/UTC times must produce `MACOS_FIRST_ERROR_INVALID` without reflecting private text. When both timestamps are present they must normalize to the same instant. Keep these cases inside the existing `interop.windows-client-ab-malformed-source-projection-denials` CTest; do not add another public schema or CTest.
+
 ## R9 manual candidate directly requires focused R2/R7 producers (2026-11-01)
 
 The dispatch-only `r9-credssp-owner-candidate` gate must directly depend on the complete R2 Linux production-runtime-security matrix, R7 macOS native lifecycle and R7 macOS session-sanitizer producers in addition to the existing protocol, Windows Clang 23, R9 sanitizer, GUI and documentation gates. Check each direct `needs.*.result` for `success`; do not treat a separately successful or historical run as a same-SHA prerequisite. The CI structure validator pins these edges so a future workflow edit cannot silently make the candidate weaker. This changes no CTest census, native permission or physical-client authorization.

@@ -1,3 +1,7 @@
+## R6 macOS first-error compatibility follow-up (2026-11-01)
+
+At `517eb73946da50e29f17a9104bc07a8bd68c68de`, Ubuntu and macOS compiled successfully after the mutable credential-fixture correction, proving that shared compile blocker cleared. Full CTest then exposed an R6 validator regression: three valid paired-evidence tests failed because the macOS private first-error object legitimately has six fields while the R6 hardening required the Windows five-field shape. The dedicated malformed-source, invalid-first-error, nested-evidence and provenance-splice CTests themselves passed. Correct only the macOS schema check and strengthen the same malformed-source CTest; no target, dependency, build root or sanitizer selector changes. Re-run exact-SHA full protocol, Windows MSVC/Clang23 and sanitizer jobs.
+
 ## R1/R10 licensing test-only policy and link correction (2026-11-01)
 
 Correct the two already registered macOS licensing fixture cases to construct a valid original immutable private-LAN policy; there is no new test executable, production target, toolchain requirement, external dependency or build root. Link `rdp-server-runtime-licensing` only once in `test_owned_preauth_session` (it was accidentally duplicated by R10 integration). Reuse only `~/rdp-server/build/` for the canonical Debug configure/build. Focused command:

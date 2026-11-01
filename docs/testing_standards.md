@@ -1,3 +1,7 @@
+## R8 protected post-Share R2 classifier denial (2026-11-01)
+
+Keep ordinary `security.macos-share-activated-clipboard-r2-classifier-denial` separate from the fixed 107-case clipboard sanitizer labels and the existing R3-only post-Share route/activated-channel denial. Reuse the real accepted R1 HYBRID/TLS and concrete R2/R3 production Share receipt fixture, staging only Licensed and synthetic native evidence; start a new fixture per FORMAT_LIST and FILECONTENTS packet. After all joins and ShareActivated, require View|Input without Clipboard, R2 packet-classification denial and terminal retirement, followed by rejected late R8 route/queue/receipt operations. No product-valid issuer, native clipboard owner, file destination or physical OS side effect. Authoring parent `675655a30d47aa9ed389eac77c1ec6e708c0bdfd`; static source/registry PASS, new case runtime NOT RUN until exact-publication-SHA CI.
+
 ## R5 implicit X11 destruction: separate sanitizer proof (2026-11-01)
 
 Preserve the R9 fixed 45-case native X11 ASan/UBSan selector and

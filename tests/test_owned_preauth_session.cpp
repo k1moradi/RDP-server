@@ -9772,6 +9772,65 @@ void testMacProtectedShareActivatedClipboardPermissionDenial()
 }
 
 
+ // A joined CLIPRDR channel plus production Share receipts does not grant
+ // native Clipboard scope. Unlike the R3-only classifier regression, exercise
+ // R2's own View-scoped post-Share packet classification and terminal barrier.
+ // Licensing and native evidence are internal synthetic fixtures; no owner,
+ // physical clipboard, FILECONTENTS sink or file destination is constructed.
+void testMacProtectedShareActivatedClipboardR2ClassifierDenial()
+{
+    using rdp_server::server::runtime::RuntimeDeploymentPolicy;
+
+    // Independently retire the original owner for each wire PDU type; a
+    // FORMAT_LIST denial must not mask the FILECONTENTS boundary.
+    for (const std::uint8_t type : {0x02U, 0x09U})
+    {
+        auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture(
+            kConsoleViewPermission | kConsoleInputPermission);
+        RuntimeDeploymentPolicy policy;
+        activateMacProtectedSyntheticLicensedShare(
+            fixture, policy, RdpDemandActiveFeature::None);
+
+        assert(fixture->broker.revalidate(kConsoleViewPermission));
+        assert(fixture->broker.revalidate(kConsoleInputPermission));
+        assert(!fixture->broker.revalidate(kConsoleClipboardPermission));
+        assert(fixture->session->phase() == McsSessionPhase::ShareActivated);
+
+        const auto channels = fixture->session->allocatedStaticChannelIds();
+        assert(channels.size() == 3U);
+        const std::uint16_t clipboardChannelId = channels[1U];
+        assert(fixture->session->channelJoinConfirmed(clipboardChannelId));
+        const std::array<std::uint8_t, 16> channelData{{
+            0x08U, 0x00U, 0x00U, 0x00U,
+            0x03U, 0x00U, 0x00U, 0x00U,
+            type, 0x00U, 0x00U, 0x00U,
+            0x00U, 0x00U, 0x00U, 0x00U,
+        }};
+        const auto packet = makeMacProtectedClientChannelTpkt(
+            fixture->session->allocatedUserId(), channelData,
+            clipboardChannelId);
+
+        const auto route = fixture->broker.classifyR3PostShareTpkt(
+            *fixture->session, policy, packet);
+        assert(route.kind == RdpPostShareTpktRouteKind::UnsupportedOrMalformed);
+        assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(fixture->session->phase() == McsSessionPhase::Closed);
+        assert(fixture->connection.stage() == PreauthStage::Closed);
+
+        // A rejected packet cannot create an R8 source, queued native write
+        // or late accepted-byte completion through the revoked R2 broker.
+        assert(!fixture->broker.authorizeR3ActivatedClipboardChannel(
+            *fixture->session, policy));
+        assert(!fixture->broker.queueR3ClipboardPdu(
+            *fixture->session, policy, {}));
+        assert(!fixture->broker.pendingR3ClipboardWrite(
+            *fixture->session, policy));
+        assert(fixture->broker.completeR3ClipboardWrite(
+            *fixture->session, policy, 1U, 1U, 1U, 1U) ==
+            RdpClipboardWriteOutcome::Rejected);
+    }
+}
+
 void testMacProtectedGraphicsMappedFirstFrameConsentReplacementDenial()
 {
     using rdp_server::server::runtime::RuntimeDeploymentPolicy;
@@ -14575,6 +14634,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedPostMcsSemanticAuditLoss},
     {"macos-share-activated-clipboard-permission-denial",
      &testMacProtectedShareActivatedClipboardPermissionDenial},
+    {"macos-share-activated-clipboard-r2-classifier-denial",
+     &testMacProtectedShareActivatedClipboardR2ClassifierDenial},
     {"macos-protected-graphics-mapped-first-frame-consent-replacement-denial",
      &testMacProtectedGraphicsMappedFirstFrameConsentReplacementDenial},
     {"macos-post-join-clipboard-view-input-denial",

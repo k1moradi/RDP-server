@@ -1,3 +1,7 @@
+## R8 R2 post-Share classifier permission regression (2026-11-01)
+
+No new executable, dependency, writer, queue or build root. Reuse the one `~/rdp-server/build/` root and `test_owned_preauth_session` target. After canonical Debug configure/build, run `ctest --test-dir build -C Debug -R '^security[.]macos-share-activated-clipboard-(r2-classifier|permission)-denial$' --output-on-failure`, then full Debug/Release CTest and the unchanged fixed 107-case clipboard sanitizer suite. The new case exercises real loopback protocol owners and synthetic licensing/native evidence only. Authoring parent `675655a30d47aa9ed389eac77c1ec6e708c0bdfd`; connector-local build/CTest NOT RUN, new-publication-SHA hosted evidence PENDING.
+
 ## R5 additive sanitizer verification without changing the 45-case census (2026-11-01)
 
 The existing R9 native X11 ASan/UBSan job keeps exactly 45 selected

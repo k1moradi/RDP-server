@@ -1,3 +1,11 @@
+## R8 protected R2 post-Share CLIPRDR classifier denial (2026-11-01)
+
+At authoring parent `675655a30d47aa9ed389eac77c1ec6e708c0bdfd`, ordinary `security.macos-share-activated-clipboard-r2-classifier-denial` extends the existing real-loopback R1 HYBRID/TLS, concrete macOS R2/R3, joined cliprdr and production Demand/Confirm Active/Share receipt fixture. The only test-staged state is Licensed and the native proof is synthetic. Fresh View and Input remain authorized but no native Clipboard permission exists. For independent FORMAT_LIST and FILECONTENTS packets on a joined static cliprdr channel after ShareActivated, the *R2* View-scoped traffic classifier must reject and terminally revoke the original R1/R2/R3 lifetime; a later activated Clipboard visit, queue, pending write and accepted-byte receipt must all fail. This is separate from the existing R3-only classifier denial and R2 activated-channel denial. No native clipboard owner or file sink is created.
+
+At `751d9d0a01aabe6c5bd0414b531b199a264da6c9`, Actions `41293848769` demonstrated macOS Debug and Release full CTest **852/852 PASS** each (including both older post-Join/post-Share R8 denials), R9 Clipboard sanitizer selector **107/107 PASS**, separate X11 callback-retirement **3/3 PASS**, destination finalization **1/1 PASS**, and R3 CLIPRDR **9/9 PASS**. These are previous-SHA evidence only. New R2 classifier source/registration review PASS; new-test compile, focused/full CTest and same-publication-SHA CI **NOT RUN / PENDING**. Product-valid macOS Clipboard issuer, native owner, real OS clipboard/file transfer and Microsoft client acceptance remain NOT RUN; Linux activation gate remains false.
+
+**Next gate:** exact-publication-SHA hosted Debug/Release full CTest plus fixed 107-case ASan/UBSan selector, then a separately authorized native Clipboard issuer and explicit R10 activation contract. R10 Share activation alone is never permission to construct R8.
+
 ## R5 supplemental X11 implicit-destructor sanitizer gate (2026-11-01)
 
 - [x] Previous R5 `64732a09d1f78934ecac60ef0b5db96e29b42cbf`

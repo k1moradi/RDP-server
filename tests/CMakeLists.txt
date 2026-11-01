@@ -2187,6 +2187,18 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "protocol;security;native-authorization;transport;tls;mcs;admission;graphics;offline"
                 TIMEOUT 60)
 
+        # R8 production R2 post-Share classification must retire joined
+        # CLIPRDR traffic without independent macOS Clipboard authority.
+        # Keep this separate from the fixed 107-case sanitizer census.
+        add_test(NAME security.macos-share-activated-clipboard-r2-classifier-denial
+            COMMAND "${test_target}"
+                "macos-share-activated-clipboard-r2-classifier-denial")
+        set_tests_properties(
+            security.macos-share-activated-clipboard-r2-classifier-denial
+            PROPERTIES
+                LABELS "security;native-authorization;transport;tls;mcs;admission;offline"
+                TIMEOUT 60)
+
         # R8 joined cliprdr remains denied after complete real R1 TLS Join
         # Confirm receipts and protected Client Info with View|Input only.
         add_test(NAME security.macos-post-join-clipboard-view-input-denial

@@ -1,3 +1,9 @@
+## R8 protected post-Share R2 classifier audit (2026-11-01)
+
+**Parent reviewed:** `675655a30d47aa9ed389eac77c1ec6e708c0bdfd`. Added one ordinary production-backed synthetic `security.macos-share-activated-clipboard-r2-classifier-denial`, which calls the **concrete R2 post-Share classifier**, not the R3 test-access classifier. Each fresh R1 TLS/R2/R3 ShareActivated fixture has joined cliprdr and View|Input, but no native Clipboard lease; FORMAT_LIST and FILECONTENTS packets must produce an unsupported route, revoke the original owners and reject late activated Clipboard/write/receipt access. No native owner or file destination is created and licensing/native proof remain synthetic. Exact CTest and dispatch registration reviewed; build/focused/full execution and post-publication hosted CI PENDING.
+
+**Earlier exact-SHA evidence, not reattributed to this change:** `751d9d0a` Actions `41293848769`: macOS full Debug and Release CTest **852/852 PASS** each, existing R8 post-Join and post-Share denials **PASS**, fixed ASan/UBSan clipboard **107/107 PASS**, X11 callback **3/3 PASS**, file destination finalization **1/1 PASS**, static CLIPRDR **9/9 PASS**. No physical Clipboard operations, FILECONTENTS delivery, OS lease or client acceptance performed.
+
 ## R5 separate implicit X11 destructor sanitizer qualification (2026-11-01)
 
 Reviewed the native test from R5 commit

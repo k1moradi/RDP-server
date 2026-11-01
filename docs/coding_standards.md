@@ -1,3 +1,7 @@
+## GraphicsReady is the native-attachment boundary, not frame authority (2026-11-01)
+
+On macOS R10 may call the existing platform native `attachAuthenticatedSession()` only for its original owner-thread accepted client after the exact R2 broker still revalidates and R3 observability proves ShareActivated, Graphics DVC activation/control, surface creation and mapping. Attachment independently revalidates proof, native audit/session evidence and owner consent; no cached generation or GUI state substitutes for that visit. Service native state from `active()` so initialization can progress to Ready. A terminal native service error must retire the accepted-client aggregate rather than silently leave R2/R3 live for reattachment. Native Ready remains separate from R4 frame publication, R1 accepted-byte delivery, client FRAME_ACK, input and Clipboard; do not publish DesktopVisible from attachment alone.
+
 ## R7 native ICC metadata exception and continued display retirement (2026-11-01)
 
 The opt-in CoreGraphics ICC collector must release each copied CFData before

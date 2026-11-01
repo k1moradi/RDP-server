@@ -1,3 +1,9 @@
+## macOS mapped-Graphics native attachment composition (2026-11-01)
+
+**Authoring parent:** `6e29bec510e8b408ab6f1eef1a113b092e80db4b`. R10 now reaches an original R2-admitted, real PersonalDesktop-licensed, ShareActivated R3 owner with protected Graphics CAPS/CREATE/MAP and `GraphicsReady`; `RuntimePlatformNativeDesktop::attachAuthenticatedSession()` already consumes the original authenticated proof plus current-owner authority and independently re-reads macOS native audit/session evidence. Wire that existing seam only from the exact mapped GraphicsReady state, with fresh broker revalidation before and after attachment. Service an attached native owner while it is `active()`, because capture initialization precedes `ready()`; terminal native service failure retires the complete accepted R2/R3/native/proof/R1 lifetime rather than leaving an attach retry. Project `nativeDesktopInitializing` from active-not-ready.
+
+This increment deliberately stops before framebuffer publication. Native attachment/ready state does not set `DesktopVisible`, borrow pixels, send a Graphics frame, grant Clipboard, or prove a physical desktop. Add dedicated offline `runtime.macos-graphics-ready-native-attach-composition-contract` plus keep the centralized-retirement, Share and Graphics-control contracts strict at their own boundaries. Source/contract review PASS; connector-local compile/CTest and physical macOS/Windows App execution NOT RUN. Exact publication-SHA hosted macOS/full protocol/native-lifecycle/sanitizer qualification PENDING. Next dependency is the R7 native framebuffer -> R4/R3 frame publication -> exact R1 accepted-byte receipt -> independent client FRAME_ACK bridge, followed by separately authorized physical acceptance.
+
 ## R7 ICC metadata-exception retirement and native attachment qualification (2026-11-01)
 
 [x] At reviewed `644d5a83d08ff09273856487908b1d159c421ac9`, the opt-in multi-display ICC collector

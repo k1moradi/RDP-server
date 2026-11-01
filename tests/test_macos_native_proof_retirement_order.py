@@ -11,6 +11,7 @@ def main() -> int:
     parser.add_argument("--source", required=True, type=Path)
     parser.add_argument("--check-centralized-callers", action="store_true")
     parser.add_argument("--check-share-without-graphics", action="store_true")
+    parser.add_argument("--check-graphics-native-attach", action="store_true")
     args = parser.parse_args()
     text = args.source.read_text(encoding="utf-8")
     start = text.find("void MacRuntimeHostControl::retireAcceptedClient() noexcept")
@@ -40,10 +41,10 @@ def main() -> int:
 
     if args.check_centralized_callers:
         native_retirement = "nativeDesktop_.retireAfterAuthorizationLoss();"
-        # Accepted-client teardown owns native retirement. The only other
-        # direct call is the live native-service failure path, which does not
-        # destroy the accepted R1/R2/R3 owners.
-        if text.count(native_retirement) != 2:
+        # Accepted-client teardown is the sole direct native-retirement owner.
+        # Native service failure must retire the complete accepted client,
+        # rather than dropping only the native child and leaving R2/R3 live.
+        if text.count(native_retirement) != 1:
             raise SystemExit("macOS HostControl has duplicate native retirement owners")
 
         caller_ranges = (
@@ -98,14 +99,75 @@ def main() -> int:
         ):
             raise SystemExit("pre-Share timeout must use only accepted-client retirement")
 
-        native_service_start = service.find("if (nativeDesktop_.ready())")
+        native_service_start = service.find("if (nativeDesktop_.active())")
         if native_service_start < 0:
-            raise SystemExit("cannot isolate direct native service failure")
+            raise SystemExit("cannot isolate active native service path")
         native_service = service[native_service_start:]
-        if native_service.count(native_retirement) != 1:
-            raise SystemExit("native service failure must retain one direct retirement")
+        if (
+            "nativeDesktop_.serviceOnce()" not in native_service or
+            "retireAcceptedClient();" not in native_service or
+            native_retirement in native_service
+        ):
+            raise SystemExit(
+                "native service failure must use complete accepted-client retirement")
 
         print("macOS accepted-client native retirement single-owner PASS")
+    elif args.check_graphics_native_attach:
+        scheduler_start = text.find(
+            "MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try")
+        scheduler_stop = text.find("catch (const std::bad_alloc&)", scheduler_start)
+        if scheduler_start < 0 or scheduler_stop <= scheduler_start:
+            raise SystemExit("cannot isolate macOS protected Graphics scheduler")
+        scheduler = text[scheduler_start:scheduler_stop]
+
+        attach = "nativeDesktop_.attachAuthenticatedSession("
+        if scheduler.count(attach) != 1:
+            raise SystemExit("GraphicsReady must own exactly one native attach call")
+        for required in (
+            "AcceptedClientAdmissionStage::GraphicsReady",
+            "graphicsProof.shareActivated",
+            "graphicsProof.graphicsDynamicVirtualChannelActivated",
+            "graphicsProof.graphicsControlReady",
+            "graphicsProof.surfaceCreated",
+            "graphicsProof.surfaceMapped",
+            "activeCredSsp_->authenticatedProof",
+            "ownerSharingAuthority_",
+            "activeAdmissionPermissionMask_",
+        ):
+            if required not in scheduler:
+                raise SystemExit(f"GraphicsReady native attach contract missing: {required}")
+        if "nativeDesktop_.borrowFramebuffer(" in scheduler:
+            raise SystemExit("native attach must not publish a framebuffer")
+
+        status_start = text.find("RuntimeHostStatus MacRuntimeHostControl::status() const")
+        status_stop = text.find(
+            "RuntimeHostResult MacRuntimeHostControl::configure(", status_start)
+        if status_start < 0 or status_stop <= status_start:
+            raise SystemExit("cannot isolate native status projection")
+        status = text[status_start:status_stop]
+        if (
+            "snapshot.nativeDesktopInitializing =" not in status or
+            "nativeDesktop_.active() && !snapshot.nativeDesktopReady" not in status
+        ):
+            raise SystemExit("attached native initialization status is not projected")
+        if "client.desktopVisible = snapshot.nativeDesktopReady" not in status:
+            raise SystemExit("native attachment must not imply desktop visibility")
+
+        service_start = text.find(
+            "RuntimeHostResult MacRuntimeHostControl::serviceOnce() noexcept try")
+        service_stop = text.find(
+            "RuntimeHostResult MacRuntimeHostControl::stopSharing()", service_start)
+        if service_start < 0 or service_stop <= service_start:
+            raise SystemExit("cannot isolate native service scheduler")
+        service = text[service_start:service_stop]
+        if (
+            "if (nativeDesktop_.active())" not in service or
+            "nativeDesktop_.serviceOnce()" not in service or
+            "retireAcceptedClient();" not in service
+        ):
+            raise SystemExit("active native initialization is not serviced fail-closed")
+
+        print("macOS GraphicsReady native attachment composition PASS")
     elif args.check_share_without_graphics:
         # A receipt-complete ShareActivated is a protocol fact, not a native
         # framebuffer borrow, Graphics DVC channel, or first-frame delivery.

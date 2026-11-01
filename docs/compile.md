@@ -1,3 +1,7 @@
+## macOS GraphicsReady native-attachment focused qualification (2026-11-01)
+
+No new production dependency or executable. Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build, run `ctest --test-dir build -C Debug -R '^runtime[.]macos-(graphics-ready-native-attach-composition-contract|native-proof-retired-before-credential-destruction|native-retirement-single-owner-callers|host-control-(share-activation|graphics-control)-composition-contract)$' --output-on-failure`, then full Debug/Release CTest and the existing macOS native lifecycle plus security sanitizer lanes. Connector-local compile/CTest is NOT RUN; publication-SHA hosted qualification is PENDING. Physical TCC/capture/client execution remains separately authorized.
+
 ## R7 ICC CFData exception offline CTest (2026-11-01)
 
 No binary or framework dependency was added; reuse the sole canonical

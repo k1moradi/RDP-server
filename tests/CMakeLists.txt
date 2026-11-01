@@ -1393,8 +1393,8 @@ add_test(NAME runtime.macos-native-proof-retired-before-credential-destruction
 set_tests_properties(runtime.macos-native-proof-retired-before-credential-destruction
     PROPERTIES LABELS "runtime;macos;security;offline" TIMEOUT 15)
 
-# Every accepted-client loss funnels through retireAcceptedClient(); only the
-# still-live native service failure may retire native state directly.
+# Every accepted-client loss, including terminal native service failure,
+# funnels through retireAcceptedClient() so R2/R3 retire before proof/R1.
 add_test(NAME runtime.macos-native-retirement-single-owner-callers
     COMMAND "${Python3_EXECUTABLE}"
         "${PROJECT_SOURCE_DIR}/tests/test_macos_native_proof_retirement_order.py"
@@ -1460,6 +1460,20 @@ add_test(NAME runtime.macos-host-control-graphics-control-composition-contract
 set_tests_properties(
     runtime.macos-host-control-graphics-control-composition-contract
     PROPERTIES LABELS "runtime;macos;security;graphics;policy;offline" TIMEOUT 15)
+
+# Only the original mapped R2/R3 GraphicsReady owner may construct the
+# downstream native desktop. This remains an offline composition contract:
+# no TCC prompt, capture session, framebuffer or client is created.
+add_test(NAME runtime.macos-graphics-ready-native-attach-composition-contract
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_native_proof_retirement_order.py"
+        --source "${PROJECT_SOURCE_DIR}/src/server/runtime/mac_runtime_host_control.cpp"
+        --check-graphics-native-attach)
+set_tests_properties(
+    runtime.macos-graphics-ready-native-attach-composition-contract
+    PROPERTIES
+        LABELS "runtime;macos;security;graphics;native-authorization;offline;lifecycle"
+        TIMEOUT 15)
 
 # R9 source-commit delivery policy: production changes require a centralized
 # CTest registration co-change in the same commit as the implementation/docs.

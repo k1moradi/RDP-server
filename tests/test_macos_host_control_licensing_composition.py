@@ -169,10 +169,9 @@ def main() -> int:
                 f"macOS Share intake dispatch missing: {accepted}",
             )
 
-        require(
-            "nativeDesktop_" not in scheduler,
-            "Share scheduler must not attach or service the native desktop",
-        )
+        # The scheduler now continues into Graphics and, after mapped
+        # GraphicsReady, may attach the native owner. Scope this Share contract
+        # to Share-owned branches rather than rejecting later native work.
         # The scheduler now continues into Graphics after ShareActivated.
         # Keep the older Share contract strict at each Share-owned source
         # boundary instead of rejecting the later protected Graphics branch.
@@ -201,6 +200,10 @@ def main() -> int:
             require(
                 "authorizeR3Graphics" not in share_block,
                 "Share scheduler must not start Graphics before ShareActivated",
+            )
+            require(
+                "nativeDesktop_" not in share_block,
+                "Share scheduler must not attach native state before GraphicsReady",
             )
 
     if args.check_graphics_control:
@@ -235,8 +238,14 @@ def main() -> int:
             "observed.surfaceMapped",
         ):
             require(required in scheduler, f"macOS Graphics contract missing: {required}")
-        require("nativeDesktop_" not in scheduler,
-                "Graphics control must not borrow the macOS desktop")
+        require(
+            "nativeDesktop_.borrowFramebuffer(" not in scheduler,
+            "Graphics control/native attach must not publish framebuffer pixels",
+        )
+        require(
+            scheduler.count("nativeDesktop_.attachAuthenticatedSession(") == 1,
+            "mapped GraphicsReady must have one downstream native attach seam",
+        )
         status = source[source.find("RuntimeHostStatus MacRuntimeHostControl::status()"): ]
         require("snapshot.graphicsReady = proof.shareActivated" in status,
                 "GraphicsReady status requires mapped R3 evidence")

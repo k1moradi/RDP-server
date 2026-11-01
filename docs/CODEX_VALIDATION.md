@@ -1,3 +1,7 @@
+## macOS GraphicsReady native-attach composition source validation (2026-11-01)
+
+Reviewed parent `6e29bec510e8b408ab6f1eef1a113b092e80db4b`: R2 PersonalDesktop policy/service identity remains immutable; R10 lifetime order keeps broker/R3/native/proof/R1 retirement safe; `RuntimePlatformNativeDesktop` already owns the downstream authenticated-session native authorization and macOS evidence reader. The implementation attaches only after the original R3 acceptance observability proves mapped GraphicsReady and the exact broker revalidates, then revalidates again after the synchronous native bind. Native initialization is serviced from `active()`; terminal native service errors close the complete accepted-client owner. Status reports active-not-ready as initializing and does not promote DesktopVisible. No framebuffer borrow, R4 frame, Clipboard or input route is introduced. New dedicated composition CTest registration and existing boundary-contract updates reviewed PASS by source inspection. Local execution and physical acceptance NOT RUN; exact publication-SHA hosted qualification PENDING.
+
 ## R7 ICC metadata-exception and current macOS readiness evidence (2026-11-01)
 
 **Reviewed parent:** `644d5a83d08ff09273856487908b1d159c421ac9`. Source inspection PASS: nested

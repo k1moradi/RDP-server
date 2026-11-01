@@ -555,6 +555,9 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
         const bool readingGraphicsControl =
             activeAdmissionStage_ ==
                 AcceptedClientAdmissionStage::GraphicsControlClientExpected;
+        if (activeMcsSession_ == nullptr)
+            return rejectAdmission();
+
         if (!readingFirstMcs && !writingConnectResponse &&
             !readingErectDomain && !readingAttachUser &&
             !writingAttachConfirm && !readingChannelJoin &&
@@ -564,16 +567,49 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
             !readingShareActivation && !writingGraphicsControl &&
             !readingGraphicsControl)
         {
-            // R3 mapped Graphics control is not native desktop, frame,
-            // input dispatch or Clipboard authority.
-            return activeAdmissionStage_ ==
-                           AcceptedClientAdmissionStage::GraphicsReady
-                ? RuntimeHostResult{RuntimeHostError::None, true}
-                : rejectAdmission();
-        }
+            // Mapped R3 Graphics control is the first point where R10 may
+            // construct the downstream native owner. Native authorization
+            // independently re-reads macOS audit/session evidence and the
+            // current owner epoch; no R3 scalar can manufacture this grant.
+            if (activeAdmissionStage_ !=
+                    AcceptedClientAdmissionStage::GraphicsReady)
+                return rejectAdmission();
 
-        if (activeMcsSession_ == nullptr)
-            return rejectAdmission();
+            if (!nativeDesktop_.active())
+            {
+                const auto graphicsProof =
+                    activeMcsSession_->firstClientAcceptanceObservability();
+                if (!graphicsProof.shareActivated ||
+                    !graphicsProof.graphicsDynamicVirtualChannelActivated ||
+                    !graphicsProof.graphicsControlReady ||
+                    !graphicsProof.surfaceCreated ||
+                    !graphicsProof.surfaceMapped ||
+                    !activeAdmissionBroker_->revalidate(
+                        activeAdmissionPermissionMask_))
+                    return rejectAdmission();
+
+                const RuntimeHostResult nativeAttach =
+                    nativeDesktop_.attachAuthenticatedSession(
+                        activeCredSsp_->authenticatedProof,
+                        ownerSharingAuthority_,
+                        activeAdmissionPermissionMask_);
+                if (!nativeAttach.succeeded())
+                {
+                    retireAcceptedClient();
+                    stage_ = RuntimeHostStage::ListenerAvailable;
+                    return deny(nativeAttach.error);
+                }
+                if (!activeAdmissionBroker_->revalidate(
+                        activeAdmissionPermissionMask_))
+                    return rejectAdmission();
+
+                // Attachment is not frame delivery. Keep the public stage at
+                // ShareActivated until a later exact R3/R4 frame receipt and
+                // client ACK prove visibility.
+                return {RuntimeHostError::None, false};
+            }
+            return {RuntimeHostError::None, true};
+        }
         auto& connection = *activeConnection_;
         auto& credSsp = *activeCredSsp_;
         auto& session = *activeMcsSession_;
@@ -1972,7 +2008,8 @@ RuntimeHostStatus MacRuntimeHostControl::status() const
             proof.surfaceMapped;
     }
     snapshot.nativeDesktopReady = nativeDesktop_.ready();
-    snapshot.nativeDesktopInitializing = false; // No R2-authorized macOS attach yet.
+    snapshot.nativeDesktopInitializing =
+        nativeDesktop_.active() && !snapshot.nativeDesktopReady;
     snapshot.acceptedClientPreauthDiagnostics = acceptedClientDiagnostics_;
 
     snapshot.clientDisconnected = listenerCurrent && activeConnection_ == nullptr && clientDisconnected_;
@@ -2553,12 +2590,18 @@ RuntimeHostResult MacRuntimeHostControl::serviceOnce() noexcept try
         if (!preAdmission.succeeded())
             return preAdmission;
 
-        if (nativeDesktop_.ready())
+        if (nativeDesktop_.active())
         {
-            const auto nativeRes = nativeDesktop_.serviceOnce();
-            if (!nativeRes.succeeded())
+            // Initialization is itself stateful native work, so an attached
+            // owner must be serviced before it reports Ready. A terminal native
+            // failure retires the complete accepted-client lifetime in the same
+            // owner-thread tick rather than leaving R2/R3 alive and retrying.
+            const auto nativeResult = nativeDesktop_.serviceOnce();
+            if (!nativeResult.succeeded())
             {
-                (void)nativeDesktop_.retireAfterAuthorizationLoss();
+                retireAcceptedClient();
+                stage_ = RuntimeHostStage::ListenerAvailable;
+                return deny(nativeResult.error);
             }
         }
     }

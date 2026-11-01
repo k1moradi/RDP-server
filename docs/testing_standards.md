@@ -1,3 +1,7 @@
+## macOS native-attach composition tests remain non-physical (2026-11-01)
+
+A source composition CTest may prove that HostControl invokes the sole existing `attachAuthenticatedSession()` only behind mapped protected GraphicsReady, services active initialization, preserves centralized retirement and does not borrow a framebuffer. Pair that contract with existing native authorization/owner lifecycle tests; it does not prove ScreenCaptureKit/TCC, a physical console, client-visible pixels or Microsoft-client acceptance. Keep Share and Graphics-control source contracts scoped to their own pre-native branches so later legitimate attachment does not weaken earlier sequencing assertions.
+
 ## R7 ICC length-exception native-borrow continuation (2026-11-01)
 
 The dedicated ordinary offline

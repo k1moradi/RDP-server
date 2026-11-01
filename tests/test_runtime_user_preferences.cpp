@@ -185,6 +185,37 @@ int main()
     assert(loaded.preferredStableLanInterfaceId ==
            original.preferredStableLanInterfaceId);
     assert(loaded.port == original.port);
+
+    // Force a failure only after the secure temporary record has been written
+    // and flushed. The old record must remain readable and no temporary path
+    // may survive the failed atomic replacement.
+    RuntimeUserPreferences replacement = original;
+    replacement.lastExplicitUsername = "replacement-owner";
+    replacement.port = 3393U;
+    assert(detail::
+               saveRuntimeUserPreferencesToDirectoryWithAtomicReplaceFailureForTesting(
+                   directory, replacement) ==
+           RuntimeUserPreferencesStorageStatus::Unavailable);
+    RuntimeUserPreferences retainedAfterAtomicFailure;
+    assert(detail::loadRuntimeUserPreferencesFromDirectory(
+               directory, retainedAfterAtomicFailure) ==
+           RuntimeUserPreferencesStorageStatus::Loaded);
+    assert(retainedAfterAtomicFailure.lastExplicitUsername ==
+           original.lastExplicitUsername);
+    assert(retainedAfterAtomicFailure.preferredStableLanInterfaceId ==
+           original.preferredStableLanInterfaceId);
+    assert(retainedAfterAtomicFailure.port == original.port);
+    assert(retainedAfterAtomicFailure.preferRemoteInput ==
+           original.preferRemoteInput);
+    assert(retainedAfterAtomicFailure.permissionLifetimeMinutes ==
+           original.permissionLifetimeMinutes);
+    std::size_t storedEntries = 0U;
+    for (const auto& entry : std::filesystem::directory_iterator(directory))
+    {
+        assert(entry.path().filename() == "preferences.bin");
+        ++storedEntries;
+    }
+    assert(storedEntries == 1U);
 #if !defined(_WIN32)
     struct stat fileMetadata{};
     assert(::lstat(file.c_str(), &fileMetadata) == 0);
@@ -192,6 +223,20 @@ int main()
     assert(fileMetadata.st_uid == ::geteuid());
     assert(fileMetadata.st_nlink == 1);
     assert((fileMetadata.st_mode & 07777) == 0600);
+
+    // A same-owner hard-link alias makes the target identity non-unique and
+    // must be denied until the alias is removed.
+    const auto hardLink = directory / "preferences-hard-link.bin";
+    assert(::link(file.c_str(), hardLink.c_str()) == 0);
+    loaded = original;
+    assert(detail::loadRuntimeUserPreferencesFromDirectory(
+               directory, loaded) == RuntimeUserPreferencesStorageStatus::Invalid);
+    assert(loaded.lastExplicitUsername.empty());
+    assert(detail::saveRuntimeUserPreferencesToDirectory(
+               directory, original) == RuntimeUserPreferencesStorageStatus::Invalid);
+    assert(::unlink(hardLink.c_str()) == 0);
+    assert(detail::loadRuntimeUserPreferencesFromDirectory(
+               directory, loaded) == RuntimeUserPreferencesStorageStatus::Loaded);
 
     // Exact private mode is part of the file contract; owner execute bits are
     // not accepted merely because group/world access remains absent.

@@ -1,3 +1,23 @@
+## R2 deterministic atomic preference replacement qualification (2026-11-01)
+
+The existing `runtime.user-preferences-owner-private-versioned-roundtrip-denials`
+CTest remains the single focused storage gate. It now drives the shared
+platform storage implementation through an internal-only fail-before-replace
+seam after the secure temporary record is written and flushed, requiring the
+prior record to remain readable and the temporary path to be removed. POSIX
+also exercises same-owner hard-link alias denial. No public API, record grammar,
+credential path, listener, native authority, dependency or additional test
+target is introduced.
+
+Reuse only `~/rdp-server/build/`. Run the canonical Debug configure/build,
+then `ctest --test-dir build -C Debug -R '^runtime[.]user-preferences-owner-private-versioned-roundtrip-denials$' --output-on-failure`,
+followed by ordinary full Debug CTest; repeat full Release and applicable
+Linux/macOS/Windows and sanitizer qualification on the exact publication SHA.
+Authoring parent `c8510284251d5b273654909f5c26c3599745b93f`: connector-local compile/focused/full CTest and
+sanitizers **NOT RUN** because no local checkout is available. Benchmark
+**NOT RUN / not applicable** to this storage-correctness increment; physical
+client/native desktop activity remains unauthorized.
+
 ## R4 macOS native borrow callback rejection focused qualification (2026-11-01)
 
 Use the single `~/rdp-server/build/` root. After canonical Debug configure/build run `ctest --test-dir build -C Debug -R '^runtime[.]macos-host-control-native-frame-(pump-composition-contract|callback-rejection-retires)$' --output-on-failure` and `ctest --test-dir build -C Debug -R '^graphics[.]frame-(native-borrow-segmented-receipt-fence|delivery-session-retirement-before-ack|partial-data-retirement-successor-generation)$' --output-on-failure`, then ordinary full Debug and Release CTest and the existing sanitizer lanes. No new native dependency, binary, build root, listener or physical desktop action. Authoring baseline `6ac35d364cba5b76abad45cfc4d6fb927a0d0d84`: source review PASS; local build/focused/full CTest/ASan/UBSan NOT RUN; hosted exact-SHA qualification PENDING.

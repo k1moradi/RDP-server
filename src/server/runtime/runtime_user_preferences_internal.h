@@ -20,6 +20,14 @@ loadRuntimeUserPreferencesFromDirectory(
 saveRuntimeUserPreferencesToDirectory(
     const std::filesystem::path& directory,
     const RuntimeUserPreferences& preferences) noexcept;
+
+// Offline fault seam for the existing storage CTest. It follows the real
+// temporary-file write/flush path and fails immediately before atomic
+// replacement. Production and R7 must use only the public no-path entry points.
+[[nodiscard]] RuntimeUserPreferencesStorageStatus
+saveRuntimeUserPreferencesToDirectoryWithAtomicReplaceFailureForTesting(
+    const std::filesystem::path& directory,
+    const RuntimeUserPreferences& preferences) noexcept;
 } // namespace detail
 
 

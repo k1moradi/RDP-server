@@ -272,7 +272,8 @@ private:
 }
 
 [[nodiscard]] RuntimeUserPreferencesStorageStatus saveToNativeDirectory(
-    int directory, const RuntimeUserPreferences& preferences)
+    int directory, const RuntimeUserPreferences& preferences,
+    bool failBeforeAtomicReplace)
 {
     FileDescriptor existing{::openat(
         directory, "preferences.bin", O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)};
@@ -326,6 +327,7 @@ private:
             offset += static_cast<std::size_t>(count);
         }
         if (!written || ::fsync(temporary.get()) != 0 ||
+            failBeforeAtomicReplace ||
             ::renameat(directory, temporaryName.c_str(), directory,
                        "preferences.bin") != 0)
         {
@@ -502,7 +504,8 @@ struct LocalMemoryCloser final
 
 [[nodiscard]] RuntimeUserPreferencesStorageStatus saveToWindowsDirectory(
     const std::filesystem::path& directory, PSID sid,
-    const RuntimeUserPreferences& preferences)
+    const RuntimeUserPreferences& preferences,
+    bool failBeforeAtomicReplace)
 {
     const auto target = directory / L"preferences.bin";
     NativeHandle existing{::CreateFileW(
@@ -549,7 +552,8 @@ struct LocalMemoryCloser final
             written == encoded.size() &&
             ::FlushFileBuffers(temporary.get()) != 0;
         temporary = NativeHandle{};
-        if (!complete || !::MoveFileExW(
+        if (!complete || failBeforeAtomicReplace ||
+            !::MoveFileExW(
                 temporaryPath.c_str(), target.c_str(),
                 MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
         {
@@ -725,9 +729,14 @@ RuntimeUserPreferencesStorageStatus loadRuntimeUserPreferencesFromDirectory(
     }
 }
 
-RuntimeUserPreferencesStorageStatus saveRuntimeUserPreferencesToDirectory(
+namespace
+{
+
+[[nodiscard]] RuntimeUserPreferencesStorageStatus
+saveRuntimeUserPreferencesToExistingDirectory(
     const std::filesystem::path& directory,
-    const RuntimeUserPreferences& preferences) noexcept
+    const RuntimeUserPreferences& preferences,
+    const bool failBeforeAtomicReplace) noexcept
 {
     try
     {
@@ -745,19 +754,40 @@ RuntimeUserPreferencesStorageStatus saveRuntimeUserPreferencesToDirectory(
             FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr)};
         if (!opened || !isPrivateWindowsObject(opened.get(), sid, true))
             return RuntimeUserPreferencesStorageStatus::Invalid;
-        return saveToWindowsDirectory(directory, sid, preferences);
+        return saveToWindowsDirectory(
+            directory, sid, preferences, failBeforeAtomicReplace);
 #else
         FileDescriptor opened{::open(
             directory.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)};
         if (!opened || !privateObject(opened.get(), true, true))
             return RuntimeUserPreferencesStorageStatus::Invalid;
-        return saveToNativeDirectory(opened.get(), preferences);
+        return saveToNativeDirectory(
+            opened.get(), preferences, failBeforeAtomicReplace);
 #endif
     }
     catch (...)
     {
         return RuntimeUserPreferencesStorageStatus::Unavailable;
     }
+}
+
+} // namespace
+
+RuntimeUserPreferencesStorageStatus saveRuntimeUserPreferencesToDirectory(
+    const std::filesystem::path& directory,
+    const RuntimeUserPreferences& preferences) noexcept
+{
+    return saveRuntimeUserPreferencesToExistingDirectory(
+        directory, preferences, false);
+}
+
+RuntimeUserPreferencesStorageStatus
+saveRuntimeUserPreferencesToDirectoryWithAtomicReplaceFailureForTesting(
+    const std::filesystem::path& directory,
+    const RuntimeUserPreferences& preferences) noexcept
+{
+    return saveRuntimeUserPreferencesToExistingDirectory(
+        directory, preferences, true);
 }
 
 } // namespace detail
@@ -804,7 +834,7 @@ RuntimeUserPreferencesStorageStatus saveRuntimeUserPreferences(
         FileDescriptor directory;
         const auto status = openNativeDirectory(directory, true);
         return status == RuntimeUserPreferencesStorageStatus::Loaded
-            ? saveToNativeDirectory(directory.get(), preferences) : status;
+            ? saveToNativeDirectory(directory.get(), preferences, false) : status;
 #endif
     }
     catch (...)

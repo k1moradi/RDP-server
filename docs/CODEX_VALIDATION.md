@@ -1,3 +1,51 @@
+## R2 P0 atomic preference retention and R7 API handoff (2026-11-01)
+
+Reviewed refreshed `main` parent `c8510284251d5b273654909f5c26c3599745b93f` together with
+`AGENTS.md`, VISION/ROADMAP, coding/testing/compile/benchmark standards,
+`docs/CODEX_VALIDATION.md`, the bootstrap policy, expert configuration parser,
+Linux/macOS credential owners, current GUI startup path and registered tests.
+The existing R2 storage implementation already had the required fixed v1
+non-secret schema, OS user configuration locations, POSIX owner/mode/no-follow
+checks, protected current-user Windows ACLs, bounded parsing and atomic
+replacement. One evidence gap remained: testing standards claimed
+atomic-failure retention, but the fixture did not force a failure after a real
+temporary record had been prepared.
+
+This increment adds only an excluded internal test seam that shares the real
+save path and fails after temporary write/flush but immediately before
+`renameat` / `MoveFileExW`. The ordinary existing preferences CTest now
+requires `Unavailable`, exact preservation of the prior record and no leftover
+temporary entry; POSIX also pins same-owner hard-link alias denial. Production
+`loadRuntimeUserPreferences()` / `saveRuntimeUserPreferences()` cannot select
+the seam. The installed/public API and v1 record are unchanged.
+
+**R7 handoff contract:** consume only
+`RuntimeUserPreferences { lastExplicitUsername, preferredStableLanInterfaceId,
+port, preferRemoteInput, permissionLifetimeMinutes }` through the public no-path
+`loadRuntimeUserPreferences(RuntimeUserPreferences&)` and
+`saveRuntimeUserPreferences(const RuntimeUserPreferences&)`, checking
+`RuntimeUserPreferencesStorageStatus`. A loaded Username is only the last
+manually entered value; the interface ID is only a stable hint and requires an
+exact match against fresh R10-approved enumeration; explicit CLI values win over
+saved values. Missing/invalid/unavailable storage yields safe defaults and no
+shared fallback. Never restore Session Password, a credential/verifier/key,
+credential generation, consent epoch, listener/native proof, Sharing ON,
+GraphicsReady or Clipboard authority. `runtimeBootstrapMayPersist(SessionPassword)`
+remains false.
+
+Dependency refresh: the R2 storage target has no HostControl/credential-owner
+linkage, so this hardening is not blocked by R7. The downstream settings blocker
+remains that `src/gui/main.cpp` still does not consume the preferences target;
+R7 must perform that composition and stale-interface revalidation separately.
+The current physical-client failure remains upstream of native desktop/settings
+persistence and is unrelated to this storage increment. Connector-local
+configure/build/CTest/sanitizers **NOT RUN**; exact publication-SHA hosted CI is
+required. No password persistence, vault integration, listener, client launch,
+native permission prompt or physical test was performed. Future native OS vault
+support remains design-only and still requires an explicit product-policy change
+to the volatile Session Password rule plus opt-in consent/revoke/delete UX and
+platform security review before implementation.
+
 ## R3 P0 batched-join fixture retirement correction (2026-11-01)
 
 **Reviewed `main` parent:** `5edb1d339b5de45c7f84f71d9fa01c22928c2d5a`. The prior R3 publication `d5433b9ef6d4644ec6cfc48a29c3abb4e6114621` compiled and its new `security.macos-protected-share-finalization-client-batch-tls-receipts` passed hosted Ubuntu (0.66 s), Windows (0.45 s) and macOS (2.29 s). That run's ordinary Debug CTest also identified an **older** dedicated batched-join/Client Info failure: the positive wire path finished, but at test_owned_preauth_session.cpp:8921 the fixture expected R3 Closed immediately after `ownerAuthority.revoke(Stop)` without the original R2 owner ever visiting the revoked epoch. The adjacent already passing protected join test explicitly does `!broker.revalidate(kConsoleViewPermission)` first. The narrow correction adds this missing original R2 visit and asserts `MacConsoleAdmissionState::Revoked` before requiring both R3 and R1 closed. Production protocol, policy and accepted-byte semantics are unchanged; this does not manufacture a physical native admission.

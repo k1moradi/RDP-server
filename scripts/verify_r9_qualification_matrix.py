@@ -19,19 +19,23 @@ MAX_INPUT_BYTES = 2 * 1024 * 1024
 # GitHub matrix entries are distinct jobs. A green combined job is *not* a
 # separate proof of each internal CTest, sanitizer case or physical client.
 REQUIRED_JOBS = (
-    ("linux_debug_release", "protocol (ubuntu-latest)"),
-    ("macos_debug_release", "protocol (macos-latest)"),
-    ("windows_msvc_debug_release", "protocol (windows-latest)"),
-    ("windows_clang23", "r6-windows-clang23"),
-    ("security_asan_ubsan", "r9-security-protocol-sanitizers"),
-    ("linux_gui_zip", "r5-linux-gui-zip"),
-    ("macos_portable_gui", "r7-macos-portable-gui"),
-    ("windows_clean_portable_gui", "r9-clean-windows-portable-gui"),
-    ("gui_bootstrap", "r9-portable-gui-bootstrap-acceptance"),
-    ("gui_round2", "r9-gui-round2-acceptance"),
-    ("documentation_policy", "documentation-policy"),
-    ("workflow_structure", "ci-workflow-structure"),
-    ("owner_candidate_manual", "r9-credssp-owner-candidate"),
+    ("linux_debug", "protocol (ubuntu-latest)", "Run Debug protocol and project-policy tests"),
+    ("linux_release", "protocol (ubuntu-latest)", "Run Release protocol tests"),
+    ("macos_debug", "protocol (macos-latest)", "Run Debug protocol and project-policy tests"),
+    ("macos_release", "protocol (macos-latest)", "Run Release protocol tests"),
+    ("windows_msvc_debug", "protocol (windows-latest)", "Run Debug protocol and project-policy tests"),
+    ("windows_msvc_release", "protocol (windows-latest)", "Run Release protocol tests"),
+    ("windows_clang23_debug", "r6-windows-clang23", "Run full Debug CTest under CLANG64"),
+    ("windows_clang23_release", "r6-windows-clang23", "Run full Release CTest under CLANG64"),
+    ("security_asan_ubsan", "r9-security-protocol-sanitizers", None),
+    ("linux_gui_zip", "r5-linux-gui-zip", None),
+    ("macos_portable_gui", "r7-macos-portable-gui", None),
+    ("windows_clean_portable_gui", "r9-clean-windows-portable-gui", None),
+    ("gui_bootstrap", "r9-portable-gui-bootstrap-acceptance", None),
+    ("gui_round2", "r9-gui-round2-acceptance", None),
+    ("documentation_policy", "documentation-policy", None),
+    ("workflow_structure", "ci-workflow-structure", None),
+    ("owner_candidate_manual", "r9-credssp-owner-candidate", None),
 )
 
 
@@ -83,7 +87,7 @@ def evaluate(expected_sha: str, current_sha: str,
         raise ValueError("TOO_MANY_RECORDS")
 
     lanes: dict[str, str] = {}
-    for lane, name in REQUIRED_JOBS:
+    for lane, name, required_step in REQUIRED_JOBS:
         matching = [job for job in jobs if isinstance(job, dict) and job.get("name") == name]
         if not source_matches:
             lanes[lane] = "SHA_MISMATCH"
@@ -92,7 +96,24 @@ def evaluate(expected_sha: str, current_sha: str,
         elif not matching:
             lanes[lane] = "NOT_RUN"
         else:
-            lanes[lane] = classify_job(matching[0])
+            job_status = classify_job(matching[0])
+            if job_status != "JOB_PASS" or required_step is None:
+                lanes[lane] = job_status
+                continue
+            steps = matching[0].get("steps")
+            if not isinstance(steps, list) or len(steps) > 100:
+                lanes[lane] = "STEPS_UNVERIFIED"
+                continue
+            matching_steps = [
+                step for step in steps
+                if isinstance(step, dict) and step.get("name") == required_step
+            ]
+            if len(matching_steps) > 1:
+                lanes[lane] = "AMBIGUOUS"
+            elif not matching_steps:
+                lanes[lane] = "STEPS_UNVERIFIED"
+            else:
+                lanes[lane] = classify_job(matching_steps[0])
 
     # An artifact name/metadata alone never authenticates its contents. The
     # Windows protocol job may be green even if its SSPI result is incomplete.
@@ -130,7 +151,11 @@ def self_test() -> None:
     sha = "a" * 40
     other = "b" * 40
     jobs = {"jobs": [
-        {"name": "protocol (ubuntu-latest)", "status": "completed", "conclusion": "success"},
+        {"name": "protocol (ubuntu-latest)", "status": "completed", "conclusion": "success",
+         "steps": [
+             {"name": "Run Debug protocol and project-policy tests", "status": "completed", "conclusion": "success"},
+             {"name": "Run Release protocol tests", "status": "completed", "conclusion": "skipped"},
+         ]},
         {"name": "protocol (macos-latest)", "status": "completed", "conclusion": "cancelled"},
         {"name": "protocol (windows-latest)", "status": "queued", "conclusion": None},
         {"name": "r9-security-protocol-sanitizers", "status": "completed", "conclusion": "skipped"},
@@ -138,24 +163,47 @@ def self_test() -> None:
     artifacts = {"artifacts": [{"name": "r9-microsoft-interop-" + sha, "expired": False}]}
     run = {"head_sha": sha}
     report = evaluate(sha, sha, run, jobs, artifacts)
-    assert report["lanes"]["linux_debug_release"] == "JOB_PASS"
-    assert report["lanes"]["macos_debug_release"] == "CANCELED"
-    assert report["lanes"]["windows_msvc_debug_release"] == "QUEUED"
-    assert report["lanes"]["security_asan_ubsan"] == "SKIPPED"
-    assert report["lanes"]["windows_clang23"] == "NOT_RUN"
-    assert report["sspi_artifact"] == "PRESENT_UNINSPECTED"
-    assert report["sspi_result"] == "NOT_VERIFIED_FROM_METADATA"
-    assert report["physical_windows_app_login"] == "NOT_VERIFIED"
-    assert report["m1_acceptance"] == "NOT_ESTABLISHED"
-    assert evaluate(sha, other, run, jobs, artifacts)["current_head"] == "DIFFERENT_SHA"
+    if not (report["lanes"]["linux_debug"] == "JOB_PASS"):
+        raise AssertionError("R9 self-test denial failed")
+    if not (report["lanes"]["linux_release"] == "SKIPPED"):
+        raise AssertionError("R9 self-test denial failed")
+    if not (report["lanes"]["macos_debug"] == "CANCELED"):
+        raise AssertionError("R9 self-test denial failed")
+    if not (report["lanes"]["windows_msvc_debug"] == "QUEUED"):
+        raise AssertionError("R9 self-test denial failed")
+    if not (evaluate(sha, sha, run, {"jobs": [):
+        raise AssertionError("R9 self-test denial failed")
+        {"name": "protocol (ubuntu-latest)", "status": "completed", "conclusion": "success",
+         "steps": []}
+    ]}, artifacts)["lanes"]["linux_debug"] == "STEPS_UNVERIFIED"
+    if not (report["lanes"]["security_asan_ubsan"] == "SKIPPED"):
+        raise AssertionError("R9 self-test denial failed")
+    if not (report["lanes"]["windows_clang23_debug"] == "NOT_RUN"):
+        raise AssertionError("R9 self-test denial failed")
+    if not (report["sspi_artifact"] == "PRESENT_UNINSPECTED"):
+        raise AssertionError("R9 self-test denial failed")
+    if not (report["sspi_result"] == "NOT_VERIFIED_FROM_METADATA"):
+        raise AssertionError("R9 self-test denial failed")
+    if not (report["physical_windows_app_login"] == "NOT_VERIFIED"):
+        raise AssertionError("R9 self-test denial failed")
+    if not (report["m1_acceptance"] == "NOT_ESTABLISHED"):
+        raise AssertionError("R9 self-test denial failed")
+    if not (evaluate(sha, other, run, jobs, artifacts)["current_head"] == "DIFFERENT_SHA"):
+        raise AssertionError("R9 self-test denial failed")
     wrong = evaluate(sha, sha, {"head_sha": other}, jobs, artifacts)
-    assert all(value == "SHA_MISMATCH" for value in wrong["lanes"].values())
-    assert wrong["sspi_artifact"] == "SHA_MISMATCH"
+    if not (all(value == "SHA_MISMATCH" for value in wrong["lanes"].values())):
+        raise AssertionError("R9 self-test denial failed")
+    if not (wrong["sspi_artifact"] == "SHA_MISMATCH"):
+        raise AssertionError("R9 self-test denial failed")
     duplicate = {"jobs": jobs["jobs"] + [jobs["jobs"][0]]}
-    assert evaluate(sha, sha, run, duplicate, artifacts)["lanes"]["linux_debug_release"] == "AMBIGUOUS"
-    assert evaluate(sha, sha, run, jobs, {"artifacts": []})["sspi_artifact"] == "NOT_PRESENT"
-    assert classify_job({"status": "completed", "conclusion": "failure"}) == "FAIL"
-    assert classify_job({"status": "in_progress", "conclusion": None}) == "IN_PROGRESS"
+    if not (evaluate(sha, sha, run, duplicate, artifacts)["lanes"]["linux_debug"] == "AMBIGUOUS"):
+        raise AssertionError("R9 self-test denial failed")
+    if not (evaluate(sha, sha, run, jobs, {"artifacts": []})["sspi_artifact"] == "NOT_PRESENT"):
+        raise AssertionError("R9 self-test denial failed")
+    if not (classify_job({"status": "completed", "conclusion": "failure"}) == "FAIL"):
+        raise AssertionError("R9 self-test denial failed")
+    if not (classify_job({"status": "in_progress", "conclusion": None}) == "IN_PROGRESS"):
+        raise AssertionError("R9 self-test denial failed")
     for bad in ({"jobs": "invalid"}, [], None):
         try:
             evaluate(sha, sha, run, bad, artifacts)

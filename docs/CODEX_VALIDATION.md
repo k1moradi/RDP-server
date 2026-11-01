@@ -1,3 +1,10 @@
+## R9 packaged CLI denial coverage — 2026-11-01
+
+- Parent reviewed: `36d9a071261db7e004ed3861b6ef92672bd6348e`. The R5 Linux ZIP and R7 macOS PORTABLE-GUI workflows build the real desktop executable and perform exact-SHA archive integrity/native-startup checks, but their package-specific paths did not explicitly run the two public rapid CLI process CTests; macOS's broad selector covers only `gui.offscreen-*`, while the rapid tests are `gui.rapid-*`.
+- This workflow-only correction pins exactly `gui.rapid-help-before-qapplication` and `gui.rapid-cli-executable-denials` in both hosted packaging jobs and reruns `tests/test_desktop_cli.py` against the executable extracted from each sealed archive. The existing harness uses synthetic sentinels only and verifies fixed diagnostics without reflecting them; invalid/help paths must exit before QApplication.
+- The clean-Windows self-hosted acceptance job is not modified or dispatched. No manual owner candidate, native desktop, Windows App/mstsc, packet capture, credential/trust change or physical test is performed. Preferences backend ownership/mode coverage remains separate; GUI restart restoration is still dependency-blocked because the desktop does not consume the R2 preferences target.
+- Source/workflow/registry inspection PASS. Connector-local CMake/full CTest/sanitizers/benchmarks NOT RUN. Exact publication-SHA structure/package/full-CI evidence PENDING after publication; no PASS is implied by queueing.
+
 ## R6 exact hosted result; physical first observation remains blocked (2026-11-01)
 
 Exact descendant `54ea7726bea07b8b3fe0b33004c4df8fac4c5289`,

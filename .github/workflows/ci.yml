@@ -3078,6 +3078,18 @@ jobs:
           ctest --test-dir build -C Release -N -R '^gui[.]offscreen-'
           ctest --test-dir build -C Release --timeout 30 \
             -R '^gui[.]offscreen-' --output-on-failure
+      - name: Pin R7 public CLI security CTests at exact macOS packaging HEAD
+        shell: bash
+        run: |
+          set -euo pipefail
+          rapid_cli_selector='^(gui[.]rapid-help-before-qapplication|gui[.]rapid-cli-executable-denials)$'
+          rapid_cli_tests="$(ctest --test-dir build -C Release -N -R "$rapid_cli_selector")"
+          printf '%s\n' "$rapid_cli_tests"
+          grep -Fq ': gui.rapid-help-before-qapplication' <<< "$rapid_cli_tests"
+          grep -Fq ': gui.rapid-cli-executable-denials' <<< "$rapid_cli_tests"
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$rapid_cli_tests")" -eq 2
+          ctest --test-dir build -C Release --timeout 20 \
+            -R "$rapid_cli_selector" --output-on-failure
       # Normal extracted-package startup must not request Screen Recording or
       # Accessibility. Exercise the real macOS RuntimeHostControl pre-listener
       # service path at this exact packaging SHA before LaunchServices opens it.
@@ -3253,6 +3265,10 @@ jobs:
           app="$extracted/rdp-server-desktop.app"
           test -x "$app/Contents/MacOS/rdp-server-desktop"
           test -f "$app/Contents/PlugIns/platforms/libqcocoa.dylib"
+          # Re-run the public pre-QApplication denial harness against the
+          # executable extracted from the exact-SHA archive, not the build tree.
+          python3 tests/test_desktop_cli.py \
+            "$app/Contents/MacOS/rdp-server-desktop"
           for framework in QtCore QtGui QtWidgets; do
             test -d "$app/Contents/Frameworks/$framework.framework"
           done
@@ -3547,6 +3563,14 @@ jobs:
           test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$round2_tests")" -eq 7
           ctest --test-dir build -C Release --timeout 30 \
             -R "$round2_selector" --output-on-failure
+          rapid_cli_selector='^(gui[.]rapid-help-before-qapplication|gui[.]rapid-cli-executable-denials)$'
+          rapid_cli_tests="$(ctest --test-dir build -C Release -N -R "$rapid_cli_selector")"
+          printf '%s\n' "$rapid_cli_tests"
+          grep -Fq ': gui.rapid-help-before-qapplication' <<< "$rapid_cli_tests"
+          grep -Fq ': gui.rapid-cli-executable-denials' <<< "$rapid_cli_tests"
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$rapid_cli_tests")" -eq 2
+          ctest --test-dir build -C Release --timeout 20 \
+            -R "$rapid_cli_selector" --output-on-failure
       - name: Package, extract and inspect actual Qt/XCB closure
         shell: bash
         run: |
@@ -3574,6 +3598,10 @@ jobs:
           test -x build/gui-extracted/run-gui.sh
           test -x "build/gui-extracted/RDP Server.desktop"
           export LD_LIBRARY_PATH="$PWD/build/gui-extracted/lib"
+          # Exercise the exact executable extracted from the sealed ZIP. The
+          # harness uses only synthetic sentinels and exits before QApplication.
+          python3 tests/test_desktop_cli.py \
+            "$PWD/build/gui-extracted/bin/rdp-server-desktop"
           ldd build/gui-extracted/bin/rdp-server-desktop \
             | tee build/gui-extracted/elf-dependencies.txt
           ldd build/gui-extracted/plugins/platforms/libqxcb.so \

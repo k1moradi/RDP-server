@@ -1,3 +1,10 @@
+## R9 P0 Round 1 — packaged public CLI denials at exact hosted packaging HEAD (2026-11-01)
+
+- Parent `36d9a071261db7e004ed3861b6ef92672bd6348e` preserves concurrent R4/R6 work and the repaired full canonical ROADMAP. The existing public CLI process gates were ordinary full CTests but the Linux/macOS package jobs did not explicitly pin them, and archive smoke only exercised no-argument startup.
+- Strengthen hosted package qualification only: require exactly `gui.rapid-help-before-qapplication` plus `gui.rapid-cli-executable-denials` on Linux/macOS packaging HEAD, then run the same denial harness against each exact executable after archive extraction. No real password is used; no Sharing/listener/native permission/client activity is introduced. The owner clean-Windows runner is intentionally unchanged.
+- Fixed R5/R8/Graphics/x264 sanitizer inventories and independent R4 retirement selections are unchanged. R7 GUI persistence/stale-interface revalidation remains blocked until `rdp-server-desktop` actually consumes the R2 runtime preferences API; do not report that behavior as PASS from backend-only preference tests.
+- Exact publication-SHA hosted results are PENDING until automatic CI completes. Physical Windows App/mstsc authentication and M1 remain separate and unaccepted.
+
 ## R6 P0 — exact hosted SSPI PASS; physical receipt/decryption still missing (2026-11-01)
 
 Exact descendant `54ea7726bea07b8b3fe0b33004c4df8fac4c5289`,

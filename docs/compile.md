@@ -1,3 +1,7 @@
+## R2 accepted-partial policy replacement focused qualification (2026-11-01)
+
+No new dependencies or executable. In the single `~/rdp-server/build/` root run canonical Debug configure/build, then `ctest --test-dir build -C Debug -R '^security[.]macos-protected-(partial-license-request-policy-substitution-denial|personal-licensing-(policy-retirement|context-substitution)-denials|license-request-partial-write-callback-revocation|personal-desktop-licensing-(receipts|denials))$' --output-on-failure`, then the ordinary full CTest and unchanged sanitizer inventories at the same SHA. Source/CTest registration review PASS. Connector-local configure/build/focused/full CTest/ASan/UBSan/benchmarks NOT RUN (no locally reachable GitHub checkout); exact-publication-SHA hosted CI PENDING. Production R1 TLS mechanics plus synthetic native/identity observations do not prove a full authenticated CredSSP principal or physical macOS admission. Actual principal-to-native audit/consent verification and R10 native attachment/first-frame/ACK remain blocked on separate end-to-end evidence; Clipboard remains independently denied.
+
 ## Current-head protocol CI blocker correction after licensed Graphics integration (2026-11-01)
 
 **Failing SHA:** `30dd0c37d4e507cdbc7ab6563b9e3a879f149ff0`, Actions `41298328691`. The prior CTest-name

@@ -8902,6 +8902,87 @@ void testMacProtectedPersonalLicensingPolicyAndRetirementDenials()
     }
 }
 
+// The original R1 TLS writer has already accepted licensing plaintext.
+// Equal-value or AppServer policy substitution cannot inherit that prefix,
+// its R3 suffix or a future receipt. CredSSP/native observations here remain
+// synthetic; this test verifies only production-linked wire mechanics.
+void testMacProtectedPartialLicenseRequestPolicySubstitutionDenial()
+{
+    using rdp_server::server::runtime::RuntimeDeploymentPolicy;
+    using rdp_server::server::runtime::RuntimeLicensingContext;
+    using Receipt = RdpServerLicenseRequestWriteOutcome;
+
+    RuntimeDeploymentPolicy policy;
+    RuntimeDeploymentPolicy replacementPolicy;
+    RuntimeDeploymentPolicy appServerPolicy;
+    assert(policy.configurePersonalDesktopPrivateLan(3389U));
+    assert(replacementPolicy.configurePersonalDesktopPrivateLan(3389U));
+    assert(appServerPolicy.configureAppServerIssuerBacked());
+
+    RuntimeLicensingContext licensing;
+    assert(licensing.configureGeneratedApplicationIdentity());
+    const auto *const identity = licensing.identity();
+    const auto *const credential = licensing.credential();
+    assert(identity != nullptr && credential != nullptr);
+
+    for (std::size_t scenario = 0U; scenario < 2U; ++scenario)
+    {
+        auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture();
+        assert(fixture->broker.authorizeR3PersonalDesktopLicensingMode(
+            *fixture->session, policy));
+        const auto first =
+            fixture->broker.authorizeR3PersonalDesktopServerLicenseRequestWrite(
+                *fixture->session, policy, *identity, *credential);
+        assert(first && first->bytes.size() > 1U);
+        const std::size_t acceptedBytes =
+            writeOneMacProtectedPlaintextByte(*fixture, first->bytes);
+        assert(acceptedBytes == 1U);
+        std::uint64_t staleSlice = first->writeSliceSequence;
+
+        if (scenario == 0U)
+        {
+            // First commit a genuine partial original-policy R1 receipt.
+            assert(fixture->broker.completeR3PersonalDesktopServerLicenseRequestWrite(
+                       *fixture->session, policy, first->replySequence,
+                       first->writeSliceSequence, acceptedBytes) ==
+                   Receipt::Pending);
+            const auto suffix =
+                fixture->broker.authorizeR3PersonalDesktopServerLicenseRequestWrite(
+                    *fixture->session, policy, *identity, *credential);
+            assert(suffix && suffix->replySequence == first->replySequence);
+            assert(suffix->writeSliceSequence != first->writeSliceSequence);
+            assert(suffix->bytes.size() + acceptedBytes == first->bytes.size());
+            staleSlice = suffix->writeSliceSequence;
+            assert(!fixture->broker
+                        .authorizeR3PersonalDesktopServerLicenseRequestWrite(
+                            *fixture->session, replacementPolicy,
+                            *identity, *credential));
+        }
+        else
+        {
+            // A different application-server mode cannot accept the pending
+            // original PersonalDesktop positive-byte receipt.
+            assert(fixture->broker.completeR3PersonalDesktopServerLicenseRequestWrite(
+                       *fixture->session, appServerPolicy,
+                       first->replySequence, first->writeSliceSequence,
+                       acceptedBytes) == Receipt::Rejected);
+        }
+
+        assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(fixture->session->phase() == McsSessionPhase::Closed);
+        assert(fixture->session->licensingPhase() == RdpLicensingPhase::Closed);
+        assert(fixture->connection.stage() == PreauthStage::Closed);
+        assert(!fixture->connection.active());
+        assert(!fixture->session->firstClientAcceptanceObservability()
+                    .shareActivated);
+        assert(fixture->broker.completeR3PersonalDesktopServerLicenseRequestWrite(
+                   *fixture->session, policy, first->replySequence,
+                   staleSlice, acceptedBytes) == Receipt::Rejected);
+        assert(!fixture->broker.authorizeR3PersonalDesktopValidClientWrite(
+            *fixture->session, policy));
+    }
+}
+
 // R1 positive plaintext progress is not durable licensing progress until the
 // exact receipt survives the protected R2 callback postcheck. Force a real
 // short SSL_write_ex, then replace native evidence after R3 sees that partial
@@ -15139,6 +15220,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedPersonalLicensingPolicyAndRetirementDenials},
     {"macos-protected-personal-licensing-context-substitution-denials",
      &testMacProtectedPersonalLicensingContextSubstitutionDenials},
+    {"macos-protected-partial-license-request-policy-substitution-denial",
+     &testMacProtectedPartialLicenseRequestPolicySubstitutionDenial},
     {"macos-protected-license-request-partial-write-callback-revocation",
      &testMacProtectedServerLicenseRequestPartialWriteCallbackRevocation},
     {"macos-protected-channel-join-client-info-after-attach",

@@ -2211,6 +2211,17 @@ function(add_rdp_test source_file suite behavior)
             PROPERTIES LABELS "security;native-authorization;transport;tls;licensing;offline"
                        TIMEOUT 60)
 
+        # Real original R1 TLS licensing prefix, then an immutable policy
+        # replacement: deny original suffix and every late receipt.
+        add_test(NAME security.macos-protected-partial-license-request-policy-substitution-denial
+            COMMAND "${test_target}"
+                "macos-protected-partial-license-request-policy-substitution-denial")
+        set_tests_properties(
+            security.macos-protected-partial-license-request-policy-substitution-denial
+            PROPERTIES
+                LABELS "security;native-authorization;transport;tls;licensing;offline"
+                TIMEOUT 60)
+
         # R1/R2/R3 licensing receipt fence: a real positive partial TLS
         # Server License Request write followed by callback-time native
         # revocation must retire the original session and reject late receipts.

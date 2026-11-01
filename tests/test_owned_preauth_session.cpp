@@ -9975,7 +9975,8 @@ void testMacProtectedPersonalDesktopLicensingDenials()
 }
 
 
-void runMacProtectedPersonalDesktopShareActivationReceipts(bool continueThroughGraphics)
+void runMacProtectedPersonalDesktopShareActivationReceipts(
+    bool continueThroughGraphics, bool batchClientFinalization)
 {
     using rdp_server::server::runtime::RuntimeDeploymentPolicy;
     using rdp_server::server::runtime::RuntimeLicensingContext;
@@ -10141,17 +10142,22 @@ void runMacProtectedPersonalDesktopShareActivationReceipts(bool continueThroughG
 
     const auto clientUserId = fixture->session->allocatedUserId();
     const auto ioChannelId = fixture->session->allocatedIoChannelId();
+    const auto receiveSharePacket =
+        [&](const std::vector<std::uint8_t> &packet, ShareIntake expected)
+    {
+        std::vector<std::uint8_t> serverReceived(packet.size());
+        readOwnedRuntimeTlsAll(fixture->connection, serverReceived);
+        assert(serverReceived == packet);
+        assert(fixture->broker.authorizeR3PersonalDesktopShareActivationPdu(
+                   *fixture->session, policy, serverReceived) == expected);
+    };
     const auto sendShare =
         [&](std::span<const std::uint8_t> sharePdu, ShareIntake expected)
     {
         const auto packet = makeMacProtectedClientChannelTpkt(
             clientUserId, sharePdu, ioChannelId);
         writeNativeTlsClientAll(fixture->tls.client.get(), packet);
-        std::vector<std::uint8_t> serverReceived(packet.size());
-        readOwnedRuntimeTlsAll(fixture->connection, serverReceived);
-        assert(serverReceived == packet);
-        assert(fixture->broker.authorizeR3PersonalDesktopShareActivationPdu(
-                   *fixture->session, policy, serverReceived) == expected);
+        receiveSharePacket(packet, expected);
     };
     const auto write16 = [](std::span<std::uint8_t> bytes,
                             std::size_t offset, std::uint16_t value) {
@@ -10175,8 +10181,13 @@ void runMacProtectedPersonalDesktopShareActivationReceipts(bool continueThroughG
     bindShare(confirm);
     sendShare(confirm, ShareIntake::ConfirmActiveAccepted);
 
-    flushShare(RdpShareServerWriteKind::Synchronize, ShareReceipt::Delivered);
-    flushShare(RdpShareServerWriteKind::Cooperate, ShareReceipt::Delivered);
+    if (!batchClientFinalization)
+    {
+        flushShare(
+            RdpShareServerWriteKind::Synchronize, ShareReceipt::Delivered);
+        flushShare(
+            RdpShareServerWriteKind::Cooperate, ShareReceipt::Delivered);
+    }
 
     std::array<std::uint8_t, 22> synchronize{{
         0x16,0x00,0x17,0x00,0xef,0x03,0xea,0x03,0x01,0x00,0x00,0x01,
@@ -10199,12 +10210,77 @@ void runMacProtectedPersonalDesktopShareActivationReceipts(bool continueThroughG
     bindShare(requestControl);
     bindShare(fontList);
 
-    sendShare(synchronize, ShareIntake::SynchronizeAccepted);
-    sendShare(cooperate, ShareIntake::CooperateAccepted);
-    sendShare(requestControl, ShareIntake::RequestControlAccepted);
-    flushShare(RdpShareServerWriteKind::GrantedControl, ShareReceipt::Delivered);
-    sendShare(fontList, ShareIntake::FontListAccepted);
-    flushShare(RdpShareServerWriteKind::FontMap, ShareReceipt::Activated);
+    if (batchClientFinalization)
+    {
+        // MS-RDPBCGR permits the ordered client finalization PDUs to arrive
+        // as one batch without waiting for any server finalization reply.
+        // Keep exact R1 TPKT boundaries while R3 retains only its normal
+        // sequencing flags; no second packet buffer or reply scheduler exists.
+        const auto synchronizePacket = makeMacProtectedClientChannelTpkt(
+            clientUserId, synchronize, ioChannelId);
+        const auto cooperatePacket = makeMacProtectedClientChannelTpkt(
+            clientUserId, cooperate, ioChannelId);
+        const auto requestControlPacket = makeMacProtectedClientChannelTpkt(
+            clientUserId, requestControl, ioChannelId);
+        const auto fontListPacket = makeMacProtectedClientChannelTpkt(
+            clientUserId, fontList, ioChannelId);
+        const std::size_t batchBytes =
+            synchronizePacket.size() + cooperatePacket.size() +
+            requestControlPacket.size() + fontListPacket.size();
+        std::vector<std::uint8_t> clientFinalizationBatch;
+        clientFinalizationBatch.reserve(batchBytes);
+        const auto appendPacket =
+            [&](const std::vector<std::uint8_t> &packet)
+        {
+            clientFinalizationBatch.insert(
+                clientFinalizationBatch.end(), packet.begin(), packet.end());
+        };
+        appendPacket(synchronizePacket);
+        appendPacket(cooperatePacket);
+        appendPacket(requestControlPacket);
+        appendPacket(fontListPacket);
+        assert(clientFinalizationBatch.size() == batchBytes);
+
+        writeNativeTlsClientAll(
+            fixture->tls.client.get(), clientFinalizationBatch);
+        receiveSharePacket(
+            synchronizePacket, ShareIntake::SynchronizeAccepted);
+        receiveSharePacket(
+            cooperatePacket, ShareIntake::CooperateAccepted);
+        receiveSharePacket(
+            requestControlPacket, ShareIntake::RequestControlAccepted);
+        receiveSharePacket(
+            fontListPacket, ShareIntake::FontListAccepted);
+
+        // The queued server side must still begin with Synchronize. Client
+        // batching cannot skip or reorder any receipt-bound server response.
+        const auto pendingSynchronize =
+            fixture->broker.authorizeR3PersonalDesktopShareActivationWrite(
+                *fixture->session, policy);
+        assert(pendingSynchronize && *pendingSynchronize &&
+               pendingSynchronize->kind ==
+                   RdpShareServerWriteKind::Synchronize);
+
+        flushShare(
+            RdpShareServerWriteKind::Synchronize, ShareReceipt::Delivered);
+        flushShare(
+            RdpShareServerWriteKind::Cooperate, ShareReceipt::Delivered);
+        flushShare(
+            RdpShareServerWriteKind::GrantedControl, ShareReceipt::Delivered);
+        flushShare(
+            RdpShareServerWriteKind::FontMap, ShareReceipt::Activated);
+    }
+    else
+    {
+        sendShare(synchronize, ShareIntake::SynchronizeAccepted);
+        sendShare(cooperate, ShareIntake::CooperateAccepted);
+        sendShare(requestControl, ShareIntake::RequestControlAccepted);
+        flushShare(
+            RdpShareServerWriteKind::GrantedControl, ShareReceipt::Delivered);
+        sendShare(fontList, ShareIntake::FontListAccepted);
+        flushShare(
+            RdpShareServerWriteKind::FontMap, ShareReceipt::Activated);
+    }
 
     assert(fixture->session->phase() == McsSessionPhase::ShareActivated);
     assert(fixture->broker.authorizeR3ApplicationTrafficReady(
@@ -10329,12 +10405,17 @@ void runMacProtectedPersonalDesktopShareActivationReceipts(bool continueThroughG
 
 void testMacProtectedPersonalDesktopShareActivationReceipts()
 {
-    runMacProtectedPersonalDesktopShareActivationReceipts(false);
+    runMacProtectedPersonalDesktopShareActivationReceipts(false, false);
+}
+
+void testMacProtectedShareFinalizationClientBatchTlsReceipts()
+{
+    runMacProtectedPersonalDesktopShareActivationReceipts(false, true);
 }
 
 void testMacProtectedPersonalDesktopGraphicsControlReceipts()
 {
-    runMacProtectedPersonalDesktopShareActivationReceipts(true);
+    runMacProtectedPersonalDesktopShareActivationReceipts(true, false);
 }
 
 
@@ -15618,6 +15699,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedPersonalDesktopClientLicensingBeforePartialServerRequestDeliveryDenial},
     {"macos-protected-personal-desktop-share-activation-receipts",
      &testMacProtectedPersonalDesktopShareActivationReceipts},
+    {"macos-protected-share-finalization-client-batch-tls-receipts",
+     &testMacProtectedShareFinalizationClientBatchTlsReceipts},
     {"macos-protected-personal-desktop-graphics-control-receipts",
      &testMacProtectedPersonalDesktopGraphicsControlReceipts},
     {"macos-protected-first-mcs-partial-read-stop-retirement",

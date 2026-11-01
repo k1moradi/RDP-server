@@ -2291,6 +2291,19 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "protocol;security;transport;tls;licensing;share;admission;offline"
                 TIMEOUT 60)
 
+        # MS-RDPBCGR finalization allows the ordered client Synchronize,
+        # Cooperate, Request Control and Font List PDUs in one client batch.
+        # Keep server replies receipt-bound through the original R1 TLS owner.
+        add_test(
+            NAME security.macos-protected-share-finalization-client-batch-tls-receipts
+            COMMAND "${test_target}"
+                "macos-protected-share-finalization-client-batch-tls-receipts")
+        set_tests_properties(
+            security.macos-protected-share-finalization-client-batch-tls-receipts
+            PROPERTIES
+                LABELS "protocol;security;transport;tls;mcs;licensing;share;admission;offline"
+                TIMEOUT 30)
+
         # One real licensed R1/R2/R3 owner continues from Share activation
         # through DRDYNVC CAPS/CREATE, graphics CAPS_CONFIRM and mapped surface.
         add_test(

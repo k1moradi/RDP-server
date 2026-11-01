@@ -8123,6 +8123,36 @@ macProtectedClientInfoTpkt(
     return packet;
 }
 
+
+[[nodiscard]] std::vector<std::uint8_t>
+makeMacProtectedClientChannelTpkt(
+    std::uint32_t clientUserId,
+    std::span<const std::uint8_t> body,
+    std::uint16_t channelId)
+{
+    assert(clientUserId >= 1001U && clientUserId <= 65536U);
+    assert(channelId != 0U);
+    assert(body.size() < 128U);
+
+    std::vector<std::uint8_t> packet(14U + body.size(), 0U);
+    packet[0] = 0x03U;
+    packet[2] = static_cast<std::uint8_t>(packet.size() >> 8U);
+    packet[3] = static_cast<std::uint8_t>(packet.size());
+    packet[4] = 0x02U;
+    packet[5] = 0xf0U;
+    packet[6] = 0x80U;
+    packet[7] = 0x64U;
+    packet[8] = static_cast<std::uint8_t>(
+        (clientUserId - 1001U) >> 8U);
+    packet[9] = static_cast<std::uint8_t>(clientUserId - 1001U);
+    packet[10] = static_cast<std::uint8_t>(channelId >> 8U);
+    packet[11] = static_cast<std::uint8_t>(channelId);
+    packet[12] = 0x70U;
+    packet[13] = static_cast<std::uint8_t>(body.size());
+    std::copy(body.begin(), body.end(), packet.begin() + 14U);
+    return packet;
+}
+
 [[nodiscard]] std::size_t writeOneMacProtectedPlaintextByte(
     MacProtectedTransportFixture &fixture,
     std::span<const std::uint8_t> offered)
@@ -9280,31 +9310,10 @@ void activateMacProtectedSyntheticLicensedShare(
     const auto clientUserId = fixture->session->allocatedUserId();
     const auto ioChannelId = fixture->session->allocatedIoChannelId();
     assert(clientUserId == 1002U && ioChannelId == 1003U);
-    const auto makeClientTpkt =
-        [&](std::span<const std::uint8_t> body,
-            std::uint16_t channelId) {
-            assert(body.size() < 128U);
-            std::vector<std::uint8_t> packet(14U + body.size(), 0U);
-            packet[0] = 0x03U;
-            packet[2] = static_cast<std::uint8_t>(packet.size() >> 8U);
-            packet[3] = static_cast<std::uint8_t>(packet.size());
-            packet[4] = 0x02U;
-            packet[5] = 0xf0U;
-            packet[6] = 0x80U;
-            packet[7] = 0x64U;
-            packet[8] = static_cast<std::uint8_t>(
-                (clientUserId - 1001U) >> 8U);
-            packet[9] = static_cast<std::uint8_t>(clientUserId - 1001U);
-            packet[10] = static_cast<std::uint8_t>(channelId >> 8U);
-            packet[11] = static_cast<std::uint8_t>(channelId);
-            packet[12] = 0x70U;
-            packet[13] = static_cast<std::uint8_t>(body.size());
-            std::copy(body.begin(), body.end(), packet.begin() + 14U);
-            return packet;
-        };
     const auto sendShare = [&](std::span<const std::uint8_t> sharePdu,
                                Read expected) {
-        const auto packet = makeClientTpkt(sharePdu, ioChannelId);
+        const auto packet = makeMacProtectedClientChannelTpkt(
+            clientUserId, sharePdu, ioChannelId);
         writeNativeTlsClientAll(fixture->tls.client.get(), packet);
         std::vector<std::uint8_t> received(packet.size());
         readOwnedRuntimeTlsAll(fixture->connection, received);
@@ -9415,7 +9424,8 @@ void testMacProtectedShareActivatedClipboardPermissionDenial()
             0x08,0x00,0x00,0x00,0x03,0x00,0x00,0x00,
             type,0x00,0x00,0x00,0x00,0x00,0x00,0x00
         }};
-        const auto tpkt = makeClientTpkt(data, clipboardChannelId);
+        const auto tpkt = makeMacProtectedClientChannelTpkt(
+            fixture->session->allocatedUserId(), data, clipboardChannelId);
         const auto route = McsSessionLifecycleTestAccess::
             classifyWithoutNativeClipboard(*fixture->session,
                                            *provenance, tpkt);

@@ -1,3 +1,7 @@
+## R4 protected Share helper compile correction (2026-11-01)
+
+Post-publication audit of `a02bb368e06581513623c692bc6e28ed4cd2266b` found one compile-time scope defect: the extracted Share helper owned the old `makeClientTpkt` lambda, but the pre-existing R8 clipboard-denial tail still called that name. The corrective change creates one `makeMacProtectedClientChannelTpkt()` helper with the same bounded packet construction and updates both callers. No production source or protocol behavior changes. Source inspection PASS; local build/focused/full CTest and sanitizers NOT RUN; exact corrective-SHA hosted CI PENDING.
+
 ## R4 protected macOS MAP-to-first-frame consent replacement (2026-11-01)
 
 Reviewed `7b23827c9cc19cef1e3605ad08e0e964e164e2f3` after R10's protected PersonalDesktop licensing composition and the existing R8 production Share fixture. The prior `graphics.mapped-before-first-frame-owner-retirement` correctly models R4 generation retirement but does not prove that the concrete macOS R2 broker kills a fully mapped protected Graphics route when owner consent changes before native pixels are borrowed.

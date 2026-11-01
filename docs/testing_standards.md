@@ -1,3 +1,7 @@
+## R4 protected Share helper packet-builder correction (2026-11-01)
+
+When extracting a reusable protected macOS Share transcript, do not strand caller-only lambdas in the original behavior test. The R1/MCS client SendDataRequest builder is now one bounded test helper used by both the shared Share intake and the preserved R8 clipboard-denial tail. The builder keeps the existing <128-byte PER-length assumption, validated user/channel IDs and exact TPKT/X.224/MCS fields. No wire semantics or test assertions change. Parent `a02bb368e06581513623c692bc6e28ed4cd2266b`; static review PASS, local compile/CTest NOT RUN, exact-SHA CI PENDING.
+
 ## R4 protected macOS mapped-first-frame consent replacement (2026-11-01)
 
 Use the existing `test_owned_preauth_session` real-loopback R1 HYBRID/TLS fixture and concrete macOS R2/R3 broker. A test-only Connect Initial variant replaces the unused `rdpsnd` channel with `drdynvc`, ORs only the supported Client Core Graphics Pipeline early-capability flag, reparses GCC, and asserts all three channel names before admission. Test-stage only the Licensed phase; Demand/Confirm Active, Share and RDPGFX CAPS/CREATE/MAP use production R3 and exact R1 accepted-byte receipts.

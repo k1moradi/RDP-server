@@ -1,3 +1,9 @@
+## R2 preferences remaining warning-clean correction (2026-11-01)
+
+Initial `6d9a9617f2ffa0bc218a4c7e4180ba580e79b945`, Actions 41341138295: Windows MSVC builds the preferences target and its dedicated CTest 55 passes in 0.02 s. R2 `acc77b33` fixes the first explicit-RAII compile blocker and R9 `3a78e4f2` preserves exact POSIX 0700/0600 plus protected current-user Windows DACL validation. Two independent source blockers remain in the same evidence: Windows Clang 23 rejects the POSIX-only filename constant as unused, and Linux portable-bootstrap GCC 15 diagnoses the reserve/push encoder with `-Werror=free-nonheap-object`.
+
+The corrective source removes the cross-platform unused constant, fills one exact-sized vector with a cached offset, forces/revalidates exact 0600 on each newly created POSIX temporary file before atomic replacement, and extends the existing preference CTest with a hostile-umask 0600/reload assertion. No public API, credential, listener, R2 grant, Graphics or Clipboard behavior changes. Local build/CTest NOT RUN; exact corrective publication CI PENDING. Unrelated R7/R9/R3, R8 and R10 work remains independently owned.
+
 ## R8 route-observation lifetime review after exact-SHA initialization qualification (2026-11-01)
 
 Exact R8 `99a9e70abeb39ed5a1e738191eb25b4c9526fcd8`, Actions 41340624047: Ubuntu 1101/1101 Debug+Release PASS, macOS 876/876 PASS, Windows/MSVC 917/917 PASS, Clang 23 975/975 PASS, Clipboard sanitizers 107/107 PASS. Initial-handshake receipt, Linux native-publication scope and three macOS scope denials pass.

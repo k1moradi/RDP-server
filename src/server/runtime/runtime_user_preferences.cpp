@@ -37,7 +37,6 @@ constexpr std::size_t kMaximumUsernameBytes{256U};
 constexpr std::size_t kMaximumInterfaceBytes{128U};
 constexpr std::size_t kMaximumRecordBytes{
     kHeaderBytes + kMaximumUsernameBytes + kMaximumInterfaceBytes};
-constexpr std::string_view kFilename{"preferences.bin"};
 std::atomic<std::uint64_t> nextTemporaryNumber{1U};
 
 [[nodiscard]] constexpr unsigned octet(const std::byte value) noexcept
@@ -242,7 +241,7 @@ private:
     int directory, RuntimeUserPreferences& preferences)
 {
     FileDescriptor file{::openat(
-        directory, kFilename.data(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)};
+        directory, "preferences.bin", O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)};
     if (!file)
         return errno == ENOENT
             ? RuntimeUserPreferencesStorageStatus::Missing
@@ -276,7 +275,7 @@ private:
     int directory, const RuntimeUserPreferences& preferences)
 {
     FileDescriptor existing{::openat(
-        directory, kFilename.data(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)};
+        directory, "preferences.bin", O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)};
     if (existing)
     {
         if (!privateObject(existing.get(), false, true))
@@ -302,6 +301,14 @@ private:
                 continue;
             return RuntimeUserPreferencesStorageStatus::Unavailable;
         }
+        // openat() applies umask to creation mode; normalize only this new
+        // object, then revalidate exact owner/type/mode before publication.
+        if (::fchmod(temporary.get(), 0600) != 0 ||
+            !privateObject(temporary.get(), false, true))
+        {
+            (void)::unlinkat(directory, temporaryName.c_str(), 0);
+            return RuntimeUserPreferencesStorageStatus::Unavailable;
+        }
         std::size_t offset = 0U;
         bool written = true;
         while (offset < encoded.size())
@@ -320,7 +327,7 @@ private:
         }
         if (!written || ::fsync(temporary.get()) != 0 ||
             ::renameat(directory, temporaryName.c_str(), directory,
-                       kFilename.data()) != 0)
+                       "preferences.bin") != 0)
         {
             (void)::unlinkat(directory, temporaryName.c_str(), 0);
             return RuntimeUserPreferencesStorageStatus::Unavailable;
@@ -600,27 +607,42 @@ bool encodeRuntimeUserPreferences(
 {
     if (!validPreferences(preferences))
         return false;
-    std::vector<std::byte> result;
-    result.reserve(kHeaderBytes + preferences.lastExplicitUsername.size() +
-                   preferences.preferredStableLanInterfaceId.size());
+
+    const std::size_t usernameBytes = preferences.lastExplicitUsername.size();
+    const std::size_t interfaceBytes =
+        preferences.preferredStableLanInterfaceId.size();
+    const std::size_t encodedBytes =
+        kHeaderBytes + usernameBytes + interfaceBytes;
+    std::vector<std::byte> result(encodedBytes);
+
+    std::size_t offset = 0U;
     for (const char character : kMagic)
-        result.push_back(static_cast<std::byte>(
-            static_cast<unsigned char>(character)));
-    result.push_back(std::byte{1U});
-    result.push_back(preferences.preferRemoteInput ? std::byte{1U} : std::byte{0U});
-    result.push_back(static_cast<std::byte>(preferences.port & 0xffU));
-    result.push_back(static_cast<std::byte>(preferences.port >> 8U));
-    result.push_back(static_cast<std::byte>(preferences.permissionLifetimeMinutes));
-    const auto appendLength = [&result](std::size_t size) {
-        result.push_back(static_cast<std::byte>(size & 0xffU));
-        result.push_back(static_cast<std::byte>((size >> 8U) & 0xffU));
-    };
-    appendLength(preferences.lastExplicitUsername.size());
-    appendLength(preferences.preferredStableLanInterfaceId.size());
+        result[offset++] = static_cast<std::byte>(
+            static_cast<unsigned char>(character));
+    result[offset++] = std::byte{1U};
+    result[offset++] =
+        preferences.preferRemoteInput ? std::byte{1U} : std::byte{0U};
+    result[offset++] = static_cast<std::byte>(preferences.port & 0xffU);
+    result[offset++] = static_cast<std::byte>(preferences.port >> 8U);
+    result[offset++] =
+        static_cast<std::byte>(preferences.permissionLifetimeMinutes);
+    const auto appendLength =
+        [&result, &offset](const std::size_t size) noexcept {
+            result[offset++] = static_cast<std::byte>(size & 0xffU);
+            result[offset++] =
+                static_cast<std::byte>((size >> 8U) & 0xffU);
+        };
+    appendLength(usernameBytes);
+    appendLength(interfaceBytes);
+
     for (const unsigned char character : preferences.lastExplicitUsername)
-        result.push_back(static_cast<std::byte>(character));
-    for (const unsigned char character : preferences.preferredStableLanInterfaceId)
-        result.push_back(static_cast<std::byte>(character));
+        result[offset++] = static_cast<std::byte>(character);
+    for (const unsigned char character :
+         preferences.preferredStableLanInterfaceId)
+        result[offset++] = static_cast<std::byte>(character);
+
+    if (offset != encodedBytes)
+        return false;
     encoded = std::move(result);
     return true;
 }

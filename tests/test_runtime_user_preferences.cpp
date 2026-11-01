@@ -242,6 +242,23 @@ int main()
     assert(::chmod(directory.c_str(), 0700) == 0);
     assert(detail::loadRuntimeUserPreferencesFromDirectory(
                directory, loaded) == RuntimeUserPreferencesStorageStatus::Loaded);
+
+    // Creation mode is umask-sensitive; the store must still publish a
+    // canonical 0600 replacement or fail before replacing the target.
+    assert(std::filesystem::remove(file));
+    const mode_t previousUmask = ::umask(0777);
+    const auto restrictiveSave = detail::saveRuntimeUserPreferencesToDirectory(
+        directory, original);
+    (void)::umask(previousUmask);
+    assert(restrictiveSave == RuntimeUserPreferencesStorageStatus::Stored);
+    struct stat restrictiveFileMetadata{};
+    assert(::lstat(file.c_str(), &restrictiveFileMetadata) == 0);
+    assert(S_ISREG(restrictiveFileMetadata.st_mode));
+    assert(restrictiveFileMetadata.st_uid == ::geteuid());
+    assert((restrictiveFileMetadata.st_mode & 07777) == 0600);
+    assert(detail::loadRuntimeUserPreferencesFromDirectory(
+               directory, loaded) == RuntimeUserPreferencesStorageStatus::Loaded);
+
     const auto alias = directory.string() + "-alias";
     assert(::symlink(directory.c_str(), alias.c_str()) == 0);
     assert(detail::loadRuntimeUserPreferencesFromDirectory(

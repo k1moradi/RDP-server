@@ -319,6 +319,19 @@ def main() -> int:
             "POLLERR | POLLHUP" in frame_pump and "POLLNVAL" in frame_pump,
             "terminal socket readiness must be handed to the original R1 owner",
         )
+        ack_dispatch = frame_pump.find("consumeR3GraphicsFrameAcknowledge(")
+        frame_preflight = frame_pump.find(
+            "preflightR3GraphicsFramePublication(", ack_dispatch
+        )
+        require(
+            ack_dispatch >= 0 and frame_preflight > ack_dispatch,
+            "cannot order post-Share ACK dispatch before native frame preflight",
+        )
+        require(
+            "return {RuntimeHostError::None, false};"
+            not in frame_pump[ack_dispatch:frame_preflight],
+            "successful bounded inbound dispatch must not starve native frame preflight",
+        )
 
         status_begin = source.find(
             "RuntimeHostStatus MacRuntimeHostControl::status() const"

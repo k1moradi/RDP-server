@@ -1,3 +1,7 @@
+## R10 macOS post-Graphics fairness source correction (2026-11-01)
+
+Current-main review after the first-frame trace and native-callback corrections found an avoidable starvation edge in `serviceAcceptedClientGraphicsOnce`: successful complete post-Share input returned before native preflight. The correction removes only those success returns after a complete Graphics ACK or inert classified SlowPathInput/Clipboard packet. One bounded R1 packet is still serviced per tick; malformed/terminal traffic and Graphics fragments retain their existing early returns, and the R4 callbackReached retirement split is preserved. The centralized frame-pump contract now rejects a success return between ACK dispatch and frame preflight. Local build/CTest remains NOT RUN; exact publication-SHA CI and physical client/native validation remain pending.
+
 ## R9 packaged CLI denial coverage — 2026-11-01
 
 - Parent reviewed: `36d9a071261db7e004ed3861b6ef92672bd6348e`. The R5 Linux ZIP and R7 macOS PORTABLE-GUI workflows build the real desktop executable and perform exact-SHA archive integrity/native-startup checks, but their package-specific paths did not explicitly run the two public rapid CLI process CTests; macOS's broad selector covers only `gui.offscreen-*`, while the rapid tests are `gui.rapid-*`.

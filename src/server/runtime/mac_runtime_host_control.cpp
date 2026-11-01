@@ -1914,19 +1914,22 @@ MacRuntimeHostControl::serviceAcceptedClientGraphicsOnce(
                     session, *deploymentPolicy_);
             if (acknowledged == FrameAcknowledge::Rejected)
                 return retireGraphics(RuntimeHostError::GraphicsUnavailable);
-            return {RuntimeHostError::None, false};
+            // One bounded inbound packet must not starve a ready native frame.
+            // Continue into the same tick's R2/R3/R4 preflight after ACK.
         }
-
-        // R3 already bounded and classified these packets. This P1 increment
-        // creates no native input or Clipboard authority, so leave them inert.
-        if (route.kind == RouteKind::SlowPathInput ||
-            route.kind == RouteKind::ClipboardStaticChannel)
+        else if (route.kind == RouteKind::SlowPathInput ||
+                 route.kind == RouteKind::ClipboardStaticChannel)
         {
+            // R3 already bounded and classified these packets. This P1
+            // increment creates no native input or Clipboard authority, so
+            // consume only the bounded R1 packet and continue native service.
             credSsp.firstMcsBytes = 0U;
             credSsp.firstMcsExpectedBytes = 0U;
-            return {RuntimeHostError::None, false};
         }
-        return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+        else
+        {
+            return retireGraphics(RuntimeHostError::GraphicsUnavailable);
+        }
     }
 
     using NativeState = rdp::macos::MacNativeDesktopOwnerState;

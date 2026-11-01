@@ -1,3 +1,7 @@
+## R10 macOS post-Graphics bounded-dispatch fairness correction (2026-11-01)
+
+Review of the native frame pump found one scheduler fairness defect: after a complete inbound Graphics ACK or a bounded classified SlowPathInput/Clipboard packet, R10 returned immediately, so sustained client traffic could indefinitely postpone native frame preflight. Preserve the one-packet network budget, but after successful complete dispatch continue into the same owner tick's current R7 observation, R2/R3 geometry and R4 credit checks. Fragmented Graphics DATA still returns promptly so client DVC reassembly remains bounded. Preserve the concurrent R4 callback-rejection fence: only a pre-callback stale mailbox miss is retryable; an invoked callback failure remains terminal. No additional reader, queue, input/Clipboard authority or DesktopVisible transition is introduced.
+
 ## R9 P0 Round 1 — packaged public CLI denials at exact hosted packaging HEAD (2026-11-01)
 
 - Parent `36d9a071261db7e004ed3861b6ef92672bd6348e` preserves concurrent R4/R6 work and the repaired full canonical ROADMAP. The existing public CLI process gates were ordinary full CTests but the Linux/macOS package jobs did not explicitly pin them, and archive smoke only exercised no-argument startup.

@@ -1,3 +1,51 @@
+## R5 exact-SHA implicit-retirement qualification complete; dependency refresh (2026-11-01)
+
+**Qualified R5 publication SHA:** `64732a09d1f78934ecac60ef0b5db96e29b42cbf`.
+Actions `41287979012` now supplies the previously pending exact-SHA evidence.
+
+- [x] Ubuntu protocol job `124794012528`: Debug configure/build **PASS**,
+  full Debug CTest **1066/1066 PASS**, same build root reconfigured Release,
+  Release build **PASS**, and full Release CTest **1066/1066 PASS**.
+- [x] The exact focused R5 boundaries pass in that job:
+  `x11.input-native-failure-terminal-retirement-no-xtest`,
+  `x11.desktop-resource-implicit-retirement-no-xtest-contract`,
+  `x11.input-randr-bounds-update-held-state-no-cleanup`,
+  `x11.desktop-resource-implicit-destruction-queued-damage-isolation`,
+  `x11.desktop-resource-reentrant-authority-loss-damage-dispatch` and
+  `x11.desktop-resource-inflight-frame-borrow-authority-retirement`.
+- [x] R9 sanitizer job `124794012425`: ASan/UBSan configure/compile **PASS**
+  and the fixed R5 native X11 selector is exactly **45/45 PASS**. The new
+  implicit-destruction Xvfb regression remains intentionally outside that
+  fixed census and is independently covered by the full Ubuntu suites.
+- [x] Dependency audit: `rdp-server-linux-x11-desktop` still depends only on
+  the one XCB connection plus XShm/XFixes/XDamage/XTEST (optional XI2);
+  `rdp-server-linux-x11-authorized-input` adds concrete Linux R2 runtime
+  security; `rdp-server-linux-host-control` and `rdp-server` consume those
+  without a second XCB, TLS reader, authorization cache or frame owner.
+  Linux R10 already gates R5 creation behind genuine R2 admission plus R3
+  Share/GraphicsReady and keeps R1 accepted-byte progress distinct from the
+  inbound R3/R4 FRAME_ACK.
+- [x] Current descendant source review found no R5 production correctness or
+  performance defect requiring churn. X11 source and the new regression are
+  unchanged from the qualified SHA.
+- [ ] A later shared-main test-fixture compile blocker was unrelated to R5 and
+  has been repaired by other agents (`517eb739` mutable credential buffer,
+  followed by `73ce0a06` valid PersonalDesktop policy fixture). Exact-SHA
+  qualification of the newest descendant remains its own CI gate; do not
+  retroactively label it with the `64732a09` receipt.
+- [ ] Physical Linux/X11 acceptance remains separately blocked on explicit
+  owner authorization and R9 manual candidate evidence: exact original R1
+  accepted socket, current R2 lease/native owner and consent epoch,
+  authenticated session, R3 Share/GraphicsReady, first native frame, complete
+  R1 write, genuinely inbound matching client FRAME_ACK, owner-authorized
+  resize/input, terminal zero-post/zero-frame revocation and a fresh reconnect.
+  No live seat0 capture, real X server session or physical XTEST operation was
+  performed by this review.
+
+**Next gate:** allow current descendant CI to qualify its own SHA; otherwise
+R5 code is unblocked. The remaining R5 product gate is owner-authorized
+physical evidence, not a missing dependency or protocol API.
+
 ## R1/R10 macOS licensing fixture policy correction (2026-11-01)
 
 **Review parent:** `517eb73946da50e29f17a9104bc07a8bd68c68de` after R10 `da971a64` integrated the original-owner licensing scheduler. The R1/R2/R3 TLS/TPKT/receipt audit found no demonstrated production R1 defect: the R10 owner uses the sole R1 application reader/writer, exact R3-borrowed suffixes and R2 positive receipts, and the shared 8192-byte TPKT frame prevents over-reading coalesced packets before complete Server License Request delivery.

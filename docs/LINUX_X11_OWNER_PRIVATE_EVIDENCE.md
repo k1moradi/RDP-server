@@ -1,3 +1,20 @@
+## Exact R5 automated qualification — 2026-11-01
+
+The implicit-retirement implementation/test publication
+`64732a09d1f78934ecac60ef0b5db96e29b42cbf` now has exact-SHA hosted
+Linux evidence in Actions `41287979012`: Ubuntu Debug and Release full CTest
+are each **1066/1066 PASS**, all focused implicit/fatal/RandR/reentrant/in-flight
+R5 regressions PASS, and R9's fixed native X11 ASan/UBSan selector is
+**45/45 PASS**. The ordinary implicit queued-Damage replacement test is
+intentionally outside that fixed 45-case census.
+
+This closes the automated qualification gate only. It does not create a real
+owner lease or client-visibility receipt. Physical acceptance still requires
+the private exact-socket/native-authority/consent/session/Share/first-frame/
+complete-write/inbound-ACK/resize/input/revocation/reconnect chain below,
+R9 manual nomination, and separate owner authorization. Later descendant CI
+must qualify its own SHA independently.
+
 # Linux/X11 owner-private native acceptance — R5/R2
 
 **Status: NOT RUN.** This is an owner-only procedure and a separate schema;

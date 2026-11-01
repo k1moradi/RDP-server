@@ -1,3 +1,43 @@
+## R5 exact-SHA qualification and current dependency audit (2026-11-01)
+
+R5 commit `64732a09d1f78934ecac60ef0b5db96e29b42cbf` is now fully qualified for
+the automated Linux evidence requested by the implicit-retirement increment.
+Actions `41287979012`, Ubuntu job `124794012528`, completed Debug and
+Release configure/build/full CTest with **1066/1066 PASS** in each
+configuration. The focused no-XTEST source guards, RandR held-state regression,
+new implicit queued-Damage destruction/replacement regression, reentrant
+Damage-retirement case and in-flight XShm borrow-retirement case all PASS.
+
+R9 sanitizer job `124794012425` configured and compiled with ASan/UBSan and
+completed the fixed native R5 selector at exactly **45/45 PASS**, including the
+reentrant and in-flight retirement cases. The new implicit-destruction test is
+deliberately not added to that fixed census; it passed in both ordinary Ubuntu
+full suites. The workflow structure/documentation gates for the same SHA also
+PASS. The manual R9 owner candidate remained skipped on ordinary push, as
+required.
+
+Current dependency/source re-audit found no R5 code change warranted. The
+one-owner graph remains:
+`XCB -> XShm/XFixes/XDamage/XTEST(+XI2) -> X11DesktopResources -> authorized
+input + Linux R2 -> Linux HostControl/server -> R3/R4 graphics and ACK`.
+Runtime construction is after genuine R2 selection and R3 GraphicsReady;
+event/frame/input work receives fresh protected authorization and old capture
+epochs cannot authorize a replacement owner. R1 full write acceptance remains
+delivery evidence only; physical acceptance still requires the genuinely
+inbound matching client FRAME_ACK.
+
+A newer shared-main failure at `61a1113d` was outside R5: a const test
+password could not convert to the credential API's mutable `std::span<char16_t>`.
+Agent follow-up `517eb739` corrected the mutable secret buffer without a cast,
+and `73ce0a06` corrected the subsequent PersonalDesktop policy fixture.
+Those later commits require their own exact-SHA CI; they do not invalidate the
+qualified `64732a09` R5 result.
+
+No local owner checkout, live seat0, real desktop, client input or physical
+XTEST operation was used in this review. Remaining product acceptance is
+**NOT RUN / unauthorized** and depends on R9 manual nomination plus explicit
+owner permission and the private R1/R2/R3/R5/R4 evidence chain.
+
 ## R1 review of landed R10 macOS licensing integration: invalid test policy fixed (2026-11-01)
 
 **Source parent:** `517eb73946da50e29f17a9104bc07a8bd68c68de`. R10 positive licensing orchestration landed at `da971a64be198c31c1a67c16a41d608115023af0`. Audited `MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce`, R1 `readTlsApplicationData`/`writeTlsApplicationData`, R2 protected licensing write/read/receipt calls, R3 phase and source CTest dispatch. No second TLS reader, unbounded licensing buffer, duplicate protocol reply owner or demonstrated production R1 defect. R1 WANT_READ/WANT_WRITE retains zero accepted bytes and the same suffix; positive partial R1 plaintext is committed only through the current R2/R3 reply/slice receipt; Client Licensing intake follows full Server License Request delivery. Full receipt moves only to AwaitDemandActive, never Share/native authority.

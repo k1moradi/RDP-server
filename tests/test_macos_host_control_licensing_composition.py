@@ -173,10 +173,35 @@ def main() -> int:
             "nativeDesktop_" not in scheduler,
             "Share scheduler must not attach or service the native desktop",
         )
-        require(
-            "authorizeR3Graphics" not in scheduler,
-            "Share scheduler must not start Graphics",
+        # The scheduler now continues into Graphics after ShareActivated.
+        # Keep the older Share contract strict at each Share-owned source
+        # boundary instead of rejecting the later protected Graphics branch.
+        graphics_stage = scheduler.find(
+            "if (activeAdmissionStage_ ==\n"
+            "            AcceptedClientAdmissionStage::ShareActivated)",
+            share_begin,
         )
+        require(
+            graphics_stage > share_begin,
+            "cannot isolate post-Share Graphics transition",
+        )
+        share_transition_block = scheduler[share_begin:graphics_stage]
+        share_read = scheduler.find("if (readingShareActivation)")
+        client_info = scheduler.find("const auto clientInfo =", share_read)
+        require(
+            share_read >= 0 and client_info > share_read,
+            "cannot isolate macOS Share client-intake branch",
+        )
+        share_read_block = scheduler[share_read:client_info]
+        for share_block in (
+            share_transition_block,
+            share_write_block,
+            share_read_block,
+        ):
+            require(
+                "authorizeR3Graphics" not in share_block,
+                "Share scheduler must not start Graphics before ShareActivated",
+            )
 
     if args.check_graphics_control:
         for token in (

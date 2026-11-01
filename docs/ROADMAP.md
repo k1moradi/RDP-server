@@ -1,3 +1,54 @@
+## R3 exact PersonalDesktop licensing -> Share method/phase contract (2026-11-01)
+
+**Read-only contract reviewed at `7c7833f61c77d3dddb8a74c55ad8884b00f93ba0`:** All positive calls below are
+private R2-broker visits on the original admitted R1 HYBRID TLS/BIO
+connection, not a public R3 positive API. Each protected visit rechecks the
+same R2 admission/authorization generation, original SSL provenance,
+credential proof, native macOS audit/consent epoch, original policy address
+and owner thread; failures close R3, revoke native and cancel R1.
+
+| Input / write boundary | Concrete R2 method -> R3 owner | R3 phase / licensing phase after accepted action |
+| --- | --- | --- |
+| All Channel Join confirmations delivered, protected Client Info | `authorizeR3ClientInfoPacket` -> `acceptVerifiedR2ClientInfoPacket` | `AwaitServerLicenseRequest` / `NotStarted` |
+| One-shot immutable PersonalDesktop choice | `authorizeR3PersonalDesktopLicensingMode` -> `selectVerifiedR2PersonalDesktopLicensingMode` | `AwaitServerLicenseRequest` / `NotStarted`, now mode `PersonalDesktop` |
+| Prepare first/retried Server License Request | `authorizeR3PersonalDesktopServerLicenseRequestWrite` -> `prepareServerLicenseRequestWrite`; R3 `serverLicenseRequestWrite_` holds bytes/reply/slice | `AwaitServerLicenseRequest` / `NotStarted` |
+| Zero/partial real R1 TLS accepted bytes | `completeR3PersonalDesktopServerLicenseRequestWrite` -> `completeServerLicenseRequestWrite` | Remains `AwaitServerLicenseRequest` / `NotStarted`; zero preserves exact slice; positive partial advances suffix/sequence |
+| Full accepted-byte Server License Request | Same completion method; `RdpServerLicenseRequestWriteGate::onBytesWritten` calls `licensing_.onServerLicenseRequestWritten` | `AwaitClientLicenseResponse` / `AwaitClientLicenseResponse` |
+| One complete joined global-I/O `SEC_LICENSE_PKT`, valid bounded `ClientNewLicenseRequest` or `ClientLicenseInfo` | `authorizeR3PersonalDesktopClientLicensingMessage` -> `acceptVerifiedR2ClientLicensingMessage` -> `licensing_.onClientMessage` | `AwaitPersonalDesktopValidClientWrite` / `AwaitServerDecision` with `PersonalDesktopCompletionRequired` |
+| Prepare and zero/partial `STATUS_VALID_CLIENT/ST_NO_TRANSITION` | `authorizeR3PersonalDesktopValidClientWrite` -> `preparePersonalDesktopValidClientWrite`; `completeR3PersonalDesktopValidClientWrite` -> `completePersonalDesktopValidClientWrite` | `AwaitPersonalDesktopValidClientWrite` / `AwaitServerDecision`, exact reply/slice pending |
+| Full `STATUS_VALID_CLIENT` TLS receipt | Same complete; `RdpPersonalDesktopValidClientWriteGate::onBytesWritten` calls `licensing_.onPersonalDesktopValidClientWritten` | `AwaitDemandActive` / `Licensed`. Existing CAL request/key material retired; neither Share nor native authority granted |
+| Bound macOS Demand Active profile, then begin server Share | `authorizeR3PersonalDesktopMacDemandActiveProfile` -> `prepareVerifiedR2MacDemandActiveProfile`; `authorizeR3PersonalDesktopShareActivation` -> `beginVerifiedR2ShareActivation` | `ShareActivation` / `Licensed`, Demand Active pending |
+| Server Demand full receipt, client Confirm Active + ordered connection finalization | `authorizeR3PersonalDesktopShareActivationWrite` / `completeR3PersonalDesktopShareActivationWrite` / `authorizeR3PersonalDesktopShareActivationPdu` -> `pendingVerifiedR2ShareActivationWrite` / `completeVerifiedR2ShareActivationWrite` / `acceptVerifiedR2ShareActivationPdu` | `ShareActivation` until full final Font Map write; then `ShareActivated` / `Licensed` |
+| Revocation, Stop, timeout, generation mismatch, malformed/early/duplicate PDU or stale receipt | `MacConsoleAdmissionBroker::revoke` -> `McsSessionLifecycle::close`, native revoke and original `OwnedPreauthTcpConnection::cancel` | `Closed` / `Closed`; all licensing, MCS join, Share, DVC and clipboard owner stores retired |
+
+The original Server License Request is R3-buffered at most 16 KiB;
+the PersonalDesktop Valid Client TLS packet is 34 bytes. The ingress
+single-MCS-TPKT budget is `kMaximumInitialMcsTpktBytes` (8 KiB),
+and the bounded Demand Active capability store is 248 bytes with at most
+4,096 bytes per Share Control PDU plus 15 framing bytes. macOS General
+Capability advertises `OSMAJORTYPE_OSX=6`,
+`OSMINORTYPE_UNSPECIFIED=0`, RDP version `0x0200`. Dynamic Virtual
+Channels require original GCC support and joined `drdynvc`; Slow Path
+Input requires the original R2 Input consent scope. Confirm Active
+cannot precede fully delivered Demand Active. Finalization sequence
+is client Synchronize, Cooperate, Request Control, Font List; server
+Synchronize, Cooperate, Granted Control, Font Map, each governed by the
+R3 transcript and actual R1 accepted-byte receipts. Data and other
+virtual-channel traffic cannot grant native authorization; R3
+`verifiedR2ApplicationTrafficReady` stays false until ShareActivated,
+and R10 currently leaves GraphicsReady false even when Share is active.
+
+This mode intentionally performs structural licensing checks but never
+CAL signature/HWID validation or CAL issuance. AppServer CAL chain
+verification remains a separate mode; not validating an irrelevant CAL
+is **not** a transport, licensing exchange, TLS, consent or native
+admission bypass. R10's one bounded TLS TPKT reader consumes one complete
+packet at a time and leaves coalesced following TPKTs in R1's SSL
+buffer; there is no second R3 inbound packet owner. The new replay
+test exercises premature additional Client Licensing during pending
+Valid Client receipt, including R2 cancellation and late suffix denial.
+This is source contract review, not a same-SHA compiled/physical result.
+
 ## R3 Client Licensing replay during partial Valid Client (2026-11-01)
 
 **Reviewed parent:** `0bf6730c2e0137b49e9b96a52860a8218f1a8c31`. R10 already integrates the positive original

@@ -4565,9 +4565,16 @@ if(TARGET rdp-server-runtime-platform-native-desktop)
             NAME runtime.platform-native-desktop-macos-authenticated-session-denials
             COMMAND test_runtime_platform_native_desktop
                 authenticated-session-denials)
+        # A rejected/off-thread R7 owner must not leak a previous frame
+        # selector through R10's optional, non-authorizing service output.
+        add_test(
+            NAME runtime.platform-native-desktop-macos-frame-observation-fail-closed
+            COMMAND test_runtime_platform_native_desktop
+                mac-native-frame-observation-fail-closed)
         set_tests_properties(
             runtime.platform-native-desktop-macos-gated-composition
             runtime.platform-native-desktop-macos-authenticated-session-denials
+            runtime.platform-native-desktop-macos-frame-observation-fail-closed
             PROPERTIES
             LABELS "runtime;host-control;native;security;macos;offline")
     endif()

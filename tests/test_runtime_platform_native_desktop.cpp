@@ -212,6 +212,65 @@ void testAuthenticatedSessionCompositionDenials()
     assert(!composition.active());
 }
 
+#if defined(__APPLE__)
+void testMacNativeFrameObservationRequiresAuthorizedOwner()
+{
+    using Observation = rdp::macos::MacNativeDesktopServiceObservation;
+    using State = rdp::macos::MacNativeDesktopOwnerState;
+
+    RuntimePlatformNativeDesktop composition;
+    Observation observation{};
+    const auto seedStaleObservation = [&]() noexcept {
+        observation.state = State::Ready;
+        observation.pixelGeometry = {128U, 96U};
+        observation.geometryGeneration = 17U;
+        observation.admittedSessionGeneration = 23U;
+        observation.latestFrameSequence = 31U;
+        observation.frameAvailable = true;
+    };
+    const auto assertNoFrameAuthority = [&]() noexcept {
+        assert(observation.state == State::Revoked);
+        assert(observation.pixelGeometry.widthPixels == 0U);
+        assert(observation.pixelGeometry.heightPixels == 0U);
+        assert(observation.geometryGeneration == 0U);
+        assert(observation.admittedSessionGeneration == 0U);
+        assert(observation.latestFrameSequence == 0U);
+        assert(!observation.frameAvailable);
+        assert(!observation.inputReady);
+    };
+
+    // A stale prior observation must be cleared even when the native service
+    // cannot run. It is never an authority token for R3 frame publication.
+    seedStaleObservation();
+    assert(composition.serviceOnce(&observation).error ==
+           RuntimeHostError::GraphicsUnavailable);
+    assertNoFrameAuthority();
+
+    CurrentOwnerSharingAuthority ownerAuthority;
+    UnavailableIdentity identity;
+    UnavailableEvidence evidence;
+    rdp_server::server::security::MacNativeDesktopAuthorization authorization(
+        identity, evidence, ownerAuthority);
+    assert(composition.attach(authorization).error ==
+           RuntimeHostError::NativeAuthorizationDenied);
+    seedStaleObservation();
+    assert(composition.serviceOnce(&observation).error ==
+           RuntimeHostError::GraphicsUnavailable);
+    assertNoFrameAuthority();
+
+    seedStaleObservation();
+    RuntimeHostError offThreadError = RuntimeHostError::None;
+    std::thread otherThread([&]() {
+        offThreadError = composition.serviceOnce(&observation).error;
+    });
+    otherThread.join();
+    assert(offThreadError == RuntimeHostError::ControlUnavailable);
+    assertNoFrameAuthority();
+    assert(!composition.active());
+    assert(!composition.ready());
+}
+#endif
+
 } // namespace
 
 int main(int argumentCount, char **argumentValues)
@@ -228,5 +287,14 @@ int main(int argumentCount, char **argumentValues)
         testAuthenticatedSessionCompositionDenials();
         return 0;
     }
+#if defined(__APPLE__)
+    if (argumentCount == 2 && argumentValues[1] != nullptr &&
+        std::string_view{argumentValues[1]} ==
+            "mac-native-frame-observation-fail-closed")
+    {
+        testMacNativeFrameObservationRequiresAuthorizedOwner();
+        return 0;
+    }
+#endif
     return 2;
 }

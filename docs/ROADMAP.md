@@ -1,3 +1,11 @@
+## R4 native-frame observation freshness handoff (2026-11-01)
+
+**Reviewed parent:** `f0cce8f54d7ec0b79f3b26035c32cf6f459f3b23`. [x] R10's original mapped-GraphicsReady native attachment is on main at `559a89e1`, with same-SHA hosted Windows MSVC/Clang 23, macOS/Ubuntu protocol and applicable sanitizer jobs PASS (Actions `41306620036`). R4's first-frame ClearCodec, complete accepted DATA receipt, independent client FRAME_ACK, credit deferral and old-generation retirement remain under R3/R4 ownership; those tests are green offline, not physical acceptance.
+
+[x] Preserve the existing R7 native `MacNativeDesktopServiceObservation` through the macOS `RuntimePlatformNativeDesktop::serviceOnce()` seam as an **optional, non-authorizing, current-service output**, without introducing a frame cache, a new native caller or a transport writer. Clear the supplied output on failure/off-thread/no native owner; return the observation only after the same R7 owner service successfully revalidates its native authority. Preserve old no-output calls and initializing-vs-ready service results. Add one dedicated macOS-only ordinary offline CTest for denial/retirement observation zeroing, reusing the existing test executable. R7's own positive native lifecycle test already proves frame sequence and geometry from its mailbox.
+
+[ ] The remaining R10 composition step must use this frame sequence and native geometry only as freshness selectors, revalidate original R2 View and R3 Graphics credit, remap a changed surface through R3 DELETE/CREATE/MAP before publication, synchronously borrow exactly the observed R7 frame through its existing callback, then release the borrow before R1 DATA writes. R4 owns frame reservation and ACK credit; R1 owns actual accepted bytes; only real inbound client FRAME_ACK can prove client-side acknowledgement. No new input/Clipboard authority and no `DesktopVisible` from native Ready alone. Exact publication-SHA hosted full Debug/Release cross-platform CI and sanitizers PENDING; connector-local compile/CTest/benchmark and physical native Windows App acceptance NOT RUN.
+
 ## R2 final STATUS_VALID_CLIENT callback authority fence (2026-11-01)
 
 Reviewed `main` parent `559a89e1faf67107856fb7efe67284d14a77f4dc`. The six existing concrete R2

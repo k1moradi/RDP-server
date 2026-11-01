@@ -1,3 +1,7 @@
+## R4 native-frame observation handoff qualification (2026-11-01)
+
+No new target, dependency, build root or platform service. On macOS after the canonical Debug configure/build in `~/rdp-server/build/`, run `ctest --test-dir build -C Debug -R '^runtime[.]platform-native-desktop-macos-(frame-observation-fail-closed|gated-composition|authenticated-session-denials)$' --output-on-failure`, then the ordinary full Debug/Release CTests, existing macOS native owner lifecycle tests and applicable R7/R9 sanitizer lanes on the same SHA. Windows/Linux must still compile and run their full applicable CTest gates; the new CTest is macOS-only. Connector-local configure/build/CTest and benchmarks NOT RUN; publication-SHA hosted qualification PENDING. Real native display/ScreenCaptureKit/client pixels, client FRAME_ACK and Input/Clipboard NOT RUN.
+
 ## R2 final Valid Client protected postcheck regression (2026-11-01)
 
 No production dependencies, API or additional executable. Reuse only

@@ -1,3 +1,7 @@
+## macOS native frame observation output is fail-closed (2026-11-01)
+
+For `RuntimePlatformNativeDesktop::serviceOnce`, a caller-supplied previous Ready/geometry/generation/frame-available observation must be cleared on a missing owner, a denied native authorization attach or an off-owner call, without creating a native session or borrowing frame pixels. The new dedicated `runtime.platform-native-desktop-macos-frame-observation-fail-closed` ordinary macOS-only CTest reuses the existing platform-native composition executable, while existing R7 mailbox tests prove positive latest-frame and stale-sequence behavior. Never treat an observation as R2 admission or R4 frame credit; actual delivery and client ACK remain separate R1/R3/R4 receipt tests. Run ordinary full CTest as well as focused behavior and sanitizers on the same publishing SHA; non-physical CTest is not proof of client visibility.
+
 ## R2 final Valid Client callback audit replacement (2026-11-01)
 
 Use the same production-linked original R1 HYBRID/TLS and R2/R3 licensing

@@ -69,7 +69,12 @@ public:
     [[nodiscard]] RuntimeHostResult attach(
         const rdp_server::server::security::MacNativeDesktopAuthorization
             &authorization) noexcept;
-    [[nodiscard]] RuntimeHostResult serviceOnce() noexcept;
+    // Optional, non-authorizing R7 capture snapshot. The observed geometry,
+    // authorization generation and frame sequence are freshness selectors,
+    // never a native lease or permission to publish R4 bytes. Clear the output
+    // on denial; R10 must still preflight R3/R4 and borrow the exact sequence.
+    [[nodiscard]] RuntimeHostResult serviceOnce(
+        rdp::macos::MacNativeDesktopServiceObservation *frameObservation = nullptr) noexcept;
     [[nodiscard]] bool borrowFramebuffer(
         std::uint64_t expectedFrameSequence,
         rdp::macos::MacNativeDesktopFrameConsumer consumer) noexcept;

@@ -284,8 +284,12 @@ RuntimeHostResult RuntimePlatformNativeDesktop::attach(
     return {RuntimeHostError::None, false};
 }
 
-RuntimeHostResult RuntimePlatformNativeDesktop::serviceOnce() noexcept
+RuntimeHostResult RuntimePlatformNativeDesktop::serviceOnce(
+    rdp::macos::MacNativeDesktopServiceObservation *frameObservation) noexcept
 {
+    // A rejected or retired owner must never return an earlier native frame.
+    if (frameObservation != nullptr)
+        *frameObservation = {};
     if (!onOwnerThread())
         return {RuntimeHostError::ControlUnavailable, false};
     if (nativeDesktop_ == nullptr || authorization_ == nullptr ||
@@ -302,9 +306,10 @@ RuntimeHostResult RuntimePlatformNativeDesktop::serviceOnce() noexcept
     case State::Initializing:
     case State::CapturePreparing:
     case State::CaptureStarting:
-        return {RuntimeHostError::None, true};
     case State::Ready:
-        return {RuntimeHostError::None, false};
+        if (frameObservation != nullptr)
+            *frameObservation = observation;
+        return {RuntimeHostError::None, observation.state != State::Ready};
     case State::Revoked:
         retireInternal();
         return {RuntimeHostError::NativeAuthorizationDenied, false};

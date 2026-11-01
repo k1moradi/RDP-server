@@ -5650,7 +5650,8 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     add_test(NAME gui.offscreen-native-desktop-platform-labels
         COMMAND test_desktop_gui_offline native-desktop-platform-labels)
     set_tests_properties(gui.offscreen-native-desktop-platform-labels
-        PROPERTIES LABELS "gui;runtime;platform;readiness;offline" TIMEOUT 20)
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;runtime;platform;readiness;offline" TIMEOUT 20)
 
     add_test(NAME gui.offscreen-product-status-authority
         COMMAND test_desktop_gui_offline product-status-authority)

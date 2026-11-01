@@ -1,3 +1,10 @@
+## R7 native desktop label Qt offscreen registration fix (2026-11-01)
+
+The new `gui.offscreen-native-desktop-platform-labels` CTest has the
+required `QT_QPA_PLATFORM=offscreen` property; run the focused test,
+then full CTest, under the same canonical `~/rdp-server/build/` root.
+No other environment override or new test executable is needed.
+
 ## R7 GUI native platform label qualification (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. After normal configure/build:

@@ -1,3 +1,14 @@
+## R7 headless Qt platform-label CTest registration correction (2026-11-01)
+
+Reviewed `922976e59f95e3ef95e8467e73595d3bd187a3c9`: the new `gui.offscreen-native-desktop-platform-labels`
+CTest exercised a real `QApplication` but lacked the neighboring GUI
+fixtures' explicit `QT_QPA_PLATFORM=offscreen` environment. Add that
+property to the existing CTest so ordinary headless Linux/macOS/Windows
+CI runs the label assertions without a window server or permission prompt.
+No production UI, OS status, native capture, ICC, RDP or security change.
+Source review PASS; exact publication-SHA CTest/GUI qualification PENDING,
+local build/CTest NOT RUN (unavailable checkout/GitHub DNS).
+
 ## R7 Qt native desktop platform labels after protected Graphics attachment (2026-11-01)
 
 [x] Reviewed `b66f16503e553aab0bc527759f9be97d01833383`. R10 attached native macOS state after original R2/R3 mapped GraphicsReady; R4 now preserves a fail-closed native frame observation but does not send RDP frames. R7's `6e29bec5` ICC regression and hosted cross-platform/native-sanitizer matrix PASS.

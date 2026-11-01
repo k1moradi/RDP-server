@@ -1,3 +1,13 @@
+## R7 native label regression headless CTest correction (2026-11-01)
+
+At reviewed `922976e59f95e3ef95e8467e73595d3bd187a3c9`, the new Qt behavior test's CTest properties
+omitted `QT_QPA_PLATFORM=offscreen`, unlike the other GUI tests. This can
+fail to initialize QApplication on headless CI before the assertions run.
+The narrow corrective CMake change adds the explicit env; source/registry
+review PASS, local build/CTest/sanitizers NOT RUN, exact corrective-SHA
+hosted GUI/full matrix PENDING. Production native attachment, ICC,
+Qt status and startup behavior remain unchanged.
+
 ## R7 macOS native desktop mislabel correction (2026-11-01)
 
 **Parent:** `b66f16503e553aab0bc527759f9be97d01833383`. Shared Qt HostControl unconditionally rendered "Physical X11 desktop macOS ScreenCaptureKit Desktop"; Advanced no-target status misleadingly reported Wayland unsupported on macOS. Narrow platform-specific Qt wording correction keeps Linux unaffected; dedicated existing-executable GUI CTest checks target, fallback, and no synthetic GraphicsReady/nativeReady. Source/CTest inspection PASS; local compile/focused/full CTest, sanitizers and benchmark NOT RUN (no checkout/GitHub DNS); new-SHA hosted CI PENDING. `6e29bec5` exact-SHA macOS/Ubuntu/Windows + R7 sanitizer PASS. R10 attachment and R4 non-authorizing frame observation are in source, not live first-frame/ACK proof; owner warning backtrace and capture NOT RUN.

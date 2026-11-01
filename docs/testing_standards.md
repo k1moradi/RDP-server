@@ -1,3 +1,12 @@
+## R7 offscreen QApplication label CTest environmental precondition (2026-11-01)
+
+Every Qt `test_desktop_gui_offline` case, including
+`gui.offscreen-native-desktop-platform-labels`, must set
+`QT_QPA_PLATFORM=offscreen` in its registered CTest properties. Test-only
+environment correctness is necessary to actually execute the fake R10
+target/fallback assertions on headless runners, rather than attempting a
+real display connection. Do not weaken the assertions or request TCC.
+
 ## R7 native desktop platform labels offline behavior (2026-11-01)
 
 The dedicated ordinary `gui.offscreen-native-desktop-platform-labels` CTest reuses `test_desktop_gui_offline` with a fake R10 status. Verify target and unavailable labels through the actual Qt adapter and Advanced label on Linux and macOS/Windows, and assert native target metadata alone cannot create GraphicsReady or native resource readiness. No live OS resources, permission prompts, credentials or frames.

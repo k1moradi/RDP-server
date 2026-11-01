@@ -55,48 +55,52 @@ capture.
 
 Source review of `2e91f7336dafeda7e003bc07c5da94b91fa487bc` found one immediate compile defect before hosted qualification: the descriptive first-live graphics trace was assigned to `RuntimeAcceptedClientPreauthDiagnostics`, while the canonical field is `RuntimeHostStatus::firstLiveGraphicsTrace`. Correct only that target and strengthen the existing centralized frame-pump composition CTest to pin the ownership boundary. No transport, authorization, frame, ACK, resize, native or DesktopVisible semantics change. The native frame-pump implementation remains the active P1 path; exact corrective-SHA CI is required before treating it as build-qualified.
 
-## R5 P1 — RandR-held keyboard/button implicit retirement composite (2026-11-01)
+## R5 P1 — correct synthetic RandR/held-input overconstraint; required native lifetime gap remains closed (2026-11-01)
 
-**Authoring parent:** `ff75c65c8d3f7ecc08d4eda3a1a6455868eff2a3`. The existing production-backed
-`x11.desktop-resource-implicit-held-key-button-no-xtest` and its exact-SHA hosted
-Debug/Release qualification (publication `cec34430fa9cc0626a11cdb5b650c83226ecce8d`)
-already close the original aggregate implicit-held key+button gap. Do not add a duplicate.
-The new **distinct** ordinary Xvfb
-`x11.desktop-resource-randr-held-key-button-implicit-retirement` case reuses that
-aggregate behavior fixture with a real RandR geometry rebuild *between* held
-keyboard+button makes and implicit destruction. It asserts same XCB descriptor and
-native input owner, new geometry/capture generation, rejection of stale input,
-suppression of duplicate current-generation makes, continuing actual Xvfb held state,
-valid new XShm capture and zero XTEST release posts before and after implicit RAII
-retirement; the existing fixture then checks closed original XCB descriptor,
-out-of-band Xvfb cleanup, stale generation denial, replacement input bookkeeping
-and new XDamage/XShm capture. This is an additional cross-boundary lifetime
-regression, not a new R2 lease, capture/input authority, R4 layout, R10 TCP owner
-or change to native production behavior.
+**Failure evidence:** exact R5 publication `b93a54b56e56a7fb48de14e2135af4acd08b0e9b`,
+Actions `41351531302`, compiled the Ubuntu Debug tree successfully. In full
+CTest, the required production-backed
+`x11.desktop-resource-implicit-held-key-button-no-xtest` **PASS**ed and
+`x11.input-randr-bounds-update-held-state-no-cleanup` **PASS**ed. The extra
+additive `x11.desktop-resource-randr-held-key-button-implicit-retirement`
+introduced by that publication **FAILED** inside
+`requireSyntheticRandrRebuildAfterQueuedChange()` because
+`X11DesktopResources::processEvents()` terminally failed during the synthetic
+Xvfb RandR drain. Five unrelated road tests also failed on that ancestor, so
+the full 1109-case suite was not green.
 
-**R4/R10 first-frame handoff:** Continue to use the *same* R10 accepted R1 client,
-fresh R2 View/Input plus native seat0 proof, original R5 XCB owner, bounded event
-drain and RandR generation. R4 consumes only a synchronous, size/stride-checked
-XShm BGRA borrow; it ends before R3 segmented DATA/R1 exact positive TLS
-accepted-byte receipts. R3/R4 must consume a genuinely inbound matching FRAME_ACK
-before visibility. A native callback that revokes authority stops publication before
-return; terminal R2 loss/Stop/reconnect retires children without unauthorized XTEST
-release posts. RandR changes geometry-bound XShm/XDamage only, retaining held input.
-Clipboard remains OFF.
+**Correction:** remove only that extra synthetic cross-boundary composition and
+its boolean fixture branch. It imposed a stronger assumption than the native
+contract: an Xvfb RandR event drain must remain nonterminal while two XTEST
+states are held. R5 is intentionally fail-closed on terminal XCB/mapping/event
+conditions; changing production to satisfy this synthetic sequence would be
+premature. Keep the independently passing behaviors that match the actual
+requirements: the aggregate destructor holds one key + one button, posts zero
+native releases, closes XCB/XShm/XDamage and leaves no successor held
+bookkeeping; the production `X11InputController::updateBounds()` RandR test
+preserves both held states without cleanup; existing aggregate RandR tests
+exercise real XShm/XDamage replacement. No production X11 code changes.
 
-**Physical R9 matrix:** Every stage in the existing detailed Linux first-real-desktop
-matrix below—original accepted connection; Type-3 and R2 proof; native seat0;
-R3 Share/GraphicsReady; first framebuffer; complete R1 frame receipts; actual
-inbound ACK; keyboard/mouse with resize; Stop; and fresh reconnect—remains
-**NOT RUN**. Owner-local CMake, full/focused CTest, new-case sanitizer and benchmarks
-are **NOT RUN** in this GitHub connector environment (no canonical checkout or
-local GitHub DNS). Fixed 45-case native-X11 sanitizer selector and the existing
-two-case additive aggregate sanitizer lane are unchanged. Source and shared
-registration review **PASS**; exact-publication-SHA hosted checks **PENDING**.
-The physical Windows App failure remains before NTLM Type 3. Next: exact-SHA
-hosted Debug/Release and R9 selection checks, then only separately owner-approved
-seat0/client acceptance; no live X11 or Clipboard activity is authorized here.
+**Dependency refresh:** newer agents resolved the R9 qualification-parser failure
+(`bf307834`) and accidental canonical ROADMAP truncation (`4c8bf82e`), while
+R4/R10 macOS frame-pump corrections continue independently. The Linux R5
+production blobs and dependency graph remain unchanged: R10 owns one accepted
+R1/TLS client and serialized X11 aggregate; R2 supplies fresh native View/Input
+authorization; R3 owns Share/post-Share routing and exact write receipts; R4
+owns frame layout/credit/ACK; R5 owns the single XCB/XShm/XDamage/XTEST
+lifetime. RandR updates only geometry-bound resources and the retained input
+controller's bounds; terminal authority loss/Stop clears held bookkeeping
+without unauthorized release posts.
 
+**Acceptance/blocker:** the physical Windows App attempt still ends before NTLM
+Type 3, so native seat0, first frame, complete R1 frame receipts, genuine
+inbound FRAME_ACK, keyboard/mouse, Stop and fresh reconnect all remain
+**NOT RUN** and cannot justify native behavior changes. Clipboard remains OFF.
+Local canonical build/focused/full CTest, ASan/UBSan and benchmark are
+**NOT RUN** in this connector environment. Next gate: exact correction-SHA
+hosted Debug/Release, the unchanged fixed 45-case R5 sanitizer census plus
+existing two-case implicit-destructor supplemental lane, then separately
+owner-authorized physical acceptance.
 ## R8 P1 review — consume permission-only route observations; prior R8 SHA qualified (2026-11-01)
 
 [x] `99a9e70abeb39ed5a1e738191eb25b4c9526fcd8` / Actions 41340624047 qualified: Ubuntu **1101/1101 Debug+Release**, macOS **876/876**, Windows/MSVC **917/917**, Windows Clang 23 **975/975**, Clipboard sanitizers **107/107** PASS. This closes prior automated R8 validation, not physical Clipboard acceptance.

@@ -2,18 +2,24 @@
 
 Use the single `~/rdp-server/build/` root. After canonical Debug configure/build run `ctest --test-dir build -C Debug -R '^runtime[.]macos-host-control-native-frame-(pump-composition-contract|callback-rejection-retires)$' --output-on-failure` and `ctest --test-dir build -C Debug -R '^graphics[.]frame-(native-borrow-segmented-receipt-fence|delivery-session-retirement-before-ack|partial-data-retirement-successor-generation)$' --output-on-failure`, then ordinary full Debug and Release CTest and the existing sanitizer lanes. No new native dependency, binary, build root, listener or physical desktop action. Authoring baseline `6ac35d364cba5b76abad45cfc4d6fb927a0d0d84`: source review PASS; local build/focused/full CTest/ASan/UBSan NOT RUN; hosted exact-SHA qualification PENDING.
 
-## R5 combined held input across RandR and implicit teardown (2026-11-01)
+## R5 held-input teardown and RandR focused qualification (2026-11-01)
 
-Use only `~/rdp-server/build/`. After the canonical Debug configure/build,
-run `ctest --test-dir build -C Debug -R '^x11[.]desktop-resource-(implicit-held-key-button-no-xtest|randr-held-key-button-implicit-retirement)$' --output-on-failure`,
-then ordinary full Debug CTest; reconfigure this **same** root for Release and
-run full CTest. Exact-SHA hosted Linux Debug/Release, existing 45-case R9
-native X11 ASan/UBSan selector and the independent existing two-case aggregate
-sanitizer lane are required without inventory changes. The new RandR composite
-is outside the fixed/selective sanitizer lanes until separately admitted.
-Local configure/build/focused/full CTest and ASan/UBSan NOT RUN in this
-connector-only environment; physical X11/client acceptance NOT RUN.
+Reuse only `~/rdp-server/build/`. After canonical Debug configure/build run:
 
+```sh
+ctest --test-dir build -C Debug -R '^(x11[.]desktop-resource-(implicit-held-key-button-no-xtest|randr-rebuild)|x11[.]input-randr-bounds-update-held-state-no-cleanup)$' --output-on-failure
+ctest --test-dir build -C Debug --output-on-failure
+```
+
+Reconfigure the same root for Release and run complete CTest. Preserve the
+fixed 45-case R5 native X11 sanitizer selector and existing two-case additive
+implicit-destructor sanitizer lane. The removed
+`x11.desktop-resource-randr-held-key-button-implicit-retirement` must not be
+selected: exact `b93a54b5` Ubuntu Debug CI showed that synthetic composition
+terminally fails during the Xvfb RandR drain while the required aggregate
+both-held teardown and input RandR-held bookkeeping cases PASS. Local
+configure/build/CTest/ASan/UBSan and physical client execution are NOT RUN in
+this connector environment.
 ## R8 permission-only route observation focused qualification (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. After canonical Debug configure/build:

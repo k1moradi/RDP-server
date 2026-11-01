@@ -6,25 +6,27 @@ The Linux R5 GUI ZIP and macOS R7 PORTABLE-GUI hosted jobs must select exactly t
 
 Ordinary offline `runtime.macos-host-control-native-frame-callback-rejection-retires` reuses `test_macos_host_control_licensing_composition.py` and tests the exact R10 source-contract split: a pre-callback frame-sequence miss may retry, but once the native callback is invoked it must mark invocation before R3 preparation; any failed borrow after invocation is terminal, and a prepared R3 frame is aborted using the existing owner. This is an additive *source-contract* test, not an executed native/ScreenCaptureKit, R2 admission, R1 wire, or physical client test; the existing protected exact-TLS/ACK and R4 segmented-payload behavior CTests are independent. Fixed 23 Graphics DVC sanitizer cases and the two separately selected R4 retirement cases are unchanged. Source/CTest inspection PASS on `6ac35d364cba5b76abad45cfc4d6fb927a0d0d84`; local CTest/sanitizers NOT RUN; exact publication-SHA hosted CI PENDING.
 
-## R5 RandR-held input owner implicit retirement (2026-11-01)
+## R5 aggregate held-input teardown and RandR held-state tests stay separate (2026-11-01)
 
-The new ordinary Xvfb `x11.desktop-resource-randr-held-key-button-implicit-retirement`
-case must use the existing production aggregate/actual XTEST link interceptor,
-not a second controller or forged R2 authority. Hold a key and button together;
-rebuild actual XShm/XDamage with RandR; require the exact same XCB/input owner,
-new capture generation, rejected stale-generation input, no second XTEST posts
-for repeated current-generation makes and still-held native key/button state.
-Implicitly destroy the aggregate, assert zero KEY_RELEASE/BUTTON_RELEASE posts
-and closed original XCB descriptor; the shared fixture then restores Xvfb state
-out of band and verifies fresh-owner held bookkeeping, capture and Damage.
-This extends (does not replace) the original two held-state/no-post and
-queued-Damage implicit-destructor behavioral tests. Register in centralized
-tests/CMakeLists.txt and full CTest, outside both the fixed 45-case R5 X11
-ASan/UBSan census and the unmodified two-case supplemental lane. No physical
-seat0, live input, R2 lease, R4 frame or Clipboard is exercised. Static source/
-registration review PASS, local compile/CTest/ASan/UBSan NOT RUN; exact-SHA
-hosted qualification PENDING.
+Do not require a full Xvfb RandR event drain to remain nonterminal while a
+synthetic key and button are both held merely to prove teardown semantics.
+Exact hosted `b93a54b5` Ubuntu Debug full CTest showed that extra composite
+fails in `X11DesktopResources::processEvents()` before rebuild, while the two
+production-backed required behaviors independently PASS:
+`x11.desktop-resource-implicit-held-key-button-no-xtest` proves aggregate
+implicit destruction posts zero key/button releases, closes native resources
+and leaves no successor held bookkeeping; and
+`x11.input-randr-bounds-update-held-state-no-cleanup` proves the real
+`X11InputController::updateBounds()` preserves both held states without
+cleanup. Existing aggregate RandR XShm/XDamage tests continue to exercise
+geometry-bound replacement.
 
+Remove the invalid
+`x11.desktop-resource-randr-held-key-button-implicit-retirement` registration
+rather than changing fail-closed production event semantics for synthetic Xvfb
+ordering. Keep the fixed 45-case R5 X11 ASan/UBSan census and the existing
+two-case supplemental implicit-destructor lane unchanged. No physical seat0,
+R2 lease, live XTEST input, R4 frame or Clipboard is exercised.
 ## R8 permission-only route observation consumption regression (2026-11-01)
 
 Add ordinary production-backed `runtime.clipboard-permission-only-route-observation-consumption` to existing `test_r8_r3_clipboard_bridge`, outside the fixed 107-case Clipboard sanitizer census. A protected route visit followed by permission-only observation discard must not prepare initialization or Format Data until a new `channelVisitor()` visit. Strengthen the native-publication source contract so network publication and native paste each discard the permission-only observation between fresh R2 visit and adapter call. No fake native grant, live X11 clipboard, TLS writer or second route controller.

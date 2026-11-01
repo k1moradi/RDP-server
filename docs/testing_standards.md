@@ -1,3 +1,15 @@
+## R7/R10 centralized macOS native-retirement caller regression (2026-11-01)
+
+Ordinary offline `runtime.macos-native-retirement-single-owner-callers`
+reuses `test_macos_native_proof_retirement_order.py` and the production
+HostControl source. It requires exactly one accepted-client native retirement
+inside `retireAcceptedClient()`; allocation failure, stopped-runtime teardown,
+timeout and explicit disconnect must call that central function without a
+second native retirement. The one live native-service failure path remains the
+only direct non-central call. This source contract opens no listener, native
+desktop, credential, TCC prompt or client and stays outside fixed sanitizer
+inventories.
+
 ## R6 macOS first-error source schema compatibility (2026-11-01)
 
 The paired R6 validator consumes the existing macOS owner manifest's private six-field first-error object, which includes both `event_time_local` and `event_time_utc`. Do not reuse the Windows five-field shape for that source. Valid macOS evidence must remain accepted; malformed provider category/code, source, missing timestamp fields or non-string local/UTC times must produce `MACOS_FIRST_ERROR_INVALID` without reflecting private text. When both timestamps are present they must normalize to the same instant. Keep these cases inside the existing `interop.windows-client-ab-malformed-source-projection-denials` CTest; do not add another public schema or CTest.

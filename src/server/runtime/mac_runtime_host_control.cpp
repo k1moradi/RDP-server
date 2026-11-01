@@ -300,8 +300,8 @@ void MacRuntimeHostControl::retireAcceptedClient() noexcept
     if (activeMcsSession_ != nullptr)
         activeMcsSession_->close();
     // Native authorization may borrow the verified proof and sharing
-    // authority. Retire its state after R2/R3 close, before the proof owner
-    // or the accepted R1 connection is destroyed.
+    // authority. This is the sole accepted-client native retirement point:
+    // retire after R2/R3 close, before the proof owner or R1 is destroyed.
     (void)nativeDesktop_.retireAfterAuthorizationLoss();
     activeMcsSession_.reset();
     activeCredSsp_.reset();
@@ -336,7 +336,6 @@ MacRuntimeHostControl::failClosedAfterAllocationFailure() noexcept
     // must retire every borrowed client/native owner before reporting the
     // internal failure rather than crossing noexcept and terminating.
     retireAcceptedClient();
-    (void)nativeDesktop_.retireAfterAuthorizationLoss();
     if (stage_ != RuntimeHostStage::Revoked)
     {
         stage_ = listener_.valid()
@@ -1360,7 +1359,6 @@ void MacRuntimeHostControl::retireStoppedRuntime(
         standaloneCredentialGeneration_ = 0U;
         credentialsConfigured_ = false;
     }
-    (void)nativeDesktop_.retireAfterAuthorizationLoss();
     listener_.close();
     retireGeneratedTlsIdentity();
     deploymentPolicy_.reset();
@@ -2190,7 +2188,6 @@ RuntimeHostResult MacRuntimeHostControl::serviceOnce() noexcept try
         if (activeConnection_->cancelIfExpired(now, activeClientDeadline_))
         {
             retireAcceptedClient();
-            (void)nativeDesktop_.retireAfterAuthorizationLoss();
             stage_ = RuntimeHostStage::ListenerAvailable;
             return {RuntimeHostError::None, false};
         }
@@ -2237,7 +2234,6 @@ RuntimeHostResult MacRuntimeHostControl::disconnectClient(
     if (activeConnection_ != nullptr && activeClientId_ == opaqueClientId)
     {
         retireAcceptedClient();
-        (void)nativeDesktop_.retireAfterAuthorizationLoss();
         stage_ = RuntimeHostStage::ListenerAvailable;
         return {RuntimeHostError::None, false};
     }

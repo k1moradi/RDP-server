@@ -1385,6 +1385,16 @@ add_test(NAME runtime.macos-native-proof-retired-before-credential-destruction
 set_tests_properties(runtime.macos-native-proof-retired-before-credential-destruction
     PROPERTIES LABELS "runtime;macos;security;offline" TIMEOUT 15)
 
+# Every accepted-client loss funnels through retireAcceptedClient(); only the
+# still-live native service failure may retire native state directly.
+add_test(NAME runtime.macos-native-retirement-single-owner-callers
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_native_proof_retirement_order.py"
+        --source "${PROJECT_SOURCE_DIR}/src/server/runtime/mac_runtime_host_control.cpp"
+        --check-centralized-callers)
+set_tests_properties(runtime.macos-native-retirement-single-owner-callers
+    PROPERTIES LABELS "runtime;macos;security;offline;lifecycle" TIMEOUT 15)
+
 # macOS HostControl's owner scheduler is noexcept but uses bounded dynamic
 # state during client acceptance/admission. Allocation failure must retire the
 # accepted/native lifetime and report InternalFailure rather than terminate.

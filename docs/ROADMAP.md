@@ -17261,26 +17261,32 @@ Each row has **one active next action**, one code owner and a concrete dependent
 
 ### R7 current gate — ICC provenance and macOS post-Share attachment (2026-11-01)
 
-**ICC assurance:** The `036f3d8` three-display/failing-ICC and CFData/CGColorSpace
-retirement regressions are on main. Source parent `e453470` hosted
+**ICC assurance:** The `036f3d8` three-display/failing-ICC regression and
+the over-64-MiB CFData child-before-parent release fixture are on main.
+Exact `8844742a1bbb1ac51354e08c44dddafa3a5684c0` hosted
 Linux/macOS/Windows protocol, R7 native-lifecycle, R7 session sanitizers,
-R9 security sanitizers, R7 portable GUI and policy jobs are PASS; unrelated
-Windows portable-GUI completion was still queued at inspection. Add the
-single over-64-MiB CFData offline fixture with explicit child-before-parent
-release order in the existing `macos.gui-qcolor-provenance-parser-and-redaction`
-CTest. Its new exact-SHA CI and owner macOS 27 full CTest are PENDING/NOT RUN.
+R9 security sanitizers, R7 portable GUI and policy jobs PASS. This qualifies
+the offline collector behavior only; owner macOS 27 full CTest, physical
+ColorSync/profile execution and the warning-site backtrace remain NOT RUN.
 Collector-only Python mocks do not prove native ColorSync or identify the
 reproduced invalid-primaries QColorSpace constructor.
 
-**Native R10 dependency:** R10 stops after protected Client Info. First finish
-PersonalDesktop licensing and genuine R3 Share/GraphicsReady with exact R1
-receipts; use the original current R2-bound CredSSP proof, View consent epoch,
-native console/audit-session epoch and owner-thread authority before attaching
-native resources. The authenticated proof and original R1 must outlive all
-native borrows. Existing `retireAcceptedClient()` closes R2/R3, retires native,
-then destroys R3/proof/R1; Stop, timeout, explicit disconnect, allocator failure
-and consent revocation must continue to funnel through it. No actual native
-attachment, client frame, input, TCC prompt or clipboard access is authorized.
+**Native R10 dependency:** R10 now completes protected PersonalDesktop
+licensing through `ValidClientDelivered` / R3 `AwaitDemandActive`; that
+licensing blocker is resolved. R2 already exposes protected macOS Demand Active,
+Share receipt/client-finalization, application-traffic and Graphics DVC
+wrappers, R3 already owns those state machines, and the macOS HostControl target
+already links the native desktop/capture stack. The remaining blocker is R10
+composition of Demand/Confirm Active/finalization to genuine
+`ShareActivated`, then R3 Graphics DVC CAPS/CREATE/MAP readiness. Only then
+may R10 attach native resources using the original current R2-bound CredSSP
+proof, View consent epoch, native console/audit-session epoch and owner-thread
+authority. The proof and original R1 must outlive all native borrows.
+`retireAcceptedClient()` remains the sole accepted-client native retirement
+owner; Stop, timeout, explicit disconnect, allocator failure and consent
+revocation funnel through it without a second native retirement. No actual
+native attachment, client frame, input, TCC prompt or clipboard access is
+authorized.
 
 **Deferred narrow status correction:** `snapshot.graphicsReady` currently
 mirrors `nativeDesktop_.ready()` in macOS HostControl. When R10 owns real

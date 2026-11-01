@@ -1,3 +1,38 @@
+## R7/R10 native-retirement single-owner cleanup and dependency review (2026-11-01)
+
+Reviewed parent `8ad30ce79d006c01b7e28c74cdb9ac74902a5ae2` after R10
+`da971a64be198c31c1a67c16a41d608115023af0` integrated protected macOS
+PersonalDesktop licensing and subsequent shared licensing-fixture repairs.
+The earlier common CI compile blocker and invalid PersonalDesktop fixture
+policy are resolved by other agents. R7's oversized ICC fixture at
+`8844742a1bbb1ac51354e08c44dddafa3a5684c0` has same-SHA hosted
+Linux/macOS/Windows protocol PASS plus R7 native lifecycle, R7 session
+sanitizers, R7 portable GUI and R9 security sanitizer PASS. Owner macOS 27,
+physical ColorSync/profile execution and warning-site backtrace remain NOT RUN.
+
+Production macOS HostControl now reaches receipt-complete
+`ValidClientDelivered` / R3 `AwaitDemandActive`. Dependency review finds the
+next APIs already present: concrete R2 exposes macOS Demand Active, Share
+write/receipt/client activation, application-traffic and Graphics-DVC wrappers;
+R3 owns AwaitDemandActive -> ShareActivation -> ShareActivated and Graphics
+presentation state; the macOS HostControl target already links protocol,
+runtime licensing, native session evidence, capture and
+`runtime-platform-native-desktop`. The remaining blocker is R10 composition
+of Demand/Confirm Active/finalization and then genuine R3 Graphics DVC/surface
+readiness—not a missing R7 library or authorization API.
+`snapshot.graphicsReady = nativeDesktop_.ready()` remains deferred until that
+R3 graphics state exists.
+
+The retirement audit found four redundant
+`nativeDesktop_.retireAfterAuthorizationLoss()` calls downstream of the
+accepted-client teardown owner. Remove those duplicates while keeping the
+central R2/R3 -> native -> R3/proof/R1 order and the independent live
+native-service failure retirement. Add ordinary offline
+`runtime.macos-native-retirement-single-owner-callers`. Source/diff and
+dependency-graph inspection PASS; connector-local build/CTest NOT RUN.
+Publication-SHA CI PENDING. No physical capture, input, TCC prompt, warning
+suppression or system-profile modification performed.
+
 ## R6 valid macOS first-error schema regression correction (2026-11-01)
 
 Actions `41292109374` at `517eb73946da50e29f17a9104bc07a8bd68c68de` confirmed the earlier R10 compile blocker was cleared on Ubuntu/macOS. Ubuntu full CTest reached all R6 evidence tests: `interop.windows-client-ab-stage-provenance-splice-denials`, `invalid-private-summary-redaction`, `invalid-first-error-redaction-denials`, `malformed-nested-evidence-denials` and the new `malformed-source-projection-denials` all **PASS**. However, the broad owner-evidence/paired suites failed three valid cases because the R6 pair validator mistakenly required the Windows five-field first-error shape for the macOS private manifest.

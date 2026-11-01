@@ -1,3 +1,20 @@
+## R7/R10 accepted-client native retirement has one owner (2026-11-01)
+
+`MacRuntimeHostControl::retireAcceptedClient()` is the sole owner of native
+desktop retirement for accepted-client loss. It closes the concrete R2 broker
+and R3 route first, retires native authorization while the verified CredSSP
+proof/current owner authority/original R1 lifetime still exist, then destroys
+R3, proof and R1. Allocation failure, Stop/revoke, accepted-client timeout and
+explicit disconnect call that function and must not repeat
+`retireAfterAuthorizationLoss()` afterward. The separate live
+`nativeDesktop_.serviceOnce()` failure remains a direct native retirement
+because it does not itself destroy the accepted R1/R2/R3 lifetime.
+
+This single-owner rule is both lifetime safety and hot-path hygiene: native
+retirement is idempotent but repeating it obscures ownership and performs
+redundant owner-thread state checks. Do not infer Share/GraphicsReady or native
+attachment authority from this cleanup rule.
+
 ## R6 nested private evidence and CLI exception redaction (2026-11-01)
 
 Read-only paired-client evidence is not a native admission authority. Treat every nested JSON shape as untrusted before `.get()`, `.lower()`, `in` set membership or public projection. In schema-v3 `windows_client_ab_evidence.py`, convert malformed optional macOS source objects to empty mappings solely for safe validation, retain the existing typed FAIL codes, and never echo original Python/OS/JSON exception text or private file paths on CLI error. The public summary still has exactly the existing keys, fixed closed category/stage enums and version allowlist. Missing/non-dict Windows first errors project as `unknown` with `WINDOWS_FIRST_ERROR_INVALID`; a malformed macOS provider field is `MACOS_FIRST_ERROR_INVALID`. A source-bound digest is correlation metadata, not evidence that an actual Windows App received Type 2.

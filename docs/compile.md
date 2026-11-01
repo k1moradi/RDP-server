@@ -1,3 +1,18 @@
+## R7/R10 centralized macOS native-retirement qualification (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. After canonical Debug configure/build run:
+
+```sh
+ctest --test-dir build -C Debug -R '^runtime[.]macos-native-(proof-retired-before-credential-destruction|retirement-single-owner-callers)$' --output-on-failure
+ctest --test-dir build -C Debug --output-on-failure
+```
+
+Then run the unchanged macOS Release/full CTest and applicable R7 native/session
+and R9 security sanitizer selections. This correction removes redundant
+owner-thread retirement calls only; it adds no target, library dependency,
+native operation or sanitizer census. Connector-local compile/CTest is NOT RUN;
+exact-publication-SHA hosted qualification is required.
+
 ## R6 macOS first-error compatibility follow-up (2026-11-01)
 
 At `517eb73946da50e29f17a9104bc07a8bd68c68de`, Ubuntu and macOS compiled successfully after the mutable credential-fixture correction, proving that shared compile blocker cleared. Full CTest then exposed an R6 validator regression: three valid paired-evidence tests failed because the macOS private first-error object legitimately has six fields while the R6 hardening required the Windows five-field shape. The dedicated malformed-source, invalid-first-error, nested-evidence and provenance-splice CTests themselves passed. Correct only the macOS schema check and strengthen the same malformed-source CTest; no target, dependency, build root or sanitizer selector changes. Re-run exact-SHA full protocol, Windows MSVC/Clang23 and sanitizer jobs.

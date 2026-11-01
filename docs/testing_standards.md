@@ -1,3 +1,7 @@
+## R4 delayed frame abort remains Closed (2026-11-01)
+
+Ordinary `graphics.frame-abort-after-session-retirement-closed` reuses the existing Graphics DVC protocol runner outside the fixed 171 MCS and 23 Graphics DVC sanitizer selections. A real prepared ClearCodec frame gets a positive one-byte R3 DATA receipt and zero ACK membership, closes, then repeatedly rejects delayed abort and stale write receipts while staying Closed; also cover an unwritten frame retired before abort, and an invalid live abort staying terminal Failed. Existing late ACK and successor-generation tests are distinct. Source/registry PASS, local CTest/ASan/UBSan NOT RUN, exact-head CI pending.
+
 ## R5 P1 — terminal aggregate held-input authority loss and first-desktop handoff (2026-11-01)
 
 Keep ordinary `x11.desktop-resource-authority-loss-held-key-button-no-xtest` as the aggregate-level terminal-authority counterpart to the already-qualified implicit destructor case. Under disposable Xvfb it must drive the real aggregate input controller to one held key plus one held mouse button, count actual production `xcb_test_fake_input` calls through the existing link wrapper, queue synthetic XDamage, call `X11DesktopResources::retireAfterAuthorizationLoss()` before scope exit and observe **zero** native key/button release posts. The old XCB descriptor and capture generation must be dead; a replacement owner must inherit neither held bookkeeping nor Damage, reject the retired generation and complete fresh XShm/XDamage capture.

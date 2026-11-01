@@ -2112,6 +2112,14 @@ function(add_rdp_test source_file suite behavior)
         set_tests_properties(
             graphics.frame-ack-intake-session-retirement-before-consume
             PROPERTIES LABELS "protocol;graphics;transport;offline")
+        # A late R1 writer abort after DVC retirement cannot rewrite Closed.
+        # Keep this outside the fixed 23 Graphics DVC sanitizer case census.
+        add_test(NAME graphics.frame-abort-after-session-retirement-closed
+            COMMAND "${test_target}"
+                "dvc-graphics-frame-abort-after-session-retirement-closed")
+        set_tests_properties(
+            graphics.frame-abort-after-session-retirement-closed
+            PROPERTIES LABELS "protocol;graphics;transport;offline")
         # Original native framebuffer borrow and early ACK over segmented DATA.
         # The 23-case Graphics DVC sanitizer census is intentionally unchanged.
         add_test(NAME graphics.frame-native-borrow-segmented-receipt-fence

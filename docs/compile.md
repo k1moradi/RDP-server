@@ -1,3 +1,7 @@
+## R4 delayed abort focused qualification (2026-11-01)
+
+Using only `~/rdp-server/build/`, run canonical Debug configure/build, `ctest --test-dir build -C Debug -R '^graphics[.]frame-(abort-after-session-retirement-closed|ack-intake-session-retirement-before-consume|partial-data-retirement-successor-generation|delivery-session-retirement-before-ack)$' --output-on-failure`, full Debug/Release CTest and existing 23 DVC + two independent retirement sanitizer selections unchanged. Local canonical execution NOT RUN, publication-SHA hosted CI pending.
+
 ## R5 P1 — terminal aggregate held-input authority loss and first-desktop handoff (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build, run:

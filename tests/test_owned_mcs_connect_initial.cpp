@@ -6287,6 +6287,74 @@ void testGraphicsFramePartialDataRetirementSuccessorGeneration()
     assert(successor.outstandingGraphicsFrames() == 0U);
 }
 
+void testGraphicsFrameAbortAfterSessionRetirementClosed()
+{
+    constexpr RdpDynamicVirtualChannelAllocation allocation{18U, 219U};
+    constexpr std::uint32_t frameId = 111U;
+
+    // A retired partial DATA suffix has already consumed original R1 bytes.
+    // Its eventual writer abort is not entitled to change Closed to Failed.
+    RdpGraphicsDynamicVirtualChannelLifecycle partial;
+    completeGraphicsDynamicVirtualChannelReady(
+        partial, allocation, 1007U, 1005U);
+    rdp_server::rdp::GfxAvc420SegmentedFrame partialFrame;
+    prepareTestClearCodecFrame(partial, frameId, partialFrame);
+    assert(partial.beginFramePublication(
+        std::move(partialFrame), RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+
+    const auto originalWrite = partial.pendingServerWrite();
+    assert(originalWrite &&
+           originalWrite.bytes.size() > 1U &&
+           originalWrite.kind == RdpGraphicsDvcWriteKind::GraphicsFrameData);
+    const std::uint64_t replySequence = originalWrite.replySequence;
+    const std::uint64_t writeSliceSequence = originalWrite.writeSliceSequence;
+    assert(partial.onServerBytesWritten(
+               allocation.generation, replySequence,
+               writeSliceSequence, 1U) ==
+           RdpGraphicsDvcWriteOutcome::Pending);
+    assert(partial.outstandingGraphicsFrames() == 0U);
+    assert(!partial.cancelUnwrittenFramePublication(allocation.generation));
+
+    partial.close();
+    assert(partial.phase() == RdpGraphicsDvcPhase::Closed);
+    assert(!partial.abortFramePublication(allocation.generation));
+    assert(!partial.abortFramePublication(allocation.generation));
+    assert(partial.phase() == RdpGraphicsDvcPhase::Closed);
+    assert(!partial.presentationMapped());
+    assert(!partial.pendingServerWrite());
+    assert(partial.frameRecordMap().empty());
+    assert(partial.outstandingGraphicsFrames() == 0U);
+    assert(partial.onServerBytesWritten(
+               allocation.generation, replySequence,
+               writeSliceSequence, 1U) ==
+           RdpGraphicsDvcWriteOutcome::Rejected);
+    assert(partial.phase() == RdpGraphicsDvcPhase::Closed);
+
+    // An all-zero-byte prepared frame also becomes unowned on close.
+    RdpGraphicsDynamicVirtualChannelLifecycle unwritten;
+    completeGraphicsDynamicVirtualChannelReady(
+        unwritten, allocation, 1007U, 1005U);
+    rdp_server::rdp::GfxAvc420SegmentedFrame unwrittenFrame;
+    prepareTestClearCodecFrame(unwritten, frameId + 1U, unwrittenFrame);
+    assert(unwritten.beginFramePublication(
+        std::move(unwrittenFrame), RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    assert(unwritten.outstandingGraphicsFrames() == 0U);
+    unwritten.close();
+    assert(!unwritten.abortFramePublication(allocation.generation));
+    assert(unwritten.phase() == RdpGraphicsDvcPhase::Closed);
+    assert(!unwritten.pendingServerWrite());
+    assert(unwritten.frameRecordMap().empty());
+
+    // Preserve fail-closed semantics for an invalid abort on a live DVC.
+    RdpGraphicsDynamicVirtualChannelLifecycle live;
+    completeGraphicsDynamicVirtualChannelReady(
+        live, allocation, 1007U, 1005U);
+    assert(!live.abortFramePublication(allocation.generation));
+    assert(live.phase() == RdpGraphicsDvcPhase::Failed);
+}
+
 void testGraphicsFrameShareLossAbort()
 {
     constexpr RdpDynamicVirtualChannelAllocation allocation{6U, 86U};
@@ -13438,6 +13506,7 @@ int main(int argc, char **argv)
         testGraphicsFrameDeliveredSessionRetirementBeforeAcknowledge();
         testGraphicsFramePartialDataRetirementSuccessorGeneration();
         testGraphicsFrameAcknowledgeIntakeSessionRetirementBeforeConsume();
+        testGraphicsFrameAbortAfterSessionRetirementClosed();
         testGraphicsNativeBorrowSegmentedReceiptFence();
         return 0;
     }
@@ -13459,6 +13528,12 @@ int main(int argc, char **argv)
         "dvc-graphics-frame-ack-intake-session-retirement-before-consume")
     {
         testGraphicsFrameAcknowledgeIntakeSessionRetirementBeforeConsume();
+        return 0;
+    }
+    if (std::string_view{argv[1]} ==
+        "dvc-graphics-frame-abort-after-session-retirement-closed")
+    {
+        testGraphicsFrameAbortAfterSessionRetirementClosed();
         return 0;
     }
     if (std::string_view{argv[1]} ==

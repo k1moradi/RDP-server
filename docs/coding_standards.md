@@ -1,3 +1,7 @@
+## R4 delayed frame abort after explicit session retirement (2026-11-01)
+
+The `Closed` DVC state is absorbing: after R3 session retirement has removed partial/unwritten frame DATA, R4 reservation/ACK state and borrowed output spans, a stale writer's direct `abortFramePublication()` must reject without rewriting `Closed` as `Failed`. A live invalid abort continues to fail closed. No competing frame, ACK or TLS owner. Parent `723d3e5948c6150f6487900a69bc6668a6be65dd`, source/registry review PASS; local build/CTest/ASan/UBSan NOT RUN.
+
 ## Preference success cleanup must not erase unrelated action diagnostics (2026-11-01)
 
 R7's `userFacingError_` is shared by preference persistence and unrelated

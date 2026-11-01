@@ -1,3 +1,7 @@
+## R4 delayed stale-writer abort is correctness, not throughput (2026-11-01)
+
+A late aborted partial/unsent segmented frame tests lifecycle ownership and outstanding ACK membership, not native capture, CPU, FPS, bandwidth or real client presentation. Benchmark NOT RUN. Do not infer physical visibility or performance.
+
 ## macOS 25 ms / 1,590-byte graphics pacing finding is a progress bound, not a benchmark (2026-11-01)
 
 R3's protocol-owned DVC frame record carries at most 1,590 application payload bytes. Servicing exactly one immediately-progressing record every 25 ms therefore imposes a source-derived ceiling of about 63,600 payload bytes/second before TLS and outer-protocol overhead; this is sufficient to identify a scheduler progress defect but is not a measured throughput benchmark. The bounded-burst correction must not be reported as a performance result until the normal reproducible native/client benchmark gate exists.

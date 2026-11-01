@@ -1,4 +1,4 @@
-## R5 P1 — terminal aggregate held-input authority loss and first-desktop handoff (2026-11-01)
+[object Object]## R5 P1 — terminal aggregate held-input authority loss and first-desktop handoff (2026-11-01)
 
 Reviewed current `main` parent `723d3e5948c6150f6487900a69bc6668a6be65dd` after the originally requested both-held implicit-destructor gap was already closed by `cec34430` and kept by `5edb1d33`. Exact hosted R5 evidence already records the fixed **45/45** native X11 ASan/UBSan selector and the separate **2/2** implicit-destructor lane PASS. Do not duplicate that proof or reinterpret the owner's physical authentication failure: the Windows App attempt still ends before client NTLM Type 3, so none of the Linux native stages below has been reached.
 

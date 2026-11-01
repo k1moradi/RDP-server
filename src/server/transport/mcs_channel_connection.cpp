@@ -3718,6 +3718,10 @@ bool RdpGraphicsDynamicVirtualChannelLifecycle::
 abortFramePublication(
     std::uint64_t channelGeneration) noexcept
 {
+    // An already retired session owns no pending frame. A late abort from
+    // its former R1 writer must not rewrite Closed as a protocol failure.
+    if (phase_ == RdpGraphicsDvcPhase::Closed)
+        return false;
     if (channelGeneration == 0U ||
         channelGeneration != allocation_.generation ||
         !frame_ || !frame_->valid())

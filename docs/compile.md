@@ -1,3 +1,12 @@
+## R3 licensing replay during partial Valid Client focused check (2026-11-01)
+
+No new dependency, executable, or build root. Reuse `~/rdp-server/build/`:
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
+`cmake --build build --config Debug --parallel 2`,
+`ctest --test-dir build -C Debug -R '^security[.]macos-protected-(client-licensing-replay-partial-valid-client-denial|personal-desktop-licensing-(receipts|denials)|licensed-share-premature-confirm-partial-demand-denial)$' --output-on-failure`,
+then full CTest and unchanged sanitizer suites. Connector-local execution
+NOT RUN; exact-publication-SHA hosted CI pending.
+
 ## macOS Clipboard CTest name policy focused gate (2026-11-01)
 
 In the existing `~/rdp-server/build/` root, reconfigure using the canonical

@@ -2108,6 +2108,17 @@ function(add_rdp_test source_file suite behavior)
                 PROPERTIES LABELS "protocol;security;transport;tls;licensing;admission;offline" TIMEOUT 60)
         endforeach()
 
+        # Repeat a genuine R1 TLS Client Licensing PDU while the original
+        # STATUS_VALID_CLIENT still has an unwritten suffix; retire R1/R2/R3.
+        add_test(NAME security.macos-protected-client-licensing-replay-partial-valid-client-denial
+            COMMAND "${test_target}"
+                "macos-protected-client-licensing-replay-partial-valid-client-denial")
+        set_tests_properties(
+            security.macos-protected-client-licensing-replay-partial-valid-client-denial
+            PROPERTIES
+                LABELS "protocol;security;transport;tls;licensing;admission;offline"
+                TIMEOUT 60)
+
         # Real receipt-complete licensing followed by a partial Demand Active
         # write must reject early Confirm Active and late original receipts.
         add_test(NAME security.macos-protected-licensed-share-premature-confirm-partial-demand-denial

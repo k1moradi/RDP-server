@@ -1,3 +1,17 @@
+## Original R1 TLS licensing replay before Valid Client delivery (2026-11-01)
+
+One new ordinary production-linked offline
+`security.macos-protected-client-licensing-replay-partial-valid-client-denial`
+reuses the existing real R1 TLS, concrete R2 broker, generated licensing
+service identity and R3 positive receipt fixture. After zero and one positive
+STATUS_VALID_CLIENT TLS accepted-byte receipts, repeat the original bounded
+Client Licensing TPKT on the same R1 connection. Assert R2 revokes R3/R1,
+original reply and suffix receipts fail and Demand Active cannot begin.
+This is distinct from premature pre-request Client Licensing, post-license
+replay and partial Demand Active early-Confirm. Keep 171-case MCS inventory
+and fixed sanitizer selections unchanged. No synthetic native acceptance.
+Source review PASS; runtime execution NOT RUN in this connector environment.
+
 ## macOS Clipboard scope classifier CTest taxonomy configure unblock (2026-11-01)
 
 At source SHA `1447dd0ccf4570eb161111e5fbda2799a704a294`, hosted Actions `41295246420` failed

@@ -1,22 +1,29 @@
-## macOS Clipboard scope classifier CTest taxonomy configure unblock (2026-11-01)
+## R3 Client Licensing replay during partial Valid Client (2026-11-01)
 
-At source SHA `1447dd0ccf4570eb161111e5fbda2799a704a294`, hosted Actions `41295246420` failed
-**during CMake configure** across Ubuntu, macOS and Windows. The first fatal
-boundary was the central `get_property(... TESTS)` registry check rejecting
-the internal `-r2-` token in
-`security.macos-share-activated-clipboard-r2-classifier-denial`. This was a CTest
-name policy defect, not a demonstrated production Clipboard/RDP defect.
-Rename only the registered behavior and its existing dispatch selection to
-`security.macos-share-activated-clipboard-scope-classifier-denial`; keep the
-same production-linked test function, View/Input-only native scope denial,
-FORMAT_LIST/FILECONTENTS assertions, R1/R2/R3 owner lifetime, fixed sanitizer
-census and executable dependency graph. Source registry review PASS; local
-configure/build/CTest NOT RUN (no `~/rdp-server` checkout and container
-GitHub DNS unavailable). Publication-SHA hosted configure/Debug/Release/full
-CTest and applicable sanitizers PENDING. Physical macOS Admission/Clipboard,
-Windows App, first frame and native input remain NOT RUN/unauthorized.
-Next gate: exact-SHA hosted configure first; then inspect any independent
-compile/test failures and their first failing boundary.
+**Reviewed parent:** `0bf6730c2e0137b49e9b96a52860a8218f1a8c31`. R10 already integrates the positive original
+R1 TLS -> R2 -> R3 PersonalDesktop licensing and protected Share transcript.
+The specific gap is repeated Client Licensing during a partly delivered
+STATUS_VALID_CLIENT, distinct from the pre-Server-Request and post-licensed
+replay regressions and partial-Demand premature Confirm Active denial.
+
+Register `security.macos-protected-client-licensing-replay-partial-valid-client-denial`
+on the existing production-linked R1 HYBRID TLS/R2 broker/R3 session fixture.
+After original Server License Request completion and bounded Client Licensing
+intake, record zero then exactly one genuine R1 accepted byte of the original
+Valid Client reply, resend that same complete licensing TPKT through the
+original TLS reader, and require terminal R2/R3/R1 revocation. Stale suffix
+receipts, repeat server reply and Demand Active must fail. Original R1 security
+provenance, immutable one-shot PersonalDesktop policy, pinned service identity
+and credential, joined global-I/O channel and the same reply/slice owner are
+unchanged. Do not add a second native authority, public positive API or test
+to the fixed 171-case MCS inventory.
+
+**Validation:** GitHub source/test registry and dependency review PASS;
+connector-local configure/build/CTest/sanitizer/benchmark NOT RUN; exact
+publication-SHA hosted CI PENDING. R2 proof/native observations are synthetic,
+not physical-client or native desktop acceptance. Next gate: same-SHA Linux,
+macOS and Windows full CTest and applicable sanitizer lanes; separately
+authorized physical CredSSP/native/Graphics evidence remains outstanding.
 
 ## R3/R10 Share CI unblock: preserve original GCC capability and source guards (2026-11-01)
 
@@ -91,7 +98,7 @@ before physical Windows App/macOS native capture/input/clipboard evidence.
 
 ## R8 protected R2 post-Share CLIPRDR classifier denial (2026-11-01)
 
-At authoring parent `675655a30d47aa9ed389eac77c1ec6e708c0bdfd`, ordinary `security.macos-share-activated-clipboard-scope-classifier-denial` extends the existing real-loopback R1 HYBRID/TLS, concrete macOS R2/R3, joined cliprdr and production Demand/Confirm Active/Share receipt fixture. The only test-staged state is Licensed and the native proof is synthetic. Fresh View and Input remain authorized but no native Clipboard permission exists. For independent FORMAT_LIST and FILECONTENTS packets on a joined static cliprdr channel after ShareActivated, the *R2* View-scoped traffic classifier must reject and terminally revoke the original R1/R2/R3 lifetime; a later activated Clipboard visit, queue, pending write and accepted-byte receipt must all fail. This is separate from the existing R3-only classifier denial and R2 activated-channel denial. No native clipboard owner or file sink is created.
+At authoring parent `675655a30d47aa9ed389eac77c1ec6e708c0bdfd`, ordinary `security.macos-share-activated-clipboard-r2-classifier-denial` extends the existing real-loopback R1 HYBRID/TLS, concrete macOS R2/R3, joined cliprdr and production Demand/Confirm Active/Share receipt fixture. The only test-staged state is Licensed and the native proof is synthetic. Fresh View and Input remain authorized but no native Clipboard permission exists. For independent FORMAT_LIST and FILECONTENTS packets on a joined static cliprdr channel after ShareActivated, the *R2* View-scoped traffic classifier must reject and terminally revoke the original R1/R2/R3 lifetime; a later activated Clipboard visit, queue, pending write and accepted-byte receipt must all fail. This is separate from the existing R3-only classifier denial and R2 activated-channel denial. No native clipboard owner or file sink is created.
 
 At `751d9d0a01aabe6c5bd0414b531b199a264da6c9`, Actions `41293848769` demonstrated macOS Debug and Release full CTest **852/852 PASS** each (including both older post-Join/post-Share R8 denials), R9 Clipboard sanitizer selector **107/107 PASS**, separate X11 callback-retirement **3/3 PASS**, destination finalization **1/1 PASS**, and R3 CLIPRDR **9/9 PASS**. These are previous-SHA evidence only. New R2 classifier source/registration review PASS; new-test compile, focused/full CTest and same-publication-SHA CI **NOT RUN / PENDING**. Product-valid macOS Clipboard issuer, native owner, real OS clipboard/file transfer and Microsoft client acceptance remain NOT RUN; Linux activation gate remains false.
 

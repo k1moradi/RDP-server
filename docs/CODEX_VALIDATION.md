@@ -1,3 +1,14 @@
+## R3 Client Licensing replay during partial Valid Client validation (2026-11-01)
+
+Reviewed parent `0bf6730c2e0137b49e9b96a52860a8218f1a8c31`, original R2 policy/service-object identity
+fences, R3 receipt/phase owner, real R1 loopback TLS, existing licensing
+replay tests, R10 Share integration and CTest dispatcher. Added a distinct
+partial STATUS_VALID_CLIENT Client Licensing replay through original R1/R2/R3.
+Source and registration review PASS. Local compile, focused/full CTest,
+sanitizers, benchmarks, physical Windows App and native macOS admission
+NOT RUN; await exact-publication-SHA hosted qualification. No CAL bypass,
+secondary native authority or synthetic physical acceptance is claimed.
+
 ## macOS Clipboard scope classifier CTest taxonomy configure unblock (2026-11-01)
 
 At source SHA `1447dd0ccf4570eb161111e5fbda2799a704a294`, hosted Actions `41295246420` failed

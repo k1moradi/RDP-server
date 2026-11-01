@@ -1,3 +1,47 @@
+## R6 reported 8.956 ms Type-2/FIN: first missing client observation (2026-11-01)
+
+**New owner-reported case (original files not supplied):** Linux TLS 1.3,
+direct NTLM Type 2 `0xe08a8235`, no post-Type-2 client TLS bytes, no Type
+3 or TLS alert, peer FIN after 8.956 ms. The separately documented ~34.7
+ms attempt and hosted Windows SSPI `COMPLETE_PASS` belong to different
+sources. Do not invent an attempt/connection ID or move an earlier profile,
+AV-list, certificate, cipher, credential selection or first error to the
+new connection. The earliest missing independent fact is **first-party
+client TLS receipt/decryption of that exact Type 2**.
+
+The closed private v3 pairing already has independent fields for:
+`type2_received` (client TLS receipt/decryption),
+`type2_accepted_by_credssp` (client provider parse outcome/typed
+first error), `type3_generated` (client construction), and
+`type3_delivered` (submission to client TLS). Absent original
+first-party evidence must stay `NOT_OBSERVED`. Server-local Type-2
+delivery or FIN cannot populate a client field. A first-error event may
+lag the terminal server observation but must not predate the original
+attempt. The existing source binding remains closed, and record digests
+are correlation only, not attestation.
+
+**Future owner A/B checklist — NOT RUN and not authorized:** After R9
+nominates an exact-SHA candidate with separate general CI and hosted
+Microsoft SSPI receipts, obtain explicit owner authorization for the
+particular macOS Windows App and Windows 11 mstsc sessions **and** for
+reading their already-available first-party diagnostic evidence. For
+each attempt separately, retain its private source hash, ID,
+connection ID, server SHA, endpoint, app/OS build, negotiated TLS
+version/cipher, SNI versus numeric-IP target, exact IP SAN and leaf
+certificate fingerprint, unchanged trust-warning choice, negotiated
+Type-2 flags/AV IDs and 126-byte-length check, deliberately selected
+credential source and bounded UTC event window. Record the *first
+actually observed* client-side step or typed first-error category and
+time, then leave later stages `NOT_OBSERVED` unless independent
+same-attempt records support them. Check client-event source identity
+and hashes against those originals, without ever collecting NTLM
+tokens, passwords, keys, raw UI errors or protected authInfo.
+Do not access Keychain, change credentials or trust policy, launch
+clients, enable packet capture or native input under this checklist.
+If no client-side event is available, report BLOCKED/INCONCLUSIVE
+rather than inferring password rejection or a protocol defect.
+
+
 ## R6 private first-error projection and original client-source reuse (2026-11-01)
 
 A source audit of the current R6 v3 paired validator confirms that invalid Windows first-error categories/sources, missing fields, and malformed nested evidence already use fixed typed FAIL codes and redacted public fallbacks. However, the upstream R5 macOS summary independently reflected untrusted private client UI codes, first-client-error category/source and first-error event timestamp. Malformed strings/lists/dictionaries could reach a shared result, and the read-only validate CLI's exception message could disclose a private path. The correction bounds public UI codes to numeric/hex or `not-recorded`, validates the six-field first-client-error record, paired aware timestamps and optional bounded provider details, and emits fixed `FIRST_CLIENT_ERROR_INVALID`/`CLIENT_UI_CODE_INVALID` failures with `unknown`, `not-observed`, and null public error fallbacks. CLI validation exceptions use a fixed error message. The existing public schemas and fields are unchanged. Collection behavior remains separate.

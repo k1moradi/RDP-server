@@ -900,6 +900,60 @@ class OwnerEvidenceTests(unittest.TestCase):
                                  "unknown")
                 self.assertNotIn(private_marker, json.dumps(summary, sort_keys=True))
 
+    def test_paired_first_error_attempt_window_and_untrusted_receipt_denials(self):
+        # Prior-client error timestamps cannot be assigned to a newer attempt,
+        # even when they meet the former loose 120-second comparison bound.
+        pristine = evidence.build_manifest(self.options)
+        original_keys = set(ab_evidence.validate_pair(
+            pristine, self._paired_record(pristine)))
+
+        self.options.first_client_error_time = "2026-10-27T05:29:59-07:00"
+        previous_error_manifest = evidence.build_manifest(self.options)
+        macos_summary = ab_evidence.validate_pair(
+            previous_error_manifest, self._paired_record(previous_error_manifest))
+        self.assertEqual(macos_summary["evidence_status"], "FAIL")
+        self.assertIn("MACOS_FIRST_ERROR_OUTSIDE_ATTEMPT",
+                      macos_summary["evidence_failures"])
+        self.assertEqual(macos_summary["macos"]["first_client_error_category"],
+                         "unknown")
+        self.assertEqual(set(macos_summary), original_keys)
+
+        pair = self._paired_record(pristine)
+        first_error = pair["windows"]["first_client_error"]
+        first_error["normalized_category"] = "trust"
+        first_error["provider_category_exact"] = "private-provider-trust"
+        first_error["event_time_utc"] = "2026-10-27T12:31:59+00:00"
+        windows_summary = ab_evidence.validate_pair(pristine, pair)
+        self.assertEqual(windows_summary["evidence_status"], "FAIL")
+        self.assertIn("WINDOWS_FIRST_ERROR_OUTSIDE_ATTEMPT",
+                      windows_summary["evidence_failures"])
+        self.assertEqual(windows_summary["windows"]["first_client_error_category"],
+                         "unknown")
+        self.assertNotIn("private-provider-trust", json.dumps(windows_summary))
+        self.assertEqual(set(windows_summary), original_keys)
+
+        # A typed UI error just after FIN remains possible, not attributed.
+        first_error["event_time_utc"] = "2026-10-27T12:32:08+00:00"
+        valid_followup = ab_evidence.validate_pair(pristine, pair)
+        self.assertNotIn("WINDOWS_FIRST_ERROR_OUTSIDE_ATTEMPT",
+                         valid_followup["evidence_failures"])
+
+        # R1 committed Type 2 and FIN cannot prove client-side decryption.
+        pair = self._paired_record(pristine)
+        pair["macos"]["client_security_stages"]["type2_received"] = "PASS"
+        server_event = self._client_event(pair, "macos")
+        server_event["source_kind"] = "server-transport"
+        pair["macos"]["client_stage_evidence"]["type2_received"] = server_event
+        receipt_summary = ab_evidence.validate_pair(pristine, pair)
+        self.assertEqual(receipt_summary["evidence_status"], "FAIL")
+        self.assertIn("MACOS_CLIENT_TYPE2_RECEIVED_SOURCE_UNSUPPORTED",
+                      receipt_summary["evidence_failures"])
+        self.assertEqual(
+            receipt_summary["macos"]["client_security_stages"]["type2_received"],
+            "NOT_OBSERVED")
+        self.assertEqual(set(receipt_summary["macos"]),
+                         set(macos_summary["macos"]))
+
     def test_paired_unicode_private_first_error_denials(self):
         # Escaped Unicode surrogates, nested provider lists/dicts and missing
         # fields must produce typed FAIL, not exception text or a public type.

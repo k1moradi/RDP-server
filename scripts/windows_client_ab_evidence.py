@@ -9,7 +9,7 @@ facts absent from R5. Neither input is a credential or admission authority.
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 import re
@@ -107,8 +107,9 @@ def _redacted_stage(value: object, allowed: set[str], fallback: str) -> str:
     return value if _is_allowed(value, allowed) else fallback
 
 
-def _redacted_client_stages(stages: object) -> dict[str, str]:
-    observed = stages if isinstance(stages, dict) else {}
+def _redacted_client_stages(stages: object, *, qualified: bool = True) -> dict[str, str]:
+    # An invalid original source cannot leave a claimed PASS in shared JSON.
+    observed = stages if qualified and isinstance(stages, dict) else {}
     return {
         name: _redacted_stage(observed.get(name), CLIENT_STAGE_STATES, "NOT_OBSERVED")
         for name in CLIENT_SECURITY_STAGES
@@ -384,6 +385,30 @@ def _first_error_failures(first_error: object) -> list[str]:
             return ["WINDOWS_FIRST_ERROR_INVALID"]
     return []
 
+def _first_error_attempt_failures(first_error: object, binding: object,
+                                  prefix: str) -> list[str]:
+    """An earlier attempt's error cannot label this connection.
+
+    The short post-terminal allowance covers delayed client UI diagnostics;
+    correlation still does not authenticate the underlying client event.
+    """
+    if not isinstance(first_error, dict) or first_error.get("event_time_utc") is None:
+        return []
+    try:
+        if not isinstance(binding, dict):
+            raise ValueError("missing first-error source binding")
+        event_time = _utc(first_error["event_time_utc"], "first error event")
+        start = _utc(binding.get("attempt_time_utc"), "first error attempt")
+        terminal = _utc(binding.get("terminal_time_utc"), "first error terminal")
+    except ValueError:
+        return [f"{prefix}_FIRST_ERROR_TIME_INVALID"]
+    if (event_time < start or
+            event_time > terminal + timedelta(
+                seconds=macos.MAX_CORRELATION_DELTA_SECONDS)):
+        return [f"{prefix}_FIRST_ERROR_OUTSIDE_ATTEMPT"]
+    return []
+
+
 def validate_pair(macos_manifest: dict, pair: dict) -> dict:
     """Validate evidence, never infer server/client event ordering or cause."""
     failures: list[str] = []
@@ -490,13 +515,16 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         failures.append("CERTIFICATE_DECISION_NOT_COMPARABLE")
     first_error_record = windows["first_client_error"]
     first_error_failures = _first_error_failures(first_error_record)
+    if not first_error_failures:
+        first_error_failures.extend(_first_error_attempt_failures(
+            first_error_record, windows["source_binding"], "WINDOWS"))
     failures.extend(first_error_failures)
 
     macos_correlation = _private_mapping(macos_manifest.get("linux_correlation"))
     macos_application = _private_mapping(macos_manifest.get("windows_app"))
     macos_version = macos_application.get("version")
     macos_build = macos_application.get("build")
-    failures.extend(_source_binding_failures(
+    macos_source_failures = _source_binding_failures(
         macos_row["source_binding"],
         {
             "server_sha": macos_manifest.get("server_sha"),
@@ -517,8 +545,9 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
             "credential_source_choice": macos_row["credential_source_claim"],
         },
         "MACOS",
-    ))
-    failures.extend(_source_binding_failures(
+    )
+    failures.extend(macos_source_failures)
+    windows_source_failures = _source_binding_failures(
         windows["source_binding"],
         {
             "server_sha": windows["server_sha"],
@@ -535,17 +564,22 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
             "credential_source_choice": credential["source"],
         },
         "WINDOWS",
-    ))
-    failures.extend(_client_stage_failures(
-        macos_row["client_security_stages"], "MACOS"))
-    failures.extend(_client_stage_failures(
-        windows["client_security_stages"], "WINDOWS"))
-    failures.extend(_client_event_failures(
+    )
+    failures.extend(windows_source_failures)
+    macos_stage_failures = _client_stage_failures(
+        macos_row["client_security_stages"], "MACOS")
+    windows_stage_failures = _client_stage_failures(
+        windows["client_security_stages"], "WINDOWS")
+    macos_event_failures = _client_event_failures(
         macos_row["client_security_stages"], macos_row["client_stage_evidence"],
-        macos_row["source_binding"], "MACOS"))
-    failures.extend(_client_event_failures(
+        macos_row["source_binding"], "MACOS")
+    windows_event_failures = _client_event_failures(
         windows["client_security_stages"], windows["client_stage_evidence"],
-        windows["source_binding"], "WINDOWS"))
+        windows["source_binding"], "WINDOWS")
+    failures.extend(macos_stage_failures)
+    failures.extend(windows_stage_failures)
+    failures.extend(macos_event_failures)
+    failures.extend(windows_event_failures)
     # A digest of one original client event is not two independent attempts.
     # No private digest or source text is included in the public denial.
     if (_client_source_digests(
@@ -615,6 +649,7 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         macos_error.get("first_typed_category") if isinstance(macos_error, dict) else None
     )
     macos_first_error = macos_manifest.get("first_client_error")
+    macos_first_error_failures: list[str] = []
     if (not _is_allowed(macos_error_category, ERROR_CATEGORIES)
             or not isinstance(macos_first_error, dict)
             or set(macos_first_error) != MACOS_FIRST_ERROR_FIELDS
@@ -625,7 +660,7 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
                 macos_first_error.get("normalized_category"), ERROR_CATEGORIES)
             or macos_first_error.get("normalized_category") != macos_error_category
             or not _is_allowed(macos_first_error.get("source"), ERROR_SOURCES)):
-        failures.append("MACOS_FIRST_ERROR_INVALID")
+        macos_first_error_failures.append("MACOS_FIRST_ERROR_INVALID")
     else:
         try:
             for name in ("provider_category_exact", "provider_code_exact"):
@@ -640,7 +675,12 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
                     _utc(utc_time, "macOS first error UTC time")):
                 raise ValueError("macOS first error time pair is inconsistent")
         except ValueError:
-            failures.append("MACOS_FIRST_ERROR_INVALID")
+            macos_first_error_failures.append("MACOS_FIRST_ERROR_INVALID")
+
+    if not macos_first_error_failures:
+        macos_first_error_failures.extend(_first_error_attempt_failures(
+            macos_first_error, macos_row["source_binding"], "MACOS"))
+    failures.extend(macos_first_error_failures)
 
     # Treat every input string as private. Only enumerated, redacted facts enter stdout.
     macos_type3 = _redacted_stage(
@@ -672,10 +712,13 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         "macos": {
             "app": "Windows App", "version": redacted_macos_version,
             "first_client_error_category": _redacted_stage(
-                macos_error_category, ERROR_CATEGORIES, "unknown"),
+                ("unknown" if macos_first_error_failures else macos_error_category),
+                ERROR_CATEGORIES, "unknown"),
             "type3_received": macos_type3,
             "client_security_stages": _redacted_client_stages(
-                macos_row["client_security_stages"]),
+                macos_row["client_security_stages"],
+                qualified=not (macos_source_failures or macos_stage_failures
+                               or macos_event_failures)),
             "native_admission": _redacted_stage(
                 macos_row["native_admission"], STAGE_STATES, "NOT_REACHED"),
         },
@@ -691,7 +734,9 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
             ),
             "type3_received": windows_type3,
             "client_security_stages": _redacted_client_stages(
-                windows["client_security_stages"]),
+                windows["client_security_stages"],
+                qualified=not (windows_source_failures or windows_stage_failures
+                               or windows_event_failures)),
             "native_admission": _redacted_stage(
                 windows["native_admission"], STAGE_STATES, "NOT_REACHED"),
         },

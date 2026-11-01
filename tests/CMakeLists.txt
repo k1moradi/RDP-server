@@ -1585,6 +1585,16 @@ add_test(NAME interop.windows-client-ab-unicode-first-error-typed-denials
 set_tests_properties(interop.windows-client-ab-unicode-first-error-typed-denials
     PROPERTIES LABELS "interop;offline;security;evidence" TIMEOUT 15)
 
+# R6 reject earlier-attempt first errors and server-only Type-2 receipt
+# assertions without allowing an unverified PASS in a redacted FAIL summary.
+add_test(NAME interop.windows-client-ab-first-error-attempt-provenance-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_windows_app_owner_evidence.py"
+        --script "${PROJECT_SOURCE_DIR}/scripts/macos_windows_app_owner_evidence.py"
+        -k paired_first_error_attempt_window_and_untrusted_receipt_denials)
+set_tests_properties(interop.windows-client-ab-first-error-attempt-provenance-denials
+    PROPERTIES LABELS "interop;offline;security;evidence" TIMEOUT 15)
+
 # R6 malformed macOS collector first-error fields (including invalid
 # UTF-8/lone surrogates) must not reflect private data or exception paths.
 add_test(NAME interop.windows-client-ab-malformed-macos-first-error-projection-denials

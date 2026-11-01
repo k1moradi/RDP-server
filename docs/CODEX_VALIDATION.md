@@ -1,3 +1,38 @@
+## R6 P0 source-bound first failure, new owner-reported 8.956 ms attempt (2026-11-01)
+
+On refreshed main, the v3 pair already has the four separate client-stage
+slots (Type-2 TLS receipt/decryption, CredSSP parser/typed first error, Type-3
+construction and Type-3-bearing TLS submission) with original same-attempt
+client-event digest, application/version, connection/attempt/time binding.
+Source review found a concrete first-error anti-splice gap: a previous
+attempt's error timestamp could pass the old +/-120-second comparison.
+Additionally, a claimed client `PASS` could remain visible in a public
+FAIL summary after its client event/source validation failed. R6 now rejects
+original first-error times before each source-bound attempt, allows at most
+120 seconds after that attempt's terminal line for delayed UI reporting,
+emits fixed `*_FIRST_ERROR_OUTSIDE_ATTEMPT` and public `unknown`, and
+redacts unqualified client-stage claims to `NOT_OBSERVED`. Dedicated
+ordinary `interop.windows-client-ab-first-error-attempt-provenance-denials`
+covers both platforms, bounded post-FIN follow-up and a server-only fake
+Type-2 client receipt; existing privacy/Unicode and source-digest tests
+remain registered. No schema, protocol or native authority changes.
+
+The owner's latest **8.956 ms** peer-FIN after TLS 1.3/direct Type 2
+`0xe08a8235` is distinct from ~34.7 ms historical peer close. Zero later
+TLS bytes/no Type 3/no alert is server-side only. No original client-side
+Type-2 receipt, provider error, app credential selection, full challenge AV
+record, cipher/SNI/IP-SAN fingerprint or verified current server SHA was
+available to qualify against this attempt. Previous hosted Microsoft SSPI
+`COMPLETE_PASS` at `559a89e1` (Actions
+[41306620036](https://github.com/k1moradi/RDP-server/actions/runs/41306620036))
+is independent harness evidence, not physical Windows App proof.
+
+**Evidence:** source/test-registration review only. Local Python, CMake,
+full CTest, native MSVC/Clang23, sanitizers and benchmarks NOT RUN; new
+published-SHA hosted Microsoft SSPI and general CI PENDING. Physical A/B
+BLOCKED pending R9 nomination and explicit owner authorization; no Keychain,
+client launch, packet capture, secret collection, trust or native input.
+
 ## R3 batched MCS join -> post-confirm Client Info protected-TLS regression (2026-11-01)
 
 Reviewed current main parent `e222dbdc07374d6824c5a8f50061aa2c989c5141`, original R1/R2/R3 Linux scheduling and R3 cross-platform join/Client Info/licensing/Share/Graphics ownership. MS-RDPBCGR permits batched client Channel Join Requests, while Client Info follows completed confirmations; MS-RDPELE PersonalDesktop requires genuine licensing receipt ordering, not AppServer CAL bypass. Previously, R3's bounded batching was covered at the gate/unit level, but the production-linked R1 TLS and concrete R2/R3 fixture delivered each join independently, missing the coalesced client TLS + partial server reply interoperability path. One dedicated ordinary `security.macos-protected-batched-channel-joins-client-info-tls-receipts` uses the existing `test_owned_preauth_session` binary, batches all allocated joins, verifies exact TPKT sender/order and `Buffered` outcomes, zero/positive per-byte exact R1/R2/R3 Join Confirm receipts, then sends valid Client Info only after all joins fully delivered. It accepts no licensing/Share/native shortcut and changes no production protocol behavior. Full compatibility matrix and R10 original API/state handoff are in the new R3 P0 roadmap entry.

@@ -1,3 +1,40 @@
+## R6 P0 — new 8.956 ms Type-2/peer-FIN attempt: first-party client receipt still unobserved (2026-11-01)
+
+**Reported separately from the historical ~34.7 ms attempt:** a newer
+Linux/macOS Windows App connection reached TLS 1.3 and server-local direct
+NTLM Type 2 flags `0xe08a8235`, then zero later observed client TLS bytes,
+no Type 3, no alert and peer FIN after 8.956 ms. The exact attempt ID,
+client-origin diagnostic, local Type-2 receipt/decryption, first typed
+provider error and per-attempt original certificate/cipher/AV record are
+**not independently supplied** here. Historical hosted SSPI `COMPLETE_PASS`
+is a separate harness attempt, not evidence that this Windows App received
+or parsed Type 2. Do not conflate their timings or source records.
+
+The existing private v3 client stage map already represents four original
+client-side boundaries: `type2_received` (TLS receipt/decryption),
+`type2_accepted_by_credssp` (typed provider parse result),
+`type3_generated` (construction) and `type3_delivered` (Type-3-bearing
+TLS submission). Keep all four `NOT_OBSERVED` absent actual first-party
+client events. A new offline R6 denial test closes two evidence-integrity
+gaps: prior-attempt first errors formerly survived +/-120-second matching,
+and invalid client-stage provenance could leave a public `PASS`.
+The paired validator now requires first error at/after its own attempt
+start (with bounded 120-second post-FIN UI delay) and masks all stages
+for a client with invalid source/stage/event evidence. Private v3 and
+public v3 schemas, UTF-8 redaction, digest uniqueness and anti-splice
+validation remain unchanged. No production TLS/NTLM or native permission
+changes.
+
+**Validation:** source and CTest registration inspected; local CTest,
+MSVC, Clang23, ASan/UBSan NOT RUN, same-publication-SHA hosted general CI
+and Microsoft SSPI PENDING. Next: R9 exact-SHA candidate and *separate*
+explicit owner approval of first-party client diagnostics and each physical
+Windows App/mstsc attempt. Compare original attempt IDs, server SHA,
+endpoint, app/build, credential source, certificate exact-IP-SAN/fingerprint,
+TLS cipher and SNI/IP target, Type-2 AV IDs/length/flags and first client
+error *only if independently recorded for each attempt*. No Keychain,
+client launch, secrets, packet capture or trust-policy change here.
+
 ## R3 P0 downstream batched-join/Client Info compatibility after CredSSP (2026-11-01)
 
 **Reviewed main parent:** `e222dbdc07374d6824c5a8f50061aa2c989c5141`. The owner-observed macOS Windows App -> Linux attempt closed about **8.956 ms** after local NTLM Type-2 delivery, with **zero observed post-Type-2 client bytes and no Type 3**. This connection did **not** enter R3 MCS; no R3 change can be credited with correcting that pre-Type-3 failure. R1/R6 retain direct-NTLM transport and physical-client differential diagnosis. Microsoft's MS-RDPBCGR connection sequence explicitly permits RDP 8.1/10.0/10.1 clients to batch Channel Join Requests; it places Client Info *after* channel connection. MS-RDPELE personal-terminal-server mode completes structurally accepted client licensing with STATUS_VALID_CLIENT / ST_NO_TRANSITION, but grants no native desktop authority.

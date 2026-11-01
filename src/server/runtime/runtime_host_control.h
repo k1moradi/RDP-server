@@ -104,6 +104,37 @@ struct RuntimeHostResult
     }
 };
 
+inline constexpr std::size_t kRuntimeServiceBurstLimit{8U};
+inline constexpr int kRuntimeServiceWaitMilliseconds{25};
+
+struct RuntimeServiceBurstResult final
+{
+    RuntimeHostResult lastResult{RuntimeHostError::None, true};
+    std::size_t serviceCalls{};
+    bool immediateReschedule{};
+};
+
+// Drain only a finite amount of already-actionable owner work. A retryable
+// result means the owner is waiting on peer/native readiness and must yield;
+// sustained local progress yields after the fixed burst and reschedules at 0.
+template <typename Service>
+[[nodiscard]] RuntimeServiceBurstResult
+serviceRuntimeBoundedBurst(Service&& service)
+    noexcept(noexcept(service()))
+{
+    RuntimeServiceBurstResult burst;
+    for (; burst.serviceCalls < kRuntimeServiceBurstLimit;)
+    {
+        burst.lastResult = service();
+        ++burst.serviceCalls;
+        if (!burst.lastResult.succeeded() || burst.lastResult.retryable)
+            return burst;
+    }
+    burst.immediateReschedule =
+        burst.lastResult.succeeded() && !burst.lastResult.retryable;
+    return burst;
+}
+
 struct RuntimeHostInterface
 {
     std::string stableId;

@@ -1,3 +1,7 @@
+## macOS 25 ms / 1,590-byte graphics pacing finding is a progress bound, not a benchmark (2026-11-01)
+
+R3's protocol-owned DVC frame record carries at most 1,590 application payload bytes. Servicing exactly one immediately-progressing record every 25 ms therefore imposes a source-derived ceiling of about 63,600 payload bytes/second before TLS and outer-protocol overhead; this is sufficient to identify a scheduler progress defect but is not a measured throughput benchmark. The bounded-burst correction must not be reported as a performance result until the normal reproducible native/client benchmark gate exists.
+
 ## R4 ACK retirement/backpressure evidence is correctness, not a performance result (2026-11-01)
 
 The 64-outstanding-frame preflight is a correctness/backpressure boundary: when R4 reports no credit, R10 must perform no native frame borrow, ClearCodec encode/reservation or TLS frame write. Likewise, rejecting a delayed ACK consume after generation retirement is lifecycle correctness. The new `graphics.frame-ack-intake-session-retirement-before-consume` regression and existing credit/segmented-receipt tests do not measure encode cost, bandwidth, latency, FPS or ACK turnaround and must not be reported as benchmark evidence.

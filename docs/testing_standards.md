@@ -1,3 +1,7 @@
+## R10 shared bounded owner-service burst regression (2026-11-01)
+
+Keep one ordinary production-backed `runtime.host-control-bounded-service-burst-scheduling` CTest in the existing `test_runtime_host_control` executable. It must prove a successful non-retryable service callback is capped at the common burst limit and requests immediate rescheduling, while a peer-waiting retryable result and a terminal failure both stop after one call and never request a zero-delay continuation. Existing protected native-borrow/segmented-receipt, exact-TLS/ACK, MAP-consent and terminal/revocation tests remain the protocol/lifetime evidence; do not duplicate their state machines merely to test GUI pacing.
+
 ## R7 preference write-coalescing regression (2026-11-01)
 
 The dedicated ordinary `gui.offscreen-rapid-preferences-write-coalescing`

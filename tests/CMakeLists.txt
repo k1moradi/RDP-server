@@ -1262,6 +1262,7 @@ foreach(host_control_case IN ITEMS
         host-control-product-target-tuple-construction
         host-control-credential-editing-lifecycle-policy
         host-control-route-aware-recommendation-non-authority
+        host-control-bounded-service-burst-scheduling
         host-control-clipboard-state-denials
         host-control-credential-setup-denials
         host-control-selected-lan-interface-denials

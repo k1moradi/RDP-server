@@ -71,32 +71,18 @@ projectLinuxAcceptedClientPreauthDiagnostics(
 inline constexpr std::chrono::milliseconds
     kRuntimeAcceptedClientPreauthTimeout{30000};
 
-inline constexpr std::size_t kLinuxRuntimeServiceBurstLimit{8U};
-inline constexpr int kLinuxRuntimeServiceWaitMilliseconds{25};
-
-struct LinuxRuntimeServiceBurstResult final
-{
-    RuntimeHostResult lastResult{RuntimeHostError::None, true};
-    std::size_t serviceCalls{};
-    bool immediateReschedule{};
-};
+inline constexpr std::size_t kLinuxRuntimeServiceBurstLimit{
+    kRuntimeServiceBurstLimit};
+inline constexpr int kLinuxRuntimeServiceWaitMilliseconds{
+    kRuntimeServiceWaitMilliseconds};
+using LinuxRuntimeServiceBurstResult = RuntimeServiceBurstResult;
 
 template <typename Service>
 [[nodiscard]] LinuxRuntimeServiceBurstResult
 serviceLinuxRuntimeBoundedBurst(Service&& service)
     noexcept(noexcept(service()))
 {
-    LinuxRuntimeServiceBurstResult burst;
-    for (; burst.serviceCalls < kLinuxRuntimeServiceBurstLimit;)
-    {
-        burst.lastResult = service();
-        ++burst.serviceCalls;
-        if (!burst.lastResult.succeeded() || burst.lastResult.retryable)
-            return burst;
-    }
-    burst.immediateReschedule =
-        burst.lastResult.succeeded() && !burst.lastResult.retryable;
-    return burst;
+    return serviceRuntimeBoundedBurst(service);
 }
 
 // One serialized R10 Linux GUI facade. No owned socket may be opened before

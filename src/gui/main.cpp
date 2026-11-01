@@ -285,31 +285,23 @@ int main(int argc, char** argv)
     }
 #if defined(__linux__) || defined(__APPLE__)
     QTimer runtimeServiceTimer;
-#if defined(__linux__)
     runtimeServiceTimer.setInterval(
-        rdp_server::server::runtime::kLinuxRuntimeServiceWaitMilliseconds);
+        rdp_server::server::runtime::kRuntimeServiceWaitMilliseconds);
     runtimeServiceTimer.setSingleShot(true);
     QObject::connect(
         &runtimeServiceTimer, &QTimer::timeout, &window,
         [&applicationRuntime, &runtimeServiceTimer] {
             const auto burst =
-                rdp_server::server::runtime::
-                    serviceLinuxRuntimeBoundedBurst(
-                        [&applicationRuntime] {
-                            return applicationRuntime.serviceOnce();
-                        });
+                rdp_server::server::runtime::serviceRuntimeBoundedBurst(
+                    [&applicationRuntime] {
+                        return applicationRuntime.serviceOnce();
+                    });
             runtimeServiceTimer.start(
                 burst.immediateReschedule
                     ? 0
                     : rdp_server::server::runtime::
-                          kLinuxRuntimeServiceWaitMilliseconds);
+                          kRuntimeServiceWaitMilliseconds);
         });
-#else
-    runtimeServiceTimer.setInterval(25);
-    QObject::connect(
-        &runtimeServiceTimer, &QTimer::timeout, &window,
-        [&applicationRuntime] { (void)applicationRuntime.serviceOnce(); });
-#endif
     runtimeServiceTimer.start();
 
     QTimer statusRefreshTimer;

@@ -1,3 +1,9 @@
+## R10 macOS bounded owner-service pacing correction (2026-11-01)
+
+Source review on current shared `main` found a concrete post-Graphics progress limiter rather than a new protocol defect: R3 emits at most 1,590 frame-payload bytes per DVC outer record, while the normal macOS Qt timer serviced only one successful owner step every 25 ms and ignored `retryable=false`. The correction moves the already-proven finite burst semantics to the platform-neutral R10 facade, retains the Linux compatibility wrapper, and makes the normal Linux/macOS GUI path honor the same bounded immediate-progress/yield contract. The new ordinary C++ CTest exercises the production helper's productive-burst, peer-wait and failure exits.
+
+No local canonical configure/build/CTest/sanitizer/benchmark was run because this connector environment has no usable owner checkout and direct GitHub cloning is unavailable. Exact-publication-SHA hosted CI is required after publication. Physical macOS ScreenCaptureKit pixels, Windows App display acceptance and same-attempt Type-2 client receipt/decryption remain NOT RUN unless separately owner-authorized.
+
 ## R7 P0 preference write-coalescing and success-state cleanup (2026-11-01)
 
 Refreshed from R7 save-retry parent

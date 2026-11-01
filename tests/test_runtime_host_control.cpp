@@ -627,6 +627,42 @@ int main(int argumentCount, char** argumentValues)
             RuntimeHostStage::Revoked, RuntimeProductHostState::Stopped));
         return 0;
     }
+    if (testCase == "host-control-bounded-service-burst-scheduling")
+    {
+        std::size_t calls = 0U;
+        const auto progress = serviceRuntimeBoundedBurst([&calls] {
+            ++calls;
+            return RuntimeHostResult{RuntimeHostError::None, false};
+        });
+        assert(calls == kRuntimeServiceBurstLimit);
+        assert(progress.serviceCalls == kRuntimeServiceBurstLimit);
+        assert(progress.lastResult.succeeded());
+        assert(!progress.lastResult.retryable);
+        assert(progress.immediateReschedule);
+
+        calls = 0U;
+        const auto peerWait = serviceRuntimeBoundedBurst([&calls] {
+            ++calls;
+            return RuntimeHostResult{RuntimeHostError::None, true};
+        });
+        assert(calls == 1U);
+        assert(peerWait.serviceCalls == 1U);
+        assert(peerWait.lastResult.succeeded());
+        assert(peerWait.lastResult.retryable);
+        assert(!peerWait.immediateReschedule);
+
+        calls = 0U;
+        const auto failure = serviceRuntimeBoundedBurst([&calls] {
+            ++calls;
+            return RuntimeHostResult{
+                RuntimeHostError::GraphicsUnavailable, false};
+        });
+        assert(calls == 1U);
+        assert(failure.serviceCalls == 1U);
+        assert(!failure.lastResult.succeeded());
+        assert(!failure.immediateReschedule);
+        return 0;
+    }
     if (testCase == "host-control-clipboard-state-denials")
     {
         assert(host.status().clipboardState == RuntimeClipboardState::Unavailable);

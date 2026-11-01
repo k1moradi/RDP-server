@@ -1,3 +1,9 @@
+## R10 P1 — macOS post-Graphics owner service now drains bounded immediate progress (2026-11-01)
+
+Current-main dependency review found the R4 native-borrow/segmented DATA/ACK path and R10 post-Graphics composition already landed, including the inbound-dispatch fairness and global macOS native-namespace fixes. One production pacing gap remained in R7's normal desktop event loop: macOS ignored successful `retryable=false` results and called the sole R10 owner only every 25 ms. Because R3 intentionally caps each Graphics DVC DATA payload record at 1,590 bytes, that scheduler could throttle a continuously writable first frame to roughly 63.6 KB/s before TLS/outer overhead.
+
+The GUI now uses the same finite owner-service burst contract as Linux: at most eight immediately actionable `serviceOnce()` calls per Qt turn, then a zero-delay reschedule if all eight made local progress; peer/native wait, WANT readiness and failure yield immediately. No R1/R2/R3/R4/native ownership changes and no second poller/reader/queue are introduced. `DesktopVisible` remains gated by independent genuine client ACK evidence. Track A remains separately blocked on the physical macOS Windows App observation after locally committed Type 2: the audited server scheduler preserves the accepted socket, one TLS reader/writer, pending-write state and read interest; the missing evidence is first-party Type-2 receipt/decryption or the first typed client failure before Type 3.
+
 ## R7 P0 — preference write coalescing after restored-settings integration (2026-11-01)
 
 Dependency refresh: R2 secure non-secret storage, R7 restore/presentation and

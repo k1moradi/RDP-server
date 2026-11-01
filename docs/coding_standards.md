@@ -1,3 +1,7 @@
+## R10 macOS immediate-progress servicing uses the shared bounded owner burst (2026-11-01)
+
+R10's `RuntimeHostResult::retryable` remains the scheduler boundary: `false` after successful local protocol progress means more owner work may be immediately actionable, while `true` means yield for peer/native readiness. Linux and macOS GUI servicing must use the same finite eight-call burst and zero-delay reschedule after a fully productive burst. This changes scheduling only; it creates no second socket poller, packet framer, frame queue, TLS writer, ACK tracker or native owner. Post-Graphics R3 DATA still advances only through the original R1 accepted-byte receipts, and each burst yields back to Qt before continuing.
+
 ## GUI preference writes are commit-coalesced and no-op aware (2026-11-01)
 
 R7 non-secret preference persistence is owner-convenience I/O, not a hot-path

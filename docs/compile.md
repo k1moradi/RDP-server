@@ -1,3 +1,7 @@
+## R10 macOS bounded first-frame service pacing qualification (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. Build the existing desktop/runtime and `test_runtime_host_control` targets, run `runtime.host-control-bounded-service-burst-scheduling` together with `runtime.macos-host-control-native-frame-pump-composition-contract`, `graphics.frame-native-borrow-segmented-receipt-fence`, `security.macos-protected-graphics-first-frame-exact-tls-receipt-client-ack` and the existing post-Graphics revocation/terminal selections, then ordinary full Debug/Release CTest and applicable sanitizers on the exact publication SHA. No new executable, build root or dependency is introduced.
+
 ## R7 preference write-coalescing focused qualification (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build:

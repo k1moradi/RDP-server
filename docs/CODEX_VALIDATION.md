@@ -1,3 +1,11 @@
+## R4 protected macOS MAP-to-first-frame consent replacement (2026-11-01)
+
+Reviewed `7b23827c9cc19cef1e3605ad08e0e964e164e2f3` after R10's protected PersonalDesktop licensing composition and the existing R8 production Share fixture. The prior `graphics.mapped-before-first-frame-owner-retirement` correctly models R4 generation retirement but does not prove that the concrete macOS R2 broker kills a fully mapped protected Graphics route when owner consent changes before native pixels are borrowed.
+
+Added ordinary `security.macos-protected-graphics-mapped-first-frame-consent-replacement-denial`. It retains the original real loopback R1 HYBRID/TLS connection and macOS R2/R3 owners, reparses a Graphics-capable GCC fixture with joined `drdynvc`, test-stages only Licensed, completes production Share and protected RDPGFX CAPS/CREATE/MAP receipts, then replaces the same-scope View consent grant. The next protected frame preflight must reject and terminally close R1/R2/R3/R4; late ClearCodec start remains denied and no accepted frame write or client FRAME_ACK is invented. No production source changed.
+
+Static source/CTest registration review PASS. Connector-local configure/compile, focused/full CTest, ASan/UBSan and benchmark NOT RUN. Exact publication-SHA hosted CI PENDING. Physical macOS capture/input/TCC and Microsoft-client first-frame/FRAME_ACK remain NOT RUN / unauthorized. R10 macOS still stops after `ValidClientDelivered`; its Demand Active/Share/Graphics scheduler plus R7 native framebuffer attachment is the remaining product dependency, not an R4 encoder rewrite.
+
 ## R2 review of landed R10 macOS PersonalDesktop licensing composition (2026-11-01)
 
 **Reviewed main:** `73ce0a06df6421abf79ecd5794f9b675cd6bfc6a`.

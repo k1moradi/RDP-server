@@ -2132,6 +2132,17 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "security;native-authorization;transport;tls;mcs;admission;offline"
                 TIMEOUT 60)
 
+        # R4/R2/R3 mapped-first-frame authority fence: real R1 TLS and
+        # production Graphics control, synthetic licensed/native evidence only.
+        add_test(NAME security.macos-protected-graphics-mapped-first-frame-consent-replacement-denial
+            COMMAND "${test_target}"
+                "macos-protected-graphics-mapped-first-frame-consent-replacement-denial")
+        set_tests_properties(
+            security.macos-protected-graphics-mapped-first-frame-consent-replacement-denial
+            PROPERTIES
+                LABELS "protocol;security;native-authorization;transport;tls;mcs;admission;graphics;offline"
+                TIMEOUT 60)
+
         # R8 joined cliprdr remains denied after complete real R1 TLS Join
         # Confirm receipts and protected Client Info with View|Input only.
         add_test(NAME security.macos-post-join-clipboard-view-input-denial

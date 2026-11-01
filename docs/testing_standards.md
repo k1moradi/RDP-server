@@ -1,3 +1,9 @@
+## R4 protected macOS mapped-first-frame consent replacement (2026-11-01)
+
+Use the existing `test_owned_preauth_session` real-loopback R1 HYBRID/TLS fixture and concrete macOS R2/R3 broker. A test-only Connect Initial variant replaces the unused `rdpsnd` channel with `drdynvc`, ORs only the supported Client Core Graphics Pipeline early-capability flag, reparses GCC, and asserts all three channel names before admission. Test-stage only the Licensed phase; Demand/Confirm Active, Share and RDPGFX CAPS/CREATE/MAP use production R3 and exact R1 accepted-byte receipts.
+
+After MAP and a Ready frame preflight, issue a new local View consent grant. The changed grant generation must make the next protected preflight reject and retire the original R1/R2/R3/R4 owner before any first framebuffer borrow. A subsequent ClearCodec start stays denied; first-frame prepared/write/ACK observations remain false and ACK count remains zero. This is synthetic authentication/native evidence, not physical macOS admission, ScreenCaptureKit, client decode or visibility. Register it as ordinary full CTest outside fixed graphics sanitizer inventories. Authoring parent `7b23827c9cc19cef1e3605ad08e0e964e164e2f3`; source/registry review only, local build/focused/full CTest and sanitizers NOT RUN, exact-SHA hosted CI PENDING.
+
 ## R2/R10 macOS HostControl licensing composition source contract (2026-11-01)
 
 Ordinary `runtime.macos-host-control-personal-licensing-composition-contract`

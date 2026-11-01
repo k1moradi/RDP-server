@@ -1,3 +1,7 @@
+## R4 protected macOS mapped-first-frame focused check (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build, run `ctest --test-dir build -C Debug -R '^security[.]macos-protected-graphics-mapped-first-frame-consent-replacement-denial$' --output-on-failure`, then the full Debug CTest. This ordinary offline fixture opens only loopback TLS and uses synthetic proof/native evidence; it does not activate ScreenCaptureKit, input, TCC, a LAN listener or a physical RDP client. Authoring parent `7b23827c9cc19cef1e3605ad08e0e964e164e2f3`; connector-local compile/CTest NOT RUN, exact publication-SHA CI PENDING.
+
 ## R2/R10 macOS licensing HostControl composition source gate (2026-11-01)
 
 No production target, library dependency, executable or build root changes.

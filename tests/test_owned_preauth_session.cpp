@@ -6,6 +6,7 @@
 #include "transport/nonblocking_tcp_adapter.h"
 #include "transport/mcs_connect_response.h"
 #include "transport/mcs_channel_connection.h"
+#include "transport/gcc_conference_create.h"
 #include "transport/tpkt_x224.h"
 #include "security/credssp_tsrequest.h"
 #include "security/credssp_tls_certificate.h"
@@ -8005,6 +8006,68 @@ public:
     return packet;
 }
 
+
+[[nodiscard]] std::vector<std::uint8_t>
+macProtectedHybridGraphicsConnectInitial()
+{
+    auto packet = macProtectedHybridConnectInitial();
+    const auto parsed = parseMcsConnectInitial(packet);
+    assert(parsed);
+
+    const std::size_t gccOffset = static_cast<std::size_t>(
+        parsed.value.gccUserData.data() - packet.data());
+    auto gccBytes = std::span(packet).subspan(
+        gccOffset, parsed.value.gccUserData.size());
+
+    constexpr std::array<std::uint8_t, 4> coreHeader{
+        0x01U, 0xc0U, 0xd8U, 0x00U};
+    const auto core = std::search(
+        gccBytes.begin(), gccBytes.end(),
+        coreHeader.begin(), coreHeader.end());
+    assert(core != gccBytes.end());
+
+    constexpr std::size_t kEarlyCapabilityFlagsBodyOffset = 140U;
+    const std::size_t earlyCapabilityFlagsOffset =
+        static_cast<std::size_t>(core - gccBytes.begin()) + 4U +
+        kEarlyCapabilityFlagsBodyOffset;
+    assert(earlyCapabilityFlagsOffset + 2U <= gccBytes.size());
+    const std::uint16_t currentFlags =
+        static_cast<std::uint16_t>(gccBytes[earlyCapabilityFlagsOffset]) |
+        (static_cast<std::uint16_t>(
+             gccBytes[earlyCapabilityFlagsOffset + 1U]) << 8U);
+    const std::uint16_t graphicsFlags =
+        static_cast<std::uint16_t>(
+            currentFlags |
+            kGccClientCoreSupportsDynamicVirtualChannelGraphics);
+    gccBytes[earlyCapabilityFlagsOffset] =
+        static_cast<std::uint8_t>(graphicsFlags);
+    gccBytes[earlyCapabilityFlagsOffset + 1U] =
+        static_cast<std::uint8_t>(graphicsFlags >> 8U);
+
+    constexpr std::array<std::uint8_t, 8> soundChannelName{
+        'r','d','p','s','n','d',0U,0U};
+    constexpr std::array<std::uint8_t, 8> dynamicChannelName{
+        'd','r','d','y','n','v','c',0U};
+    const auto soundChannel = std::search(
+        gccBytes.begin(), gccBytes.end(),
+        soundChannelName.begin(), soundChannelName.end());
+    assert(soundChannel != gccBytes.end());
+    std::copy(
+        dynamicChannelName.begin(), dynamicChannelName.end(),
+        soundChannel);
+
+    const auto reparsed = parseMcsConnectInitial(packet);
+    assert(reparsed);
+    const auto gcc = parseGccConferenceCreate(reparsed.value.gccUserData);
+    assert(gcc);
+    assert(gccClientSupportsDynamicVirtualChannelGraphics(gcc.settings));
+    assert(gcc.settings.channelCount == 3U);
+    assert(std::string_view(gcc.settings.channels[0].name.data()) == "rdpdr");
+    assert(std::string_view(gcc.settings.channels[1].name.data()) == "cliprdr");
+    assert(std::string_view(gcc.settings.channels[2].name.data()) == "drdynvc");
+    return packet;
+}
+
 [[nodiscard]] std::array<std::uint8_t, 12>
 macProtectedChannelJoinTpkt(
     std::uint32_t allocatedUserId, std::uint16_t channelId)
@@ -8408,7 +8471,8 @@ void testMacProtectedPostMcsSemanticAuditLoss()
 [[nodiscard]] std::unique_ptr<MacProtectedTransportFixture>
 makeMacProtectedAwaitChannelJoinFixture(
     const std::uint32_t grantedPermissions = kConsoleViewPermission,
-    const std::size_t serverMaximumSendFragment = 0U)
+    const std::size_t serverMaximumSendFragment = 0U,
+    const bool advertiseGraphicsPipeline = false)
 {
     using Outcome = TlsApplicationIoOutcome;
     using Receipt = McsConnectResponseWriteOutcome;
@@ -8423,7 +8487,9 @@ makeMacProtectedAwaitChannelJoinFixture(
         grantedPermissions, serverMaximumSendFragment);
     assert(fixture->broker.authorizeR1CredSspAdmission(*fixture->session));
 
-    const auto firstMcs = macProtectedHybridConnectInitial();
+    const auto firstMcs = advertiseGraphicsPipeline
+        ? macProtectedHybridGraphicsConnectInitial()
+        : macProtectedHybridConnectInitial();
     writeNativeTlsClientAll(fixture->tls.client.get(), firstMcs);
     std::vector<std::uint8_t> receivedFirstMcs(firstMcs.size());
     readOwnedRuntimeTlsAll(fixture->connection, receivedFirstMcs);
@@ -8562,10 +8628,12 @@ void testMacProtectedBufferedAttachConfirmAfterErect()
 [[nodiscard]] std::unique_ptr<MacProtectedTransportFixture>
 makeMacProtectedAwaitServerLicenseRequestFixture(
     const std::uint32_t grantedPermissions = kConsoleViewPermission,
-    const std::size_t serverMaximumSendFragment = 0U)
+    const std::size_t serverMaximumSendFragment = 0U,
+    const bool advertiseGraphicsPipeline = false)
 {
     auto fixture = makeMacProtectedAwaitChannelJoinFixture(
-        grantedPermissions, serverMaximumSendFragment);
+        grantedPermissions, serverMaximumSendFragment,
+        advertiseGraphicsPipeline);
     const std::uint32_t allocatedUserId = fixture->session->allocatedUserId();
     const std::uint16_t ioChannelId = fixture->session->allocatedIoChannelId();
     assert(allocatedUserId == 1002U);
@@ -9173,21 +9241,17 @@ void testMacProtectedPersonalDesktopLicensingDenials()
     }
 }
 
-// A complete, real R1 TLS/Join/Client Info path still has no independently
-// issued native Clipboard scope. A joined cliprdr channel ID is not a lease.
-// Real accepted R1 HYBRID/TLS and the original macOS R2/R3 owners complete
-// the Share exchange. Licensed-state and native proof are synthetic; this
-// denial test never constructs a product-valid macOS or Clipboard lease.
-void testMacProtectedShareActivatedClipboardPermissionDenial()
+// Reuse one production Share transcript for offline protected macOS roads.
+// Only the Licensed phase is test-staged; every Share PDU and receipt uses
+// the original R1 TLS owner plus concrete R2/R3 gates.
+void activateMacProtectedSyntheticLicensedShare(
+    std::unique_ptr<MacProtectedTransportFixture> &fixture,
+    rdp_server::server::runtime::RuntimeDeploymentPolicy &policy,
+    RdpDemandActiveFeature features)
 {
-    using rdp_server::server::runtime::RuntimeDeploymentPolicy;
     using rdp_server::server::transport::McsSessionLifecycleTestAccess;
     using Write = RdpShareActivationWriteOutcome;
     using Read = RdpShareActivationClientIntake;
-
-    auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture(
-        kConsoleViewPermission | kConsoleInputPermission);
-    RuntimeDeploymentPolicy policy;
     assert(policy.configurePersonalDesktop(false, 0U));
     assert(fixture->broker.authorizeR3PersonalDesktopLicensingMode(
         *fixture->session, policy));
@@ -9195,7 +9259,7 @@ void testMacProtectedShareActivatedClipboardPermissionDenial()
         *fixture->session);
     const auto profile =
         fixture->broker.authorizeR3PersonalDesktopMacDemandActiveProfile(
-            *fixture->session, policy, RdpDemandActiveFeature::None);
+            *fixture->session, policy, features);
     assert(profile);
     const auto first =
         fixture->broker.authorizeR3PersonalDesktopShareActivation(
@@ -9317,6 +9381,22 @@ void testMacProtectedShareActivatedClipboardPermissionDenial()
 
     assert(fixture->session->phase() == McsSessionPhase::ShareActivated);
     assert(fixture->session->firstClientAcceptanceObservability().shareActivated);
+}
+
+// A complete, real R1 TLS/Join/Client Info path still has no independently
+// issued native Clipboard scope. A joined cliprdr channel ID is not a lease.
+// Real accepted R1 HYBRID/TLS and the original macOS R2/R3 owners complete
+// the Share exchange. Licensed-state and native proof are synthetic; this
+// denial test never constructs a product-valid macOS or Clipboard lease.
+void testMacProtectedShareActivatedClipboardPermissionDenial()
+{
+    using rdp_server::server::runtime::RuntimeDeploymentPolicy;
+    using rdp_server::server::transport::McsSessionLifecycleTestAccess;
+    auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture(
+        kConsoleViewPermission | kConsoleInputPermission);
+    RuntimeDeploymentPolicy policy;
+    activateMacProtectedSyntheticLicensedShare(
+        fixture, policy, RdpDemandActiveFeature::None);
     assert(fixture->broker.revalidate(kConsoleViewPermission));
     assert(fixture->broker.revalidate(kConsoleInputPermission));
     assert(!fixture->broker.revalidate(kConsoleClipboardPermission));
@@ -9359,6 +9439,159 @@ void testMacProtectedShareActivatedClipboardPermissionDenial()
     assert(fixture->broker.completeR3ClipboardWrite(
         *fixture->session, policy, 1U, 1U, 1U, 1U) ==
         RdpClipboardWriteOutcome::Rejected);
+}
+
+
+void testMacProtectedGraphicsMappedFirstFrameConsentReplacementDenial()
+{
+    using rdp_server::server::runtime::RuntimeDeploymentPolicy;
+    using Write = RdpGraphicsDvcWriteOutcome;
+    using Intake = RdpGraphicsDvcClientIntake;
+
+    auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture(
+        kConsoleViewPermission, 0U, true);
+    RuntimeDeploymentPolicy policy;
+    activateMacProtectedSyntheticLicensedShare(
+        fixture, policy, RdpDemandActiveFeature::DynamicVirtualChannels);
+    assert(fixture->broker.revalidate(kConsoleViewPermission));
+
+    const auto staticChannelIds =
+        fixture->session->allocatedStaticChannelIds();
+    assert(staticChannelIds.size() == 3U);
+    const std::uint16_t dynamicVirtualChannelId = staticChannelIds[2U];
+    assert(fixture->session->channelJoinConfirmed(dynamicVirtualChannelId));
+
+    const auto initial =
+        fixture->broker.authorizeR3GraphicsDynamicVirtualChannel(
+            *fixture->session, policy);
+    assert(initial &&
+           initial->kind == RdpGraphicsDvcWriteKind::CapabilitiesRequest &&
+           initial->dynamicChannelId != 0U &&
+           initial->dynamicChannelId <= 0xffU);
+    const std::uint32_t graphicsChannelId = initial->dynamicChannelId;
+
+    const auto flushGraphics =
+        [&](RdpGraphicsDvcWriteKind kind, Write finalOutcome)
+    {
+        auto pending =
+            fixture->broker.pendingR3GraphicsDynamicVirtualChannelWrite(
+                *fixture->session, policy);
+        assert(pending && pending->kind == kind &&
+               pending->dynamicChannelId == graphicsChannelId);
+        const std::size_t length = pending->bytes.size();
+        for (std::size_t accepted = 0U; accepted < length; ++accepted)
+        {
+            pending =
+                fixture->broker.pendingR3GraphicsDynamicVirtualChannelWrite(
+                    *fixture->session, policy);
+            assert(pending && pending->kind == kind &&
+                   pending->dynamicChannelId == graphicsChannelId &&
+                   pending->bytes.size() == length - accepted);
+            const std::size_t acceptedBytes =
+                writeOneMacProtectedPlaintextByte(*fixture, pending->bytes);
+            assert(acceptedBytes == 1U);
+            const auto outcome =
+                fixture->broker.completeR3GraphicsDynamicVirtualChannelWrite(
+                    *fixture->session, policy,
+                    pending->replySequence, pending->writeSliceSequence,
+                    acceptedBytes);
+            assert(outcome == (accepted + 1U == length
+                ? finalOutcome : Write::Pending));
+        }
+    };
+
+    const auto sendGraphics =
+        [&](std::span<const std::uint8_t> dvcPdu, Intake expected)
+    {
+        const auto packet = makeR1GraphicsClientDynamicVirtualChannelTpkt(
+            fixture->session->allocatedUserId(),
+            dynamicVirtualChannelId, dvcPdu);
+        writeNativeTlsClientAll(fixture->tls.client.get(), packet);
+        std::vector<std::uint8_t> received(packet.size());
+        readOwnedRuntimeTlsAll(fixture->connection, received);
+        assert(received == packet);
+        assert(fixture->broker.authorizeR3GraphicsDynamicVirtualChannelPdu(
+                   *fixture->session, policy, received) == expected);
+    };
+
+    flushGraphics(
+        RdpGraphicsDvcWriteKind::CapabilitiesRequest, Write::Delivered);
+    constexpr std::array<std::uint8_t, 4> capabilitiesResponse{
+        0x50U, 0x00U, 0x01U, 0x00U};
+    sendGraphics(capabilitiesResponse, Intake::CapabilitiesAccepted);
+
+    flushGraphics(RdpGraphicsDvcWriteKind::CreateRequest, Write::Delivered);
+    const std::array<std::uint8_t, 6> createResponse{
+        0x10U, static_cast<std::uint8_t>(graphicsChannelId),
+        0x00U, 0x00U, 0x00U, 0x00U};
+    sendGraphics(createResponse, Intake::CreateAccepted);
+
+    constexpr std::array<std::uint8_t, 22> clearCodecAdvertisement{
+        0x12U,0x00U,0x00U,0x00U,0x16U,0x00U,0x00U,0x00U,
+        0x01U,0x00U,0x04U,0x00U,0x08U,0x00U,0x04U,0x00U,
+        0x00U,0x00U,0x00U,0x00U,0x00U,0x00U};
+    std::vector<std::uint8_t> graphicsCapabilities{
+        0x30U, static_cast<std::uint8_t>(graphicsChannelId)};
+    graphicsCapabilities.insert(
+        graphicsCapabilities.end(),
+        clearCodecAdvertisement.begin(), clearCodecAdvertisement.end());
+    sendGraphics(
+        graphicsCapabilities, Intake::GraphicsCapabilitiesAccepted);
+
+    flushGraphics(
+        RdpGraphicsDvcWriteKind::GraphicsCapabilitiesConfirm, Write::Pending);
+    flushGraphics(
+        RdpGraphicsDvcWriteKind::GraphicsCreateSurface, Write::Pending);
+    flushGraphics(
+        RdpGraphicsDvcWriteKind::GraphicsMapSurfaceToOutput,
+        Write::Delivered);
+
+    constexpr std::uint32_t firstFrameId = 1U;
+    assert(fixture->broker.preflightR3GraphicsFramePublication(
+               *fixture->session, policy, firstFrameId) ==
+           RdpGraphicsFramePublicationReadiness::Ready);
+    const auto mapped =
+        fixture->session->firstClientAcceptanceObservability();
+    assert(mapped.shareActivated);
+    assert(mapped.graphicsDynamicVirtualChannelActivated);
+    assert(mapped.graphicsControlReady);
+    assert(mapped.surfaceCreated);
+    assert(mapped.surfaceMapped);
+    assert(!mapped.firstClearCodecFramePrepared);
+    assert(!mapped.firstExactFrameWriteCommitted);
+    assert(mapped.outstandingFrameAcknowledgements == 0U);
+    assert(!mapped.firstGenuineFrameAcknowledge);
+
+    // Same owner and View scope, but a newly issued local grant changes the
+    // R2 consent epoch between MAP and the first native framebuffer borrow.
+    const std::uint64_t previousGrantGeneration =
+        fixture->ownerAuthority.diagnosticGrantGeneration();
+    assert(fixture->ownerAuthority.requestConsent(
+               {kConsoleViewPermission, 60'000U}) ==
+           OwnerConsentRequestResult::Granted);
+    assert(fixture->ownerAuthority.diagnosticGrantGeneration() >
+           previousGrantGeneration);
+
+    // R10 must perform this fresh protected preflight before R7 lends pixels.
+    assert(fixture->broker.preflightR3GraphicsFramePublication(
+               *fixture->session, policy, firstFrameId) ==
+           RdpGraphicsFramePublicationReadiness::Rejected);
+    assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+    assert(fixture->session->phase() == McsSessionPhase::Closed);
+    assert(fixture->connection.stage() == PreauthStage::Closed);
+
+    const std::array<std::byte, 4> pixels{
+        std::byte{0x11}, std::byte{0x22},
+        std::byte{0x33}, std::byte{0xff}};
+    assert(!fixture->broker.beginR3GraphicsClearCodecFramePublication(
+        *fixture->session, policy, firstFrameId,
+        ::FramebufferView{pixels, 1U, 1U, 4U}));
+    const auto retired =
+        fixture->session->firstClientAcceptanceObservability();
+    assert(!retired.firstClearCodecFramePrepared);
+    assert(!retired.firstExactFrameWriteCommitted);
+    assert(retired.outstandingFrameAcknowledgements == 0U);
+    assert(!retired.firstGenuineFrameAcknowledge);
 }
 
 void testMacProtectedPostJoinClipboardViewInputDenial()
@@ -14008,6 +14241,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedPostMcsSemanticAuditLoss},
     {"macos-share-activated-clipboard-permission-denial",
      &testMacProtectedShareActivatedClipboardPermissionDenial},
+    {"macos-protected-graphics-mapped-first-frame-consent-replacement-denial",
+     &testMacProtectedGraphicsMappedFirstFrameConsentReplacementDenial},
     {"macos-post-join-clipboard-view-input-denial",
      &testMacProtectedPostJoinClipboardViewInputDenial},
     {"macos-transport-admitted-clipboard-permission-denials",

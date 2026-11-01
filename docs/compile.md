@@ -1,3 +1,14 @@
+## R8 permission-only route observation focused qualification (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. After canonical Debug configure/build:
+
+```sh
+ctest --test-dir build -C Debug -R '^(runtime[.]clipboard-(permission-only-route-observation-consumption|initial-handshake-exact-receipt-denials)|runtime[.]linux-clipboard-native-publication-receipt-scope-denial|security[.]macos-(post-join-clipboard-view-input-denial|share-activated-clipboard-permission-denial|share-activated-clipboard-scope-classifier-denial))$' --output-on-failure
+ctest --test-dir build -C Debug --output-on-failure
+```
+
+Repeat Release and unchanged 107-case R8 Clipboard ASan/UBSan on the publication SHA. The new case reuses an existing executable and adds no dependency/build root/native operation. Prior `99a9e70` full matrices and 107/107 sanitizers PASS. New local execution NOT RUN; exact descendant CI must qualify current R2/R10 changes as well. Do not suppress `-Werror`.
+
 ## R10 macOS native frame-pump focused qualification (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build, run `runtime.macos-host-control-native-frame-pump-composition-contract` together with `graphics.frame-native-borrow-segmented-receipt-fence`, `security.macos-protected-graphics-mapped-first-frame-consent-replacement-denial`, `security.macos-protected-graphics-first-frame-exact-tls-receipt-client-ack` and `runtime.platform-native-desktop-macos-frame-observation-fail-closed`, then ordinary full Debug CTest. Repeat the full Release suite and applicable macOS native/security ASan/UBSan lanes on the exact publication SHA.

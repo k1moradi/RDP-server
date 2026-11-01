@@ -1,3 +1,9 @@
+## R8 permission-only route observation consumption regression (2026-11-01)
+
+Add ordinary production-backed `runtime.clipboard-permission-only-route-observation-consumption` to existing `test_r8_r3_clipboard_bridge`, outside the fixed 107-case Clipboard sanitizer census. A protected route visit followed by permission-only observation discard must not prepare initialization or Format Data until a new `channelVisitor()` visit. Strengthen the native-publication source contract so network publication and native paste each discard the permission-only observation between fresh R2 visit and adapter call. No fake native grant, live X11 clipboard, TLS writer or second route controller.
+
+Exact `99a9e70abeb39ed5a1e738191eb25b4c9526fcd8`: Ubuntu 1101/1101, macOS 876/876, Windows/MSVC 917/917, Clang 23 975/975 full Debug+Release PASS; R8 Clipboard ASan/UBSan 107/107 PASS. New source/registry review PASS; local tests/sanitizers NOT RUN, publication-SHA qualification PENDING.
+
 ## R10 macOS post-Graphics frame-pump composition qualification (2026-11-01)
 
 Do not duplicate the production-backed R4/R3 lifetime tests now on main. The existing `graphics.frame-native-borrow-segmented-receipt-fence` proves native-pixel lifetime ends before segmented DATA receipts, and `security.macos-protected-graphics-first-frame-exact-tls-receipt-client-ack` proves the original R1/R2/R3 full-write and independently consumed ACK path. The new `runtime.macos-host-control-native-frame-pump-composition-contract` pins R10's integration: current R7 observation only, R2/R3/R4 preflight before borrow, exact synchronous borrow/encode, sole R1 write/read calls, ACK dispatch, resize fencing, stale/unwritten cancellation, terminal R1 readiness and no DesktopVisible promotion.

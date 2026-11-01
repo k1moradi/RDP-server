@@ -630,6 +630,11 @@ bool R3ClipboardTransferBridge::prepareNextServerInitializationPdu() noexcept
     return false;
 }
 
+void R3ClipboardTransferBridge::discardRouteObservation() noexcept
+{
+    routeObservationAvailable_ = false;
+}
+
 bool R3ClipboardTransferBridge::observeServerClipboardGeneration(
     const std::uint64_t clipboardGeneration) noexcept
 {

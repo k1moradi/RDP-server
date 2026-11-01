@@ -1,3 +1,12 @@
+## R8 P1 review — consume permission-only route observations; prior R8 SHA qualified (2026-11-01)
+
+[x] `99a9e70abeb39ed5a1e738191eb25b4c9526fcd8` / Actions 41340624047 qualified: Ubuntu **1101/1101 Debug+Release**, macOS **876/876**, Windows/MSVC **917/917**, Windows Clang 23 **975/975**, Clipboard sanitizers **107/107** PASS. This closes prior automated R8 validation, not physical Clipboard acceptance.
+[x] Fix permission-only `channelVisitor()` observation leakage: add allocation-free `discardRouteObservation()` before Linux native publication/paste adapter calls; later Format Data requires another fresh R2/R3 visit. Add `runtime.clipboard-permission-only-route-observation-consumption` and strengthen source guard. Fixed **107** sanitizer census and production activation=false remain unchanged.
+[x] Downstream dependencies advanced: R4 `ddf7a157dd24bac606852d0fd1031567cfee7b89` genuine ACK-before-visible; R5/R9 `cb3cc05d609d62fa9f5bcc1779629b07e18c2d52` post-Share frame/input assurance; R3 batched Share finalization; R10 `2e91f7336dafeda7e003bc07c5da94b91fa487bc` macOS native first-frame/ACK pump; R2 `acc77b33` explicit RAII GCC fix. Offline R8 can continue.
+[ ] New publication source/registry review PASS; local build/CTest/sanitizers NOT RUN; exact publication CI PENDING.
+
+**Production blocker:** physical Microsoft client still ends after server-local NTLM Type 2 with no independently observed receipt/parse or Type 3; genuine native R2 Clipboard authority and explicit owner/R9 physical acceptance remain unproven. R10 remains sole scheduler, R1 sole TLS writer, production Clipboard disabled. No real OS clipboard accessed.
+
 ## R10 P1 macOS native observation -> R1 segmented frame/ACK pump (2026-11-01)
 
 **Authoring parent:** `54ea7726bea07b8b3fe0b33004c4df8fac4c5289`. R4's native-borrow segmented-receipt fence, protected exact-TLS/ACK fixture and genuine-ACK visibility correction are now on main, so the prior protocol/lifetime dependency is resolved. R10 now has one post-GraphicsReady owner path: the same tick services R7 and passes only its current observation; R2 View/consent, native authorization generation, R3 surface reconfiguration and R4 credit are checked before any framebuffer borrow. Exact sequence/geometry/stride are validated inside the synchronous R7 callback, which prepares existing R3/R4 ClearCodec bytes and returns before any TLS write.

@@ -150,6 +150,9 @@ public:
         if (!connection.visitPersonalDesktopClipboardChannel(
                 policy, bridge_->channelVisitor()))
             return false;
+        // This visit authorizes only the native publication below. Do not let
+        // its one-shot route observation escape into a later outbound PDU.
+        bridge_->discardRouteObservation();
 
         // A non-text remote offer is a valid CLIPRDR exchange but must not
         // claim the native clipboard during the first acceptance phase.
@@ -172,6 +175,9 @@ public:
                 policy, bridge_->channelVisitor())) {
             return false;
         }
+        // Native paste service consumes this permission-only visit. A later
+        // Format Data request obtains another fresh protected route visit.
+        bridge_->discardRouteObservation();
         if (!adapter_->servicePendingPaste(now)) {
             return false;
         }

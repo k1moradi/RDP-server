@@ -27,6 +27,7 @@ foreach(required_text IN ITEMS
         "if (!bridge_->serverInitializationReady() || writePending_)\n            return true;"
         "if (!connection.visitPersonalDesktopClipboardChannel("
         "policy, bridge_->channelVisitor())"
+        "bridge_->discardRouteObservation()"
         "adapter_->publishCurrentRemoteOffer(now)"
         "return adapter_->servicePendingPaste(now);")
     string(FIND "${dispatch_source}" "${required_text}" position)
@@ -49,11 +50,14 @@ string(FIND "${native_source}"
 string(FIND "${native_source}" "writePending_)" native_write)
 string(FIND "${native_source}"
     "connection.visitPersonalDesktopClipboardChannel(" native_scope)
+string(FIND "${native_source}"
+    "bridge_->discardRouteObservation()" native_discard)
 string(FIND "${native_source}" "adapter_->servicePendingPaste(now)" native_paste)
 if(native_ready LESS 0 OR native_write LESS_EQUAL native_ready OR
    native_scope LESS_EQUAL native_write OR
-   native_paste LESS_EQUAL native_scope)
-    message(FATAL_ERROR "native paste service bypasses initial receipt/write/R2 Clipboard-scope fences")
+   native_discard LESS_EQUAL native_scope OR
+   native_paste LESS_EQUAL native_discard)
+    message(FATAL_ERROR "native paste service bypasses initial receipt/write/R2 Clipboard-scope/route-consumption fences")
 endif()
 
 # R10 owns *when* to prepare each PDU, while R8 requires a fresh R2 visit

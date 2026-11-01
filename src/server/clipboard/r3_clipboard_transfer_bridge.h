@@ -145,6 +145,12 @@ public:
     // revoked routes cannot advance by calling it again.
     [[nodiscard]] bool prepareNextServerInitializationPdu() noexcept;
 
+    // A protected route visit is one-shot authority for the immediately
+    // following R8 operation. Permission-only native work that does not stage
+    // or consume a Clipboard PDU must discard that observation so it cannot
+    // authorize a later application PDU without another fresh R2/R3 visit.
+    void discardRouteObservation() noexcept;
+
     // Local/native clipboard generations are monotonic over this bridge
     // lifetime. Replacing the local generation while a Format List response is
     // outstanding marks that response stale; it is drained but cannot accept

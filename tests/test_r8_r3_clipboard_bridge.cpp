@@ -574,6 +574,44 @@ void initialHandshakeExactReceiptDenials()
     assert(!bridge.active() && !bridge.serverInitializationReady());
 }
 
+void permissionOnlyRouteObservationConsumption()
+{
+    using namespace rdp_server::clipboard;
+    constexpr RdpClipboardStaticChannelView view{1008U, 402U};
+    RdpClipboardStaticChannelRoute route;
+    assert(route.start(1005U, view.channelId, view.generation, 1600U));
+
+    R3ClipboardTransferBridge bridge(0U, true);
+    auto visitor = bridge.channelVisitor();
+
+    // A protected permission-only visit may observe the route, but native
+    // work that stages no R8 PDU must consume that one-shot observation.
+    assert(visitor.visit(visitor.context, view));
+    bridge.discardRouteObservation();
+    assert(!bridge.prepareNextServerInitializationPdu());
+    assert(bridge.active());
+
+    completeServerInitialization(bridge, route, view, 0U);
+    assert(bridge.serverInitializationReady());
+
+    // The same rule applies after initialization: a permission-only native
+    // operation cannot arm a later Format Data request.
+    assert(visitor.visit(visitor.context, view));
+    bridge.discardRouteObservation();
+    assert(!bridge.beginFormatDataRequest(kFormatUnicodeText));
+    assert(bridge.active());
+    assert(bridge.pendingApplicationPdu().empty());
+
+    // A genuinely fresh protected route visit may stage the request.
+    assert(visitor.visit(visitor.context, view));
+    assert(bridge.beginFormatDataRequest(kFormatUnicodeText));
+    assert(!bridge.pendingApplicationPdu().empty());
+
+    bridge.retireR3ChannelState();
+    route.close();
+    assert(!bridge.active());
+}
+
 void serverInitializationGenerationReplacement()
 {
     using namespace rdp_server::clipboard;
@@ -1339,6 +1377,8 @@ int main(int argc, char **argv)
         serverInitializationOrdering();
     else if (behavior == "initial-handshake-exact-receipt-denials")
         initialHandshakeExactReceiptDenials();
+    else if (behavior == "permission-only-route-observation-consumption")
+        permissionOnlyRouteObservationConsumption();
     else if (behavior == "server-initialization-generation-replacement")
         serverInitializationGenerationReplacement();
     else if (behavior == "server-initialization-pending-write-retirement")

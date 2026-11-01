@@ -1,3 +1,7 @@
+## Frame TLS fixture maximum-bounded partial writes (2026-11-01)
+
+The existing R3 Graphics outer packet is bounded to 1632 plaintext bytes. A 4096-byte test TLS write cap is ineffective; the 1024-byte test cap intentionally creates accepted partial record suffixes. Do not change R3 reply/slice identity after WANT_READ/WANT_WRITE, do not credit R3 until actual R1 positive byte progress, and require all outer records plus separate client FRAME_ACK before reporting the test complete. Source sizing verified; exact-head hosted tests PENDING, local tests NOT RUN.
+
 ## Post-Graphics first-frame test-only TLS slice fence (2026-11-01)
 
 The existing production-linked first-frame/ACK CTest must preserve one R1 TLS/BIO writer and original R2/R3 exact reply and slice receipts. To avoid a blocking fixture's peer receive-buffer backpressure, cap each `SSL_write_ex` plaintext offer to 4096 bytes, with identical contents and size across WANT_READ/WANT_WRITE retries and no positive R3 completion until R1 reports accepted bytes. The earlier CI macOS 30-second first-frame timeout is NOT yet qualified as fixed; rerun the same test on macOS/Ubuntu/Windows at exact commit SHA. Keep segmented reply accounting and independent inbound client FRAME_ACK checks unchanged.

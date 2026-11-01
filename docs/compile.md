@@ -1,3 +1,7 @@
+## R10 first-frame 1024-byte TLS fixture qualification (2026-11-01)
+
+The protected first-frame/ACK fixture now caps offered R1 plaintext slices at 1024 bytes (below the 1632-byte outer packet maximum). At the exact new SHA reuse `~/rdp-server/build/`, run `ctest --test-dir build -C Debug -R '^security[.]macos-protected-graphics-first-frame-exact-tls-receipt-client-ack$' --output-on-failure`, then full Debug/Release CTest and applicable ASan/UBSan. No local build available; source review PASS, hosted full CI PENDING. No real macOS desktop, OS lease, native frame, input, Clipboard or client was tested.
+
 ## First-frame bounded-TLS fixture focused qualification (2026-11-01)
 
 Reconfigure/reuse the **only** `~/rdp-server/build/` directory. After the normal Debug build run `ctest --test-dir build -C Debug -R '^security[.]macos-protected-graphics-first-frame-exact-tls-receipt-client-ack$' --output-on-failure`, then ordinary Debug/Release full CTest and applicable fixed ASan/UBSan suites on the same SHA. This is test-only bounded TLS write scheduling; no native desktop/physical macOS admission evidence. Source review PASS; connector-local compilation/CTest NOT RUN; exact-SHA hosted verification PENDING.

@@ -10566,7 +10566,9 @@ void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
             // stalling a nonblocking server TLS write behind the peer's
             // finite receive buffer. WANT retries retain the exact same
             // unaccepted bytes and length until an R1 positive receipt.
-            constexpr std::size_t kTlsWriteSliceBytes = 4096U;
+            // One R3 outer record is at most 1632 bytes; 1024 actually
+            // exercises partial accepted records without per-byte TLS work.
+            constexpr std::size_t kTlsWriteSliceBytes = 1024U;
             const auto offered = pending->bytes.first(
                 (std::min)(pending->bytes.size(), kTlsWriteSliceBytes));
             assert(offered.size() <= received.size());

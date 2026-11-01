@@ -1,3 +1,9 @@
+## R1/R10 licensing test-only policy and link correction (2026-11-01)
+
+Correct the two already registered macOS licensing fixture cases to construct a valid original immutable private-LAN policy; there is no new test executable, production target, toolchain requirement, external dependency or build root. Link `rdp-server-runtime-licensing` only once in `test_owned_preauth_session` (it was accidentally duplicated by R10 integration). Reuse only `~/rdp-server/build/` for the canonical Debug configure/build. Focused command:
+`ctest --test-dir build -C Debug -R '^security[.]macos-protected-(personal-desktop-licensing-(receipts|denials)|license-request-partial-write-callback-revocation)$' --output-on-failure`.
+Then run full CTest and exact-SHA hosted Linux/macOS/Windows checks; local test execution NOT RUN, hosted qualification PENDING.
+
 ## R6 qualification unblock: mutable R10 credential test buffer (2026-11-01)
 
 Exact-SHA CI for `61a1113d65a0c5011cc569334db9f5a3ee2036d2` reaches the existing Windows native 60-case selector successfully, then all full-build producers fail compiling `tests/test_owned_preauth_session.cpp:8782`: a const `std::array<char16_t, 3>` cannot bind to `StandalonePasswordCredentialOwner::configure(..., std::span<char16_t>)`. Replace only that test-local `constexpr` buffer with mutable stack storage. No target, dependency, build root, sanitizer census or CTest is added. Re-run the canonical Debug/full CTest plus Windows MSVC/Clang23 and sanitizer jobs at the corrective publication SHA; the R6 evidence CTests become executable only after this shared compile blocker is cleared.

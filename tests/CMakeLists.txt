@@ -2669,8 +2669,7 @@ target_link_libraries(test_owned_preauth_session PRIVATE
     rdp-server-runtime-tls
     rdp-server-runtime-licensing
     rdp-server-standalone-ntlmv2
-    rdp-server-mac-console-admission
-    rdp-server-runtime-licensing)
+    rdp-server-mac-console-admission)
 if(TARGET rdp-server-linux-gssapi)
     # Exercise real TLS -> actual MIT GSSAPI handoff using the existing
     # in-memory TLS fixture; no duplicate certificate/test implementation.

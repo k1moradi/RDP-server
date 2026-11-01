@@ -8944,7 +8944,7 @@ void testMacProtectedPersonalDesktopLicensingReceipts()
     using ValidReceipt = RdpPersonalDesktopValidClientWriteOutcome;
 
     RuntimeDeploymentPolicy policy;
-    assert(policy.configurePersonalDesktop(false, 3389U));
+    assert(policy.configurePersonalDesktopPrivateLan(3389U));
     RuntimeLicensingContext licensing;
     assert(licensing.configureGeneratedApplicationIdentity());
     assert(licensing.identity() != nullptr && licensing.credential() != nullptr);
@@ -9101,8 +9101,8 @@ void testMacProtectedPersonalDesktopLicensingDenials()
     using rdp_server::server::runtime::RuntimeLicensingContext;
     RuntimeDeploymentPolicy policy;
     RuntimeDeploymentPolicy replacementPolicy;
-    assert(policy.configurePersonalDesktop(false, 3389U));
-    assert(replacementPolicy.configurePersonalDesktop(false, 3389U));
+    assert(policy.configurePersonalDesktopPrivateLan(3389U));
+    assert(replacementPolicy.configurePersonalDesktopPrivateLan(3389U));
     RuntimeLicensingContext licensing;
     assert(licensing.configureGeneratedApplicationIdentity());
     assert(licensing.identity() != nullptr && licensing.credential() != nullptr);

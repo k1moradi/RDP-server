@@ -1,3 +1,15 @@
+## R7 multi-display ICC native-borrow retirement regressions (2026-10-31)
+
+The established `macos.gui-qcolor-provenance-parser-and-redaction` offline CTest
+must also execute the production multi-display aggregation entry point with
+synthetic CoreGraphics callbacks, rather than testing enumeration and header
+classification only in isolation. One display's failed ICC read must preserve
+bounded status observations from other displays without exposing display IDs
+or private profile paths. Verify `CGColorSpaceRelease` and `CFRelease` on
+valid ICC metadata, rejected negative ICC lengths and a raised header-read
+failure; no real CoreGraphics, ColorSync, TCC, capture or platform display is
+needed. Keep this regression in the existing registered Python target.
+
 ## R5 RandR source-only no-cleanup XTEST contract (2026-10-31)
 
 The ordinary `x11.input-native-failure-terminal-retirement-no-xtest`

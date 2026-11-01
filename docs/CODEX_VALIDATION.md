@@ -1,3 +1,26 @@
+## R7 ICC diagnostic native-borrow negative coverage follow-up (2026-10-31)
+
+Source review of the existing provenance collector at parent
+`5b0e284671455aa86f60a1b39723f35048d07bd7` found a focused offline coverage gap: the registered tests
+exercised the bounded display-list helper and summary formatter separately,
+but did not execute the full active-display collector across a per-display
+metadata exception or assert CoreFoundation/CoreGraphics borrow release.
+Extended the existing Python-only CTest with a three-display synthetic
+observation where one read fails and later metadata remains observable, plus
+CFData/CGColorSpace release assertions for valid ICC headers, negative
+length and header-copy exception. This changes no runtime/native production
+behavior, CTest registration, app bundle, UI or graphics path. Full
+publication-SHA hosted validation is required; owner-local macOS runtime and
+physical capture/input are NOT RUN.
+
+Upstream R5 restored the current-head centralized test registration
+comment in `5b0e284671455aa86f60a1b39723f35048d07bd7`, after the preceding
+comment-only R5 source change had failed the commit-local registry policy.
+It does not change R7's remaining native-attachment prerequisite:
+R10 must still complete the same genuine R2-admitted R3 session through
+PersonalDesktop licensing, Share and GraphicsReady, then preserve the
+authenticated proof/authority borrows until native retirement.
+
 ## R5 CTest registry policy follow-up for comment-only X11 repair (2026-10-31)
 
 The `05ea486bb8f16a479a0924013b4f7f39b04c574f` test-only semantics

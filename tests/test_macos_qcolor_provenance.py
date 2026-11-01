@@ -8,6 +8,7 @@ from pathlib import Path
 import plistlib
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/diagnose_macos_qcolor_provenance.py"
@@ -152,6 +153,123 @@ class MacQColorProvenanceTests(unittest.TestCase):
         self.assertEqual(
             probe.format_profile_header_status_counts(("unexpected",)),
             "unavailable")
+
+    def test_multidisplay_profile_collection_retains_valid_observations(self):
+        # The production entry point must not let one unreadable display
+        # discard valid observations from other displays or leak IDs/paths.
+        class CoreGraphics:
+            def CGGetActiveDisplayList(
+                self, maximum, display_ids, display_count
+            ):
+                display_count._obj.value = 3
+                if display_ids is not None:
+                    for index, display_id in enumerate((11, 22, 33)):
+                        display_ids[index] = display_id
+                return 0
+
+        def read_display_profile(core_graphics, core_foundation, display_id):
+            if display_id == 22:
+                raise OSError("/Users/private-owner/Library/ColorSync/profile.icc")
+            return (
+                ("rgb", "mntr", "recognized-header")
+                if display_id == 11 else
+                ("rgb", "invalid", "truncated-profile")
+            )
+
+        with mock.patch.object(probe.sys, "platform", "darwin"):
+            with mock.patch.object(
+                probe, "_load_color_frameworks",
+                return_value=(CoreGraphics(), object())
+            ):
+                with mock.patch.object(
+                    probe, "_query_display_profile",
+                    side_effect=read_display_profile
+                ) as profile_reader:
+                    observation = probe.query_active_display_profile_headers()
+
+        self.assertEqual(
+            observation,
+            ("observed", 3, (
+                "recognized-header", "query-unavailable", "truncated-profile")))
+        self.assertEqual(profile_reader.call_count, 3)
+        summary = probe.format_profile_header_status_counts(observation[2])
+        self.assertEqual(
+            summary,
+            "truncated-profile:1,query-unavailable:1,recognized-header:1")
+        self.assertEqual(
+            probe.classify_active_display_profile_evidence(observation[2]),
+            "malformed-active-profile-observed")
+        self.assertNotIn("private-owner", repr(observation) + summary)
+        self.assertNotIn("profile.icc", repr(observation) + summary)
+
+    def test_display_icc_native_borrows_release_on_success_and_failure(self):
+        # A borrowed CFData and CGColorSpace are both released even if the
+        # bounded ICC read fails; no real macOS framework is required.
+        class CoreGraphics:
+            def __init__(self):
+                self.released = []
+
+            def CGDisplayCopyColorSpace(self, display_id):
+                return 101
+
+            def CGColorSpaceGetModel(self, color_space):
+                return 1
+
+            def CGColorSpaceCopyICCData(self, color_space):
+                return 202
+
+            def CGColorSpaceRelease(self, color_space):
+                self.released.append(color_space)
+
+        class CoreFoundation:
+            def __init__(self):
+                self.length = 128
+                self.released = []
+
+            def CFDataGetLength(self, profile_data):
+                return self.length
+
+            def CFDataGetBytePtr(self, profile_data):
+                return 303
+
+            def CFRelease(self, profile_data):
+                self.released.append(profile_data)
+
+        core_graphics = CoreGraphics()
+        core_foundation = CoreFoundation()
+        header = bytearray(128)
+        header[0:4] = (128).to_bytes(4, byteorder="big")
+        header[12:16] = b"mntr"
+        header[36:40] = b"acsp"
+
+        with mock.patch.object(
+            probe.ctypes, "string_at", return_value=bytes(header)
+        ) as header_reader:
+            self.assertEqual(
+                probe._query_display_profile(
+                    core_graphics, core_foundation, 44),
+                ("rgb", "mntr", "recognized-header"))
+            header_reader.assert_called_once_with(303, 128)
+
+        core_foundation.length = -1
+        with mock.patch.object(probe.ctypes, "string_at") as header_reader:
+            self.assertEqual(
+                probe._query_display_profile(
+                    core_graphics, core_foundation, 44),
+                ("rgb", "invalid", "invalid-length"))
+            header_reader.assert_not_called()
+
+        core_foundation.length = 128
+        with mock.patch.object(
+            probe.ctypes, "string_at",
+            side_effect=OSError("/Users/private-owner/Library/profile.icc")
+        ):
+            with self.assertRaises(OSError):
+                probe._query_display_profile(
+                    core_graphics, core_foundation, 44)
+
+        self.assertEqual(core_graphics.released, [101, 101, 101])
+        self.assertEqual(core_foundation.released, [202, 202, 202])
 
     def test_qt_warning_summary_drops_paths_and_chromaticity_values(self):
         raw = (

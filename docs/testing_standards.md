@@ -50,10 +50,12 @@ belongs to an independent fixture connection and is excluded from the
 aggregate teardown measurement. This is not a source-contract, a separate
 input controller, a forged R2 lease or an authorized physical seat0 test.
 Keep existing controller/RandR/source/queued-Damage tests and the fixed
-**45-case** native X11 sanitizer selector unchanged. Run the new test in
-ordinary full CTest plus focused exact-publication-SHA Linux/Xvfb tests,
-and keep physical R1/R2/R3/R4/R5 receipt stages independently NOT RUN until
-explicit owner authorization.
+**45-case** native X11 sanitizer selector unchanged. The separate R9
+implicit-destructor ASan/UBSan lane must select exactly two additive aggregate
+cases: the queued-Damage destruction regression and this combined held
+key/button regression. Run the new test in ordinary full CTest plus that
+two-case supplemental sanitizer lane; keep physical R1/R2/R3/R4/R5 receipt
+stages independently NOT RUN until explicit owner authorization.
 
 ## R9 offline exact-SHA evidence classification and future settings coverage (2026-11-01)
 

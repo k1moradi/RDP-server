@@ -45,13 +45,16 @@ ctest --test-dir build -C Debug -R '^x11[.]desktop-resource-(implicit-held-key-b
 ctest --test-dir build -C Debug --output-on-failure
 ```
 
-Repeat full Release, fixed 45-case R5 native X11 ASan/UBSan and the
-existing additive implicit-destructor sanitizer lane at the same exact
-publication SHA. Linux-only registration is conditional on the existing
-X11/XTEST/Xvfb dependencies. Windows/macOS continue their unchanged full
-CTest matrices. Canonical local configure/build/CTest, sanitizer and
-benchmark **NOT RUN** (checkout unavailable); new-SHA hosted CI
-**PENDING**; physical seat0, input and clipboard **NOT RUN**.
+Repeat full Release and the fixed 45-case R5 native X11 ASan/UBSan selection.
+Separately require the additive implicit-destructor sanitizer lane to enumerate
+exactly both `x11.desktop-resource-implicit-destruction-queued-damage-isolation`
+and `x11.desktop-resource-implicit-held-key-button-no-xtest`. Linux-only
+registration is conditional on the existing X11/XTEST/Xvfb dependencies.
+Windows/macOS continue their unchanged full CTest matrices. Exact
+`cec34430fa9cc0626a11cdb5b650c83226ecce8d` Ubuntu Debug/Release full CTest
+and fixed 45-case sanitizer jobs **PASS**; the combined-held test itself was
+not yet in the supplemental sanitizer selector on that SHA. Canonical local
+owner build/CTest and physical seat0/input/clipboard remain **NOT RUN**.
 
 ## R9 exact-SHA metadata test and evidence snapshot (2026-11-01)
 

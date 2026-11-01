@@ -97,22 +97,32 @@ The fixed 45-case native sanitizer census and standalone
 implicit-destructor sanitizer selection are unchanged. Test-only private
 access is not an R2 production-admission path.
 
-**Evidence:** source, dependency, test registration, one-owner and R9
-acceptance-matrix review **PASS by inspection**. Local canonical checkout
-absent: compile/CTest/ASan/UBSan/performance/Xvfb execution **NOT RUN**;
-exact-publication-SHA GitHub Actions qualification **PENDING**. No
-privileged logind session, live X11 capture, physical XTEST, real user
-screen, credentials, clipboard or Windows App was accessed. The observed
-owner Microsoft client remains before Type 3: its pre-admission peer
-close cannot be attributed to R5 or explained by changing input/capture.
-Original R1 accepted-client lifetime, fresh R2 authenticated native proof
-and consent, native seat0, R3 Share/GraphicsReady, R4 first frame, complete
-R1 write, genuine independent inbound FRAME_ACK, input/resize, Stop and
-fresh reconnect are individually **NOT RUN** for physical acceptance;
-the exact stage-by-stage matrix and R4/R10 handoff live in
-`docs/ROADMAP.md`. **Next:** same-SHA Linux Debug/Release/full CTest,
-R9 45-case native/supplemental sanitizers and cross-platform CI, followed
-only with separately approved R9/owner physical client acceptance.
+**Evidence update:** publication SHA
+`cec34430fa9cc0626a11cdb5b650c83226ecce8d`, Actions
+`41340431777`, compiled the R5 aggregate test target and completed Ubuntu
+Debug and Release full CTest successfully. The R9 security-protocol sanitizer
+job also passed the unchanged **45/45** native X11 selection, and the R5 GUI
+ZIP/precredential job passed; structure run `41340431834` passed. Therefore
+the combined held-key/button regression did execute in ordinary hosted CTest.
+Review found one assurance gap in that publication: the separate ASan/UBSan
+implicit-destructor step still selected only the older queued-Damage case.
+The corrective CI selector now requires **2/2** additive aggregate cases,
+including the combined-held test, while leaving the fixed 45-case census
+untouched. Local owner checkout/performance and physical X11 remain **NOT RUN**.
+
+No production R5 defect was demonstrated. Current R10 source already services
+the GUI-owned listener into one accepted `LinuxRuntimeConnection`, retains
+one R2-selected X11/logind owner, routes post-Share TPKTs through the sole R1
+reader, dispatches R5 protected input, performs current-generation XShm frame
+borrows and advances R3/R4/R1 frame writes plus independent client-ACK
+accounting. Commit `ddf7a157dd24bac606852d0fd1031567cfee7b89` additionally
+corrects product visibility so outbound write completion alone cannot become
+`DesktopVisible`. The old “accepted-socket servicing” blocker is resolved.
+The physical Windows App attempt still exits before Type 3, so R5 native
+behavior is not reached and must not be changed to explain it. Genuine
+R1→R2→R3/R4→R5 first-desktop, input/resize, Stop and reconnect evidence
+remains **NOT RUN**, gated by the pre-Type-3 client/authentication boundary
+plus explicit owner/R9 authorization. Clipboard remains outside this path.
 
 ## R9 P0 exact-SHA evidence matrix and future approved Microsoft A/B (2026-11-01)
 

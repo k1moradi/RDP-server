@@ -2407,27 +2407,30 @@ jobs:
             -R "$r5_x11_selection" --output-on-failure
 
 
-      # Preserve R9's exact 45-case native selector. Run the new
-      # implicit-destructor/queued-Damage test separately under ASan/UBSan.
-      # Its Xvfb fixture creates no real seat, R2 lease or XTEST input.
-      - name: Run additional R5 implicit-destructor Xvfb CTest with sanitizers
+      # Preserve R9's exact 45-case native selector. Run the two additive
+      # aggregate implicit-destructor Xvfb regressions separately under
+      # ASan/UBSan. Neither fixture creates a real seat or R2 authority.
+      - name: Run additional R5 implicit-destructor Xvfb CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
           set -euo pipefail
-          implicit_destructor_selection='^x11[.]desktop-resource-implicit-destruction-queued-damage-isolation$'
+          implicit_destructor_selection='^x11[.]desktop-resource-(implicit-destruction-queued-damage-isolation|implicit-held-key-button-no-xtest)$'
           selected_tests="$(ctest --test-dir build --build-config Debug -N \
             -R "$implicit_destructor_selection")"
           printf '%s\n' "$selected_tests"
-          grep -Fq 'x11.desktop-resource-implicit-destruction-queued-damage-isolation' \
-            <<< "$selected_tests"
-          readonly implicit_destructor_expected_test_count=1
+          for required_test in \
+              x11.desktop-resource-implicit-destruction-queued-damage-isolation \
+              x11.desktop-resource-implicit-held-key-button-no-xtest; do
+            grep -Fq ": $required_test" <<< "$selected_tests"
+          done
+          readonly implicit_destructor_expected_test_count=2
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' \
             <<< "$selected_tests")"
           if [[ "$selected_test_count" -ne "$implicit_destructor_expected_test_count" ]]; then
-            printf 'R5 implicit destructor registry mismatch: expected %s test, found %s\n' \
+            printf 'R5 implicit destructor registry mismatch: expected %s tests, found %s\n' \
               "$implicit_destructor_expected_test_count" "$selected_test_count" >&2
             exit 1
           fi

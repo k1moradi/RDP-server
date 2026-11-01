@@ -1480,6 +1480,16 @@ add_test(NAME interop.windows-client-ab-malformed-nested-evidence-denials
 set_tests_properties(interop.windows-client-ab-malformed-nested-evidence-denials
     PROPERTIES LABELS "interop;offline;security;evidence" TIMEOUT 15)
 
+# R6 missing/nested malformed private sources and exception-path privacy:
+# one isolated CTest, without changing the existing private v3/public v3 schemas.
+add_test(NAME interop.windows-client-ab-malformed-source-projection-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_windows_app_owner_evidence.py"
+        --script "${PROJECT_SOURCE_DIR}/scripts/macos_windows_app_owner_evidence.py"
+        -k paired_malformed_macos_sources_and_absent_windows_error_fail_closed)
+set_tests_properties(interop.windows-client-ab-malformed-source-projection-denials
+    PROPERTIES LABELS "interop;offline;security;evidence" TIMEOUT 15)
+
 # R5 owner-private Linux/X11 evidence validation is offline only. No listener,
 # XTEST/XCB, credentials, native R2 lease or physical desktop is opened.
 add_test(NAME linux.x11-owner-private-evidence-validation-denials

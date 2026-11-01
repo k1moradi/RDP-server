@@ -1,3 +1,7 @@
+## R6 malformed macOS-source / missing Windows first-error offline denial (2026-11-01)
+
+Single new ordinary `interop.windows-client-ab-malformed-source-projection-denials` reuses the existing Python-only evidence fixture. Negative subcases alter macOS version object, credential object, Linux correlation, server SHA, server stage object, first error and provider code; Windows first error is absent, null or list-valued. Every case must produce a complete typed FAIL with fixed public categories/stages, closed top-level and per-client schema, no exception or private sentinel; missing/private-path CLI failures return a generic redacted stderr. This is distinct from, and does not replace, pre-existing invalid normalized-category, nested Windows error and anti-splice tests. No new third-party dependency, native fixture, packet capture, credential handling, GUI activation or fixed sanitizer census.
+
 ## R10 macOS PersonalDesktop licensing production-linked CTests (2026-11-01)
 
 The two ordinary `security.macos-protected-personal-desktop-licensing-(receipts|denials)`

@@ -86,6 +86,11 @@ def _is_allowed(value: object, allowed: set[str]) -> bool:
     return isinstance(value, str) and value in allowed
 
 
+def _private_mapping(value: object) -> dict:
+    # A malformed private section is not a dictionary and has no usable fields.
+    return value if isinstance(value, dict) else {}
+
+
 def _redacted_stage(value: object, allowed: set[str], fallback: str) -> str:
     # Malformed private input must never be mirrored into shared output.
     return value if _is_allowed(value, allowed) else fallback
@@ -409,7 +414,8 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         failures.append("AB_SERVICE_ENDPOINT_INVALID")
     if not isinstance(windows["server_sha"], str) or not SHA40.fullmatch(windows["server_sha"]):
         failures.append("WINDOWS_SERVER_SHA_INVALID")
-    elif windows["server_sha"].lower() != macos_manifest.get("server_sha", "").lower():
+    elif (not isinstance(macos_manifest.get("server_sha"), str)
+          or windows["server_sha"].lower() != macos_manifest["server_sha"].lower()):
         failures.append("AB_SERVER_SHA_MISMATCH")
     if not isinstance(windows["server_certificate_sha256"], str) or not SHA256.fullmatch(windows["server_certificate_sha256"]):
         failures.append("WINDOWS_CERTIFICATE_INVALID")
@@ -417,7 +423,7 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         failures.append("AB_CERTIFICATE_FINGERPRINT_MISMATCH")
     if windows["destination_exact"] != macos_manifest.get("destination_exact"):
         failures.append("AB_DESTINATION_MISMATCH")
-    macos_saved = macos_manifest.get("saved_credential", {})
+    macos_saved = _private_mapping(macos_manifest.get("saved_credential"))
     if (macos_row["credential_source_claim"] != macos_saved.get("state") or
             type(macos_row["deliberately_reentered"]) is not bool):
         failures.append("MACOS_CREDENTIAL_CONTROL_INVALID")
@@ -445,7 +451,10 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
     first_error_record = windows["first_client_error"]
     failures.extend(_first_error_failures(first_error_record))
 
-    macos_correlation = macos_manifest.get("linux_correlation", {})
+    macos_correlation = _private_mapping(macos_manifest.get("linux_correlation"))
+    macos_application = _private_mapping(macos_manifest.get("windows_app"))
+    macos_version = macos_application.get("version")
+    macos_build = macos_application.get("build")
     failures.extend(_source_binding_failures(
         macos_row["source_binding"],
         {
@@ -459,8 +468,9 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
             "attempt_id_exact": macos_row["attempt_id_exact"],
             "client_application_exact": "Windows App",
             "client_version_exact": (
-                f"{macos_manifest.get('windows_app', {}).get('version', '')}+"
-                f"{macos_manifest.get('windows_app', {}).get('build', '')}"
+                f"{macos_version}+{macos_build}"
+                if isinstance(macos_version, str) and isinstance(macos_build, str)
+                else None
             ),
             "target_identity_exact": macos_row["target_identity_exact"],
             "credential_source_choice": macos_row["credential_source_claim"],
@@ -524,7 +534,7 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
             failures.append("WINDOWS_FIRST_ERROR_ATTEMPT_MISMATCH")
         if start <= macos_start:
             failures.append("AB_ATTEMPT_ORDER_INVALID")
-        if correlation["connection_id"] == macos_manifest.get("linux_correlation", {}).get("connection_id"):
+        if correlation["connection_id"] == macos_correlation.get("connection_id"):
             failures.append("AB_CONNECTION_ID_REUSED")
     except ValueError:
         failures.append("WINDOWS_ATTEMPT_CORRELATION_INVALID")
@@ -543,12 +553,28 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
     macos_error_category = (
         macos_error.get("first_typed_category") if isinstance(macos_error, dict) else None
     )
-    if not _is_allowed(macos_error_category, ERROR_CATEGORIES):
+    macos_first_error = macos_manifest.get("first_client_error")
+    if (not _is_allowed(macos_error_category, ERROR_CATEGORIES)
+            or not isinstance(macos_first_error, dict)
+            or set(macos_first_error) != {
+                "normalized_category", "source", "provider_category_exact",
+                "provider_code_exact", "event_time_utc"
+            }
+            or not _is_allowed(macos_first_error.get("source"), ERROR_SOURCES)):
         failures.append("MACOS_FIRST_ERROR_INVALID")
+    else:
+        try:
+            for name in ("provider_category_exact", "provider_code_exact"):
+                if macos_first_error[name] is not None:
+                    _text(macos_first_error[name], f"macOS first error {name}")
+            if macos_first_error["event_time_utc"] is not None:
+                _utc(macos_first_error["event_time_utc"], "macOS first error event")
+        except ValueError:
+            failures.append("MACOS_FIRST_ERROR_INVALID")
 
     # Treat every input string as private. Only enumerated, redacted facts enter stdout.
     macos_type3 = _redacted_stage(
-        macos_manifest.get("server_stage_matrix", {}).get("type3_received"),
+        _private_mapping(macos_manifest.get("server_stage_matrix")).get("type3_received"),
         STAGE_STATES, "NOT_REACHED")
     windows_type3 = _redacted_stage(
         windows_stage.get("type3_received") if isinstance(windows_stage, dict) else None,
@@ -588,7 +614,8 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
             "windows_11_build": _redacted_windows_version(windows["windows_11_build"]),
             "mstsc_file_version": _redacted_windows_version(windows["mstsc_file_version"]),
             "first_client_error_category": _redacted_stage(
-                windows["first_client_error"].get("normalized_category"),
+                first_error_record.get("normalized_category")
+                if isinstance(first_error_record, dict) else None,
                 ERROR_CATEGORIES, "unknown"),
             "type3_received": windows_type3,
             "client_security_stages": _redacted_client_stages(
@@ -608,8 +635,9 @@ def main(argv: list[str]) -> int:
         macos_manifest = macos._read_private_manifest(options.macos_manifest)
         pair = macos._read_private_manifest(options.private_pair_record)
         summary = validate_pair(macos_manifest, pair)
-    except (OSError, ValueError, TypeError, AttributeError, json.JSONDecodeError) as error:
-        print(f"client A/B evidence: {error}", file=sys.stderr)
+    except (OSError, ValueError, TypeError, AttributeError, json.JSONDecodeError):
+        # Filesystem/JSON exceptions may contain private paths or source text.
+        print("client A/B evidence: private record invalid", file=sys.stderr)
         return 2
     json.dump(summary, sys.stdout, indent=2, sort_keys=True)
     sys.stdout.write("\n")

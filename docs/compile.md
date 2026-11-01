@@ -1,3 +1,9 @@
+## R6 offline nested-source redaction correction build contract (2026-11-01)
+
+No new executable, third-party dependency or build root. Reuse the original `tests/test_macos_windows_app_owner_evidence.py` and central CTest registry in the existing `~/rdp-server/build/`. Run the canonical Debug configure/build and then:
+`ctest --test-dir build -C Debug -R '^interop[.]windows-client-ab-(invalid-first-error-redaction-denials|malformed-nested-evidence-denials|malformed-source-projection-denials|stage-provenance-splice-denials)$' --output-on-failure`.
+Then full CTest, Windows MSVC/Clang23 Debug/Release CI and existing native Windows sanitizer/lifetime selectors. This Python-only correction does not require GUI, listener, native SendInput or a physical Microsoft client. Source/CTest inspection PASS; local run NOT RUN (connector has no checked-out build and cannot resolve GitHub DNS); publication-SHA hosted checks PENDING. Do not reuse historical 379f05d3 results as new-SHA PASS.
+
 ## R10 protected macOS licensing build/test scope (2026-11-01)
 
 The existing `test_owned_preauth_session` links the existing

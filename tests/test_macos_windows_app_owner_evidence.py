@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Offline tests for the read-only macOS Windows App evidence manifest."""
 import argparse
+from contextlib import redirect_stderr, redirect_stdout
 import hashlib
+import io
 import importlib.util
 import json
 from pathlib import Path
@@ -920,6 +922,60 @@ class OwnerEvidenceTests(unittest.TestCase):
                       summary["evidence_failures"])
         self.assertEqual(summary["windows"]["client_security_stages"]["type2_received"],
                          "NOT_OBSERVED")
+
+    def test_paired_malformed_macos_sources_and_absent_windows_error_fail_closed(self):
+        # Private nested sections must never trigger an exception, copy a
+        # sentinel into shared output or change the closed public v3 schema.
+        private_marker = "private-source-field-sentinel"
+        pristine = evidence.build_manifest(self.options)
+        expected_schema = ab_evidence.validate_pair(
+            pristine, self._paired_record(pristine))
+        malformed = (
+            ("macos", "windows_app", [private_marker], "MACOS_CLIENT_VERSION_INVALID"),
+            ("macos", "saved_credential", [private_marker], "MACOS_R5_EVIDENCE_INVALID"),
+            ("macos", "linux_correlation", [private_marker], "MACOS_R5_EVIDENCE_INVALID"),
+            ("macos", "server_sha", [private_marker], "AB_SERVER_SHA_MISMATCH"),
+            ("macos", "server_stage_matrix", [private_marker], "MACOS_STAGES_INCOMPLETE"),
+            ("macos", "first_client_error", [private_marker], "MACOS_FIRST_ERROR_INVALID"),
+            ("windows", "first_client_error", [private_marker], "WINDOWS_FIRST_ERROR_INVALID"),
+            ("windows", "first_client_error", None, "WINDOWS_FIRST_ERROR_INVALID"),
+            ("windows", "first_client_error", "absent", "WINDOWS_FIRST_ERROR_INVALID"),
+        )
+        for platform, field, value, expected_failure in malformed:
+            with self.subTest(platform=platform, field=field, kind=type(value).__name__):
+                manifest = evidence.build_manifest(self.options)
+                pair = self._paired_record(manifest)
+                if platform == "macos":
+                    manifest[field] = value
+                elif value == "absent":
+                    del pair["windows"][field]
+                else:
+                    pair["windows"][field] = value
+                summary = ab_evidence.validate_pair(manifest, pair)
+                self.assertEqual(summary["evidence_status"], "FAIL")
+                self.assertIn(expected_failure, summary["evidence_failures"])
+                self.assertEqual(set(summary), set(expected_schema))
+                self.assertEqual(set(summary["macos"]), set(expected_schema["macos"]))
+                self.assertEqual(set(summary["windows"]), set(expected_schema["windows"]))
+                self.assertEqual(summary["comparison"], "INCONCLUSIVE")
+                self.assertNotIn(private_marker, json.dumps(summary, sort_keys=True))
+                if platform == "windows":
+                    self.assertEqual(
+                        summary["windows"]["first_client_error_category"], "unknown")
+
+        # An unreadable private path must not be reflected in CLI stderr.
+        error_output = io.StringIO()
+        normal_output = io.StringIO()
+        with redirect_stderr(error_output), redirect_stdout(normal_output):
+            status = ab_evidence.main([
+                str(self.root / f"{private_marker}.json"),
+                str(self.root / "pair.json"),
+            ])
+        self.assertEqual(status, 2)
+        self.assertEqual(normal_output.getvalue(), "")
+        self.assertEqual(error_output.getvalue(),
+                         "client A/B evidence: private record invalid\n")
+        self.assertNotIn(private_marker, error_output.getvalue())
 
     def test_paired_unapproved_private_secret_field_denied(self):
         manifest = evidence.build_manifest(self.options)

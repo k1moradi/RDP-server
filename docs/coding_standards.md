@@ -1,3 +1,7 @@
+## R6 nested private evidence and CLI exception redaction (2026-11-01)
+
+Read-only paired-client evidence is not a native admission authority. Treat every nested JSON shape as untrusted before `.get()`, `.lower()`, `in` set membership or public projection. In schema-v3 `windows_client_ab_evidence.py`, convert malformed optional macOS source objects to empty mappings solely for safe validation, retain the existing typed FAIL codes, and never echo original Python/OS/JSON exception text or private file paths on CLI error. The public summary still has exactly the existing keys, fixed closed category/stage enums and version allowlist. Missing/non-dict Windows first errors project as `unknown` with `WINDOWS_FIRST_ERROR_INVALID`; a malformed macOS provider field is `MACOS_FIRST_ERROR_INVALID`. A source-bound digest is correlation metadata, not evidence that an actual Windows App received Type 2.
+
 ## R10 macOS original-owner PersonalDesktop licensing (2026-11-01)
 
 After Client Info, select the no-CAL PersonalDesktop protocol mode exactly

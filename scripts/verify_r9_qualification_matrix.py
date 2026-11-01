@@ -159,6 +159,8 @@ def self_test() -> None:
         {"name": "protocol (macos-latest)", "status": "completed", "conclusion": "cancelled"},
         {"name": "protocol (windows-latest)", "status": "queued", "conclusion": None},
         {"name": "r9-security-protocol-sanitizers", "status": "completed", "conclusion": "skipped"},
+        {"name": "r9-clean-windows-portable-gui", "status": "queued", "conclusion": None},
+        {"name": "r9-credssp-owner-candidate", "status": "completed", "conclusion": "skipped"},
     ]}
     artifacts = {"artifacts": [{"name": "r9-microsoft-interop-" + sha, "expired": False}]}
     run = {"head_sha": sha}
@@ -171,11 +173,16 @@ def self_test() -> None:
         raise AssertionError("R9 self-test denial failed")
     if not (report["lanes"]["windows_msvc_debug"] == "QUEUED"):
         raise AssertionError("R9 self-test denial failed")
-    if not (evaluate(sha, sha, run, {"jobs": [):
+    if not (report["lanes"]["windows_clean_portable_gui"] == "QUEUED"):
         raise AssertionError("R9 self-test denial failed")
+    if not (report["lanes"]["owner_candidate_manual"] == "SKIPPED"):
+        raise AssertionError("R9 self-test denial failed")
+    missing_step_report = evaluate(sha, sha, run, {"jobs": [
         {"name": "protocol (ubuntu-latest)", "status": "completed", "conclusion": "success",
          "steps": []}
-    ]}, artifacts)["lanes"]["linux_debug"] == "STEPS_UNVERIFIED"
+    ]}, artifacts)
+    if not (missing_step_report["lanes"]["linux_debug"] == "STEPS_UNVERIFIED"):
+        raise AssertionError("R9 self-test denial failed")
     if not (report["lanes"]["security_asan_ubsan"] == "SKIPPED"):
         raise AssertionError("R9 self-test denial failed")
     if not (report["lanes"]["windows_clang23_debug"] == "NOT_RUN"):

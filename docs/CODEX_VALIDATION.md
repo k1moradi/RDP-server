@@ -1,3 +1,37 @@
+## R6 exact hosted result; physical first observation remains blocked (2026-11-01)
+
+Exact descendant `54ea7726bea07b8b3fe0b33004c4df8fac4c5289`,
+Actions `41351062984`, contains R6 `9e35da1d`. Its exact-SHA Microsoft
+interop artifact ends `interop-matrix-final=COMPLETE_PASS`: modern Schannel
+TLS 1.3 uses `TLS_AES_256_GCM_SHA384` and emits Type 3; the production full
+exchange reaches verified Type 3, pubKeyAuth, authInfo and
+`credentials-verified=yes`. The OEM-omission differential also verifies
+Type 3 with `0xe08a8235`. This remains hosted SSPI evidence only: the same
+artifact distinguishes hosted production Type 2 `0xe08a8237` from the
+physical reference `0xe08a8235`, so it does not establish physical Windows
+App Type-2 receipt/decryption or a provider/password result.
+
+General CI is separate and not green at `54ea7726`. Ubuntu Debug compilation
+and the R6 first-error provenance/redaction/Unicode/anti-splice fixtures pass,
+while full Debug CTest is 1103/1106 on independently owned R7 GUI-boundary,
+R9 qualification-parser and R3 batched-Share failures. The exact-SHA
+security-protocol sanitizer lane and documentation policy pass; Windows
+CLANG64 native preflight is 60/60 before an inherited R2 warning blocks the
+build. Later current-main R2 `0a21be08` resolves that warning/GCC15 companion
+and R9 `bf307834` resolves the parser syntax; neither retroactively makes
+the earlier general run green.
+
+The distinct 8.956 ms physical attempt still lacks the earliest independent
+client-side fact: original same-attempt first-party evidence of TLS
+receipt/decryption of its exact Type 2. Provider parsing/typed first error,
+Type-3 construction and Type-3-bearing TLS submission therefore remain
+`NOT_OBSERVED` unless separately proven for that attempt. Do not splice the
+historical ~34.7 ms attempt, hosted SSPI or server FIN into those client
+fields. Future A/B remains read-only and requires exact-SHA R9 nomination plus
+explicit owner authorization for each Windows App/mstsc attempt and permission
+to read already-existing first-party diagnostics; no Keychain, secrets, trust
+change, client launch or packet capture.
+
 ## R4/R10 macOS post-GraphicsReady rejected borrow failure fence (2026-11-01)
 
 Parent `6ac35d364cba5b76abad45cfc4d6fb927a0d0d84`. R10's macOS frame writer was already integrated by another agent: current native R7 observation, fresh R2 View/current mapped R3 surface, R4 credit before borrow, synchronous existing ClearCodec, sole R1 TLS writer with segmented DATA acceptance, and separate inbound R3/R4 FRAME_ACK. Source audit found a distinct error path: when `nativeDesktop_.borrowFramebuffer()` returned false, R10 distinguished only whether a publication had already been prepared. A callback *invoked* with invalid geometry/stride or rejected protected R3 preparation also returned false with no prepared publication and was mistaken for a retryable stale mailbox sequence. The fix records a stack-local callback-invoked bit before validating the callback, keeps noninvoked stale-frame misses retryable, and retires the original accepted client for callback rejection (aborting an already prepared frame through existing R3 owner). This adds no production encoder, ACK owner, queue or protocol shortcut.

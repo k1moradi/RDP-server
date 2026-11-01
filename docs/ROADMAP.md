@@ -1,3 +1,29 @@
+## R6 P0 — exact hosted SSPI PASS; physical receipt/decryption still missing (2026-11-01)
+
+Exact descendant `54ea7726bea07b8b3fe0b33004c4df8fac4c5289`,
+Actions `41351062984`, carries R6 `9e35da1d`. Its Microsoft interop
+artifact is exact-SHA `COMPLETE_PASS`: TLS 1.3 emits Type 3 and the hosted
+production exchange reaches verified Type 3, pubKeyAuth, authInfo and
+CredentialsVerified. It is not physical Windows App evidence; the artifact
+itself records hosted production Type 2 `0xe08a8237` versus physical
+reference `0xe08a8235`.
+
+General CI at that exact SHA is separately **FAIL** even though the R6
+first-error provenance and adjacent redaction/Unicode/anti-splice tests pass.
+Ubuntu Debug full CTest is 1103/1106 on unrelated R7 GUI-boundary, R9 parser
+syntax and R3 batched-Share failures; the sanitizer and documentation-policy
+jobs pass. Windows CLANG64 native preflight is 60/60 before an inherited R2
+warning. Later R2 `0a21be08` and R9 `bf307834` resolve the warning/parser
+blockers in source, but do not retroactively qualify `54ea7726`.
+
+The 8.956 ms physical-client blocker is unchanged: no original same-attempt
+first-party record proves client TLS receipt/decryption of the exact Type 2.
+Provider parsing/first error and both Type-3 stages remain `NOT_OBSERVED`
+without their own same-attempt evidence. Keep the older ~34.7 ms attempt and
+hosted SSPI separate. Future A/B remains read-only and owner-authorized; no
+Keychain access, secret collection, trust changes, client launch or packet
+capture.
+
 ## R4 P1 — macOS native callback rejection versus stale mailbox (2026-11-01)
 
 **Reviewed parent:** `6ac35d364cba5b76abad45cfc4d6fb927a0d0d84`. **Unblocked since prior R4 review:** R10's macOS native-frame/R3 segmented DATA/R1 exact TLS writer and independent R3/R4 ACK pump is on main. Linux's same-owner pump and genuine-ACK visibility gate are also present. **Newly corrected R4/R10 edge:** R10 previously treated any unsuccessful R7 `borrowFramebuffer` without a prepared R3 frame as a retryable stale mailbox. An *invoked* callback can instead reject invalid BGRA dimensions/stride/generation or protected R3 preparation; retrying that failure indefinitely hides the failing owner boundary. Record a stack-local callback-reached bit before validation, permit retry only for a pre-callback mailbox sequence miss, and terminally retire the accepted client after an invoked callback failure. An already prepared R3 frame still uses the existing abort owner. No second encoder/ACK window, R1 writer, frame queue or authority was introduced.

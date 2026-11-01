@@ -813,6 +813,24 @@ else()
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+# R2 fixed-schema, user-only, non-secret preferences. No credential or
+# HostControl linkage; R7 may consume its public typed API separately.
+add_library(rdp-server-runtime-user-preferences STATIC
+    src/server/runtime/runtime_user_preferences.cpp)
+target_compile_features(rdp-server-runtime-user-preferences PUBLIC cxx_std_23)
+target_include_directories(rdp-server-runtime-user-preferences PUBLIC
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+if(WIN32)
+    target_link_libraries(rdp-server-runtime-user-preferences PUBLIC
+        Advapi32 Shell32 Ole32)
+endif()
+if(MSVC)
+    target_compile_options(rdp-server-runtime-user-preferences PRIVATE /W4)
+else()
+    target_compile_options(rdp-server-runtime-user-preferences PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 # R10 shared secure configuration grammar/file-policy. Field views are scoped
 # to one visitor call, so CLI and GUI reuse the exact parser without retaining
 # path/config buffers as authority.
@@ -1436,6 +1454,7 @@ install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/rdp-server"
     PATTERN "linux" EXCLUDE
     PATTERN "x11" EXCLUDE
     PATTERN "runtime_credential_file_internal.h" EXCLUDE
+    PATTERN "runtime_user_preferences_internal.h" EXCLUDE
     PATTERN "current_owner_sharing_authority.h" EXCLUDE
     PATTERN "native_desktop_authorization.h" EXCLUDE
     PATTERN "runtime_platform_native_desktop.h" EXCLUDE

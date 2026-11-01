@@ -1,3 +1,9 @@
+## R2 P0 non-secret user preferences do not grant authority (2026-11-01)
+
+`RuntimeUserPreferences` stores exactly last explicitly entered Username (strict UTF-8 <=256 bytes), preferred stable LAN interface ID (ASCII <=128 bytes), port (1..65535), input preference and permission-lifetime minutes (1..60). Its fixed v1 record has a 17-byte header and at most 401 bytes in total. Unknown versions/flags/extra bytes, malformed UTF-8/numerics/lengths, unsafe identifiers, partial and duplicate-field attempts are denied. This is a fixed binary record, not a second legacy `--config` grammar. Stored fields never encode a password, NTLM verifier, key, credential generation, consent epoch, listener token or native proof. `runtimeBootstrapMayPersist(SessionPassword)` remains false.
+
+The public no-path load/save functions resolve only the current user's OS configuration/application-data directory. POSIX checks effective-UID owner, no-follow openat ancestry, private 0700 app directory, regular 0600 single-link file, exclusive temporary creation and fsync/rename/fsync. Windows uses LocalAppData, owner SID/current-user-only explicit DACL, reparse denial, secured temporary file and same-directory atomic replacement; failure never falls back to the ZIP, cwd, repo or shared area. R7 must not call internal explicit-directory test helpers, persist an OS-suggested Username as explicitly entered, or interpret a stored preference as R2 View/Input/Clipboard, OS consent, GraphicsReady or listener authority. Each launch remains Sharing OFF with fresh R2/R3/native checks. Vault storage is a separate future product-policy decision.
+
 ## R7 rapid-test argv and GUI boundaries (2026-11-01)
 
 Classify arguments before QApplication using bounded, borrowed

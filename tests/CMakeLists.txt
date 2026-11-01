@@ -446,6 +446,22 @@ add_test(NAME runtime.desktop-shared-configuration-feed
 set_tests_properties(runtime.desktop-shared-configuration-feed PROPERTIES
     LABELS "runtime;configuration;gui;host-control;offline")
 
+# R2 fixed-schema non-secret user preferences: private round-trip and denials.
+add_executable(test_runtime_user_preferences
+    test_runtime_user_preferences.cpp)
+target_link_libraries(test_runtime_user_preferences PRIVATE
+    rdp-server-runtime-user-preferences)
+if(MSVC)
+    target_compile_options(test_runtime_user_preferences PRIVATE /W4 /UNDEBUG)
+else()
+    target_compile_options(test_runtime_user_preferences PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+add_test(NAME runtime.user-preferences-owner-private-versioned-roundtrip-denials
+    COMMAND test_runtime_user_preferences)
+set_tests_properties(runtime.user-preferences-owner-private-versioned-roundtrip-denials
+    PROPERTIES LABELS "runtime;preferences;security;offline")
+
 # R6 portable automatic-bootstrap storage/lifetime policy. This pure
 # cross-platform contract opens no listener and performs no filesystem I/O.
 add_executable(test_runtime_bootstrap_contract

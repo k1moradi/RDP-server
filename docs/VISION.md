@@ -1,3 +1,9 @@
+## User-only preference storage and opt-in vault design (2026-11-01)
+
+The per-user non-secret preferences are convenience values only: last **manually entered** Username, a stable LAN interface identifier requiring fresh re-enumeration, port, input preference and permission-lifetime preference. Loading cannot configure Session Password, open a listener, grant host consent/View/Input/Clipboard or change GraphicsReady. Startup remains Sharing OFF. Absent/invalid/unavailable secure storage yields defaults and no shared fallback.
+
+Future opt-in native credential-vault support is **design only**: first require explicit owner approval to change the current `runtimeBootstrapMayPersist(SessionPassword)==false` policy, security review per Windows Credential Manager/DPAPI, macOS Keychain and supported Linux native secret service, consent UX with unchecked-by-default Save choice, unlock/expiry/revoke/delete, account/identity rotation, explicit unsupported-platform status and no plaintext fallback. Even a future vault can never grant native R2 admission or start Sharing automatically; no password persistence is implemented here.
+
 ## Rapid-test desktop CLI and settings boundary (2026-11-01)
 
 The portable rdp-server-desktop accepts zero arguments for normal startup,

@@ -1,3 +1,9 @@
+## R2 P0 user preferences private non-secret storage (2026-11-01)
+
+**Source starting SHA:** `e222dbdc07374d6824c5a8f50061aa2c989c5141`; concurrently refreshed shared `main` for atomic publication. The C++23 typed v1 fixed-record storage, POSIX uid/mode/openat/no-follow/fsync+rename, Windows LocalAppData/SID/DACL/reparse+replacement, and single ordinary offline CTest were source-inspected. No new UI/autostart, Session Password persistence, credential setup, R1 listener, R2 authority, R3 Graphics or native Clipboard integration. R7 consumes only the public no-path load/save API in a later UI-only increment.
+
+**Evidence:** Source/CTest registration inspection only; build, local focused/full CTest, platform-native Windows/macOS tests, ASan/UBSan, benchmarks and physical Microsoft-client validation **NOT RUN** in this connector session (no local checkout or GitHub DNS). Hosted exact-publication-SHA CI **PENDING**. Next gate: owner checkout Debug/Release focused and full CTest on Linux, Windows MSYS2 CLANG64/Clang 23 and macOS 27, applicable sanitizer lanes and R7 status-only GUI integration. No synthetic result implies a verified client or native desktop.
+
 ## R6 P0 source-bound first failure, new owner-reported 8.956 ms attempt (2026-11-01)
 
 On refreshed main, the v3 pair already has the four separate client-stage

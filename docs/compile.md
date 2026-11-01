@@ -1,3 +1,7 @@
+## First-frame bounded-TLS fixture focused qualification (2026-11-01)
+
+Reconfigure/reuse the **only** `~/rdp-server/build/` directory. After the normal Debug build run `ctest --test-dir build -C Debug -R '^security[.]macos-protected-graphics-first-frame-exact-tls-receipt-client-ack$' --output-on-failure`, then ordinary Debug/Release full CTest and applicable fixed ASan/UBSan suites on the same SHA. This is test-only bounded TLS write scheduling; no native desktop/physical macOS admission evidence. Source review PASS; connector-local compilation/CTest NOT RUN; exact-SHA hosted verification PENDING.
+
 ## R7 macOS ICC duplicate-display negative selection (2026-11-01)
 
 After canonical Debug configure/build using only `~/rdp-server/build/`:

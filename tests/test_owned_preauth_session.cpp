@@ -10562,7 +10562,13 @@ void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
             }
             assert(pending->bytes.size() + currentRecordAcceptedBytes ==
                    currentRecordPlaintextBytes);
-            const auto offered = pending->bytes;
+            // Keep one test-only plaintext slice small enough to avoid
+            // stalling a nonblocking server TLS write behind the peer's
+            // finite receive buffer. WANT retries retain the exact same
+            // unaccepted bytes and length until an R1 positive receipt.
+            constexpr std::size_t kTlsWriteSliceBytes = 4096U;
+            const auto offered = pending->bytes.first(
+                (std::min)(pending->bytes.size(), kTlsWriteSliceBytes));
             assert(offered.size() <= received.size());
             const auto sent =
                 fixture->connection.writeTlsApplicationData(offered);

@@ -1,3 +1,7 @@
+## R10/R4 bounded first-frame TLS fixture writes (2026-11-01)
+
+**Reviewed main parent:** `00e6c86f0c99e13dd2d79fe890b961718408822f`. R3's first-frame test already accounts for multiple `replySequence` outer records as of `69ab8dcd`. The remaining macOS hosted boundary at earlier `fdca7985` was a 30-second timeout during nonblocking R1 frame DATA writes, while Ubuntu and Windows previously failed a first-record-only accounting assertion. This test-only follow-up caps each offered R1 TLS plaintext write slice at 4096 bytes, preserving the exact current R3 suffix, no R3 receipt on WANT_READ/WANT_WRITE, and the preexisting record/slice/total accepted-byte and separate inbound FRAME_ACK assertions. This reduces possible socket-buffer backpressure; it is not yet a demonstrated macOS timeout fix. No production R1/R2/R3/R4 change, new TLS writer, scheduler, license, native authority, input, Clipboard, CTest registration or build dependency. Source-contract review PASS; local configure/build/CTest/ASan/UBSan NOT RUN because GitHub DNS/checkout unavailable in this environment. Current exact-SHA cross-platform Debug/Release CTest and applicable sanitizer qualification PENDING; Windows Share/Graphics fixture crashes remain separately open.
+
 ## R7 duplicate display ICC evidence and current native dependency (2026-11-01)
 
 **Authoring parent:** `429dc54041eb4b6462186e70352d7dd26810df80`. Current GitHub source review confirms R10

@@ -1,3 +1,7 @@
+## Post-Graphics first-frame test-only TLS slice fence (2026-11-01)
+
+The existing production-linked first-frame/ACK CTest must preserve one R1 TLS/BIO writer and original R2/R3 exact reply and slice receipts. To avoid a blocking fixture's peer receive-buffer backpressure, cap each `SSL_write_ex` plaintext offer to 4096 bytes, with identical contents and size across WANT_READ/WANT_WRITE retries and no positive R3 completion until R1 reports accepted bytes. The earlier CI macOS 30-second first-frame timeout is NOT yet qualified as fixed; rerun the same test on macOS/Ubuntu/Windows at exact commit SHA. Keep segmented reply accounting and independent inbound client FRAME_ACK checks unchanged.
+
 ## R7 macOS ICC duplicate-display negative regression (2026-11-01)
 
 The new ordinary offline

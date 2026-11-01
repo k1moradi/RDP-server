@@ -1378,12 +1378,20 @@ void DesktopWindow::saveOwnerPreferences()
         return;
     }
 
-    savedPreferences_ = std::move(candidate);
-    usernameOwnerEdited_ = false;
-    if (preferencesAccess_.save(savedPreferences_) !=
+    // A failed private write must not consume a pending manual Username edit.
+    // Keep the last successfully stored snapshot until R2 reports Stored;
+    // another explicit widget edit can then retry the full candidate.
+    if (preferencesAccess_.save(candidate) ==
         DesktopPreferencesAccess::Status::Stored)
+    {
+        savedPreferences_ = std::move(candidate);
+        usernameOwnerEdited_ = false;
+    }
+    else
+    {
         userFacingError_ = QStringLiteral(
             "Private preferences could not be saved on this computer.");
+    }
     refresh();
 }
 

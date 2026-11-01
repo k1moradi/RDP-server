@@ -1,3 +1,15 @@
+## GUI persistence errors preserve pending explicit edits (2026-11-01)
+
+The R7 GUI's memory-only `savedPreferences_` snapshot is the last
+successfully stored non-secret R2 preferences, not merely the last
+constructed candidate. Call R2's public save function before moving
+the validated candidate into that snapshot or clearing
+`usernameOwnerEdited_`. When storage reports `Invalid` or
+`Unavailable`, preserve the pending explicit Username edit so a
+later independent owner widget edit retries it. Keep fixed redacted
+errors, no second store, no implicit retries/permission requests,
+and no password/Sharing/GraphicsReady serialization.
+
 ## R4 ACK-intake retirement is generation-owned and closed is absorbing (2026-11-01)
 
 The production first-frame chain remains exactly R2 View → R3 current mapped surface/R4 credit → R7 exact latest native frame borrow → R4 ClearCodec preparation → R3 segmented DATA → the sole R1 TLS writer's accepted-byte receipts, with inbound client `FRAME_ACKNOWLEDGE` classified separately by R3 and consumed separately by R4. The macOS R7 mailbox validates the source extent, checks `width * 4` and tight `rowBytes * height` overflow, copies BGRA rows into one contiguous original-owner arena and publishes a tight `strideBytes == width * 4`; R4 then revalidates `FramebufferView`, 16-bit GFX dimensions, stride, source extent and wire/output length bounds before writing its owned contiguous ClearCodec staging. R10 must end the synchronous native borrow before any TLS write.

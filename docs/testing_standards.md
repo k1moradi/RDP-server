@@ -1,3 +1,16 @@
+## R7 failed preference write preserves the next owner retry (2026-11-01)
+
+The dedicated ordinary `gui.offscreen-rapid-preferences-failed-save-retry`
+CTest reuses the existing single-QApplication fake-HostControl and
+memory-only R2 function pointers. It injects `Unavailable` on the
+first manual Username save, verifies no fake file was changed, then
+uses an explicit port edit with `Stored` to prove the pending manual
+Username and updated port persist together. Password remains empty;
+no host permission request, Start, R1 socket or native owner exists.
+The production R2 backend and fixed portable GUI tests remain
+unchanged. This is offline GUI retry semantics, not permission or
+physical-client evidence.
+
 ## R3 cross-phase Confirm Active plus finalization client TLS batch (2026-11-01)
 
 The dedicated `security.macos-protected-share-confirm-active-finalization-single-tls-write` CTest must reuse the real R1 SSL/BIO / R2-broker / R3 PersonalDesktop-licensed Share fixture, not synthesize a licensed Share stage or add another parser. Its one client TLS write contains five complete TPKTs: Confirm Active, Synchronize, Cooperate, Request Control, Font List. R1 reads exactly one original TPKT per protected R3 visit; only actual accepted R1 server bytes complete R3 reply/slice receipts. Check Share remains unactivated until Font Map completes. This differs from the existing separate Confirm Active + batched finalization, batched MCS Joins, licensing-partial/replay and premature-Confirm negative tests. It establishes no native OS admission or physical Windows App acceptance. Authoring parent `55aa4a1a913578b45d4b7e5de147c18762f24e7b`; local build/CTest/sanitizers NOT RUN, exact-SHA hosted CI pending.

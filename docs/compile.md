@@ -1,3 +1,19 @@
+## R7 preference save-failure retry offline qualification (2026-11-01)
+
+Reuse the single canonical `~/rdp-server/build/` root. After the
+ordinary Debug configure/build, run:
+```sh
+ctest --test-dir build -C Debug -R '^gui[.]offscreen-rapid-preferences-(failed-save-retry|restart-cli-precedence|invalid-replaced-interface)$' --output-on-failure
+ctest --test-dir build -C Debug --output-on-failure
+```
+Then repeat the full Release suite and relevant hosted
+Linux/macOS/Windows Qt packaging and sanitizer checks on the exact
+publication SHA. The fixture uses one QApplication and only
+memory-only injected preference callbacks. Local compile/CTest,
+ASan/UBSan and benchmarks NOT RUN in this connector session;
+physical clients/native desktop NOT RUN. No new binary, external
+dependency or build root.
+
 ## R7 restored-desktop-preferences focused build gate (2026-11-01)
 
 Reuse only the canonical ~/rdp-server/build/ root. After ordinary Debug

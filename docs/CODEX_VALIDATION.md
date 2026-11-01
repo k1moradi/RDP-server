@@ -1,3 +1,33 @@
+## R2/R7 P0 failed secure-preference save retry follow-up (2026-11-01)
+
+Starting from refreshed `main` parent `cf2348ff211418118f4c0e91908960048c5bb585`, reviewed AGENTS,
+VISION/ROADMAP, coding/testing/compile/benchmark standards and
+CODEX_VALIDATION, public R2 fixed-schema storage, the existing
+atomic-denial CTest, R7 GUI startup/restore/save path and fake-host
+CTest registry. R7's `d331f8f7` desktop preferences composition is
+now on main. R9 exact-run classifier and the temporarily truncated
+roadmap were corrected by other agents as `f86e061c` and
+`7b3d517f`; the canonical R7 integration milestone is unchanged.
+
+Found a GUI failure-path defect: `saveOwnerPreferences()` moved a
+candidate into `savedPreferences_` and cleared
+`usernameOwnerEdited_` before R2's `save` returned. A denied
+write could discard the pending manually typed Username while
+a later port/interface edit saved only the old Username. Only
+on `Stored` now commits the in-memory snapshot and resets the
+manual-edit flag; the existing redacted failure remains. Dedicated
+ordinary offline `gui.offscreen-rapid-preferences-failed-save-retry`
+uses a fake `Unavailable` then `Stored` result to pin a later
+explicit retry, including no credential, owner permission or Start.
+
+No change to the R2 record format, current-user file security,
+public API, credential owner, listener or R2 native grants;
+Session Password remains volatile and every launch Sharing OFF.
+Source/registry review PASS; local canonical configure/build,
+Debug/Release focused/full CTest, ASan/UBSan, benchmarks,
+owner-native/physical clients NOT RUN. Exact-publication-SHA
+hosted CI/CTest PENDING.
+
 ## R3 P0 — coalesced Confirm Active + finalization after real PersonalDesktop licensing (2026-11-01)
 
 Parent reviewed: `55aa4a1a913578b45d4b7e5de147c18762f24e7b`. Source audit of R10 Linux `LinuxRuntimeHostControl` phase scheduler, R1 `LinuxRuntimeConnection` complete-TPKT bounded read and positive accepted-byte writes, R2 Linux/Mac broker lifetime/owner authorization, R3 joins/Client Info/PersonalDesktop licensing/Share/Graphics; Microsoft MS-RDPBCGR Connection Sequence and Client Info ordering and MS-RDPELE PersonalDesktop `STATUS_VALID_CLIENT/ST_NO_TRANSITION`. New independent test: `security.macos-protected-share-confirm-active-finalization-single-tls-write` in existing production-linked `test_owned_preauth_session`. The five client packets are coalesced in one real TLS application write, and R1/R2/R3 consume them in sequence after full license and Demand Active receipts, preserving server reply ordering and one share owner. No production change was necessary. Full exact transition matrix and R10 handoff are in `docs/ROADMAP.md`.

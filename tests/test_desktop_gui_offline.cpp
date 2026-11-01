@@ -58,6 +58,8 @@ namespace
 RuntimeUserPreferences fakeStoredPreferences;
 RuntimeUserPreferencesStorageStatus fakeLoadStatus{
     RuntimeUserPreferencesStorageStatus::Loaded};
+RuntimeUserPreferencesStorageStatus fakeSaveStatus{
+    RuntimeUserPreferencesStorageStatus::Stored};
 int fakePreferenceSaves{};
 
 RuntimeUserPreferencesStorageStatus loadFakePreferences(
@@ -72,9 +74,10 @@ RuntimeUserPreferencesStorageStatus loadFakePreferences(
 RuntimeUserPreferencesStorageStatus saveFakePreferences(
     const RuntimeUserPreferences& input) noexcept
 {
-    fakeStoredPreferences = input;
     ++fakePreferenceSaves;
-    return RuntimeUserPreferencesStorageStatus::Stored;
+    if (fakeSaveStatus == RuntimeUserPreferencesStorageStatus::Stored)
+        fakeStoredPreferences = input;
+    return fakeSaveStatus;
 }
 
 constexpr DesktopPreferencesAccess kFakePreferences{
@@ -990,6 +993,49 @@ int main(int argc, char** argv)
             assert(candidate.startCalls == 0);
             assert(candidate.stopCalls == 1);
         }
+        return 0;
+    }
+
+    if (mode == "rapid-preferences-failed-save-retry")
+    {
+        fakeLoadStatus = RuntimeUserPreferencesStorageStatus::Loaded;
+        fakeSaveStatus = RuntimeUserPreferencesStorageStatus::Unavailable;
+        fakePreferenceSaves = 0;
+        fakeStoredPreferences = {
+            "previous-manual-owner", "ethernet-1", 3390U, false, 15U};
+        FakeRuntimeHost candidate;
+        prepareReadyHost(candidate);
+        HostControl candidateHost(candidate);
+        DesktopWindow window(candidateHost, nullptr, kFakePreferences);
+        auto* username = window.findChild<QLineEdit*>("standaloneUsername");
+        auto* port = window.findChild<QSpinBox*>("sharingPort");
+        auto* password = window.findChild<QLineEdit*>("sessionPassword");
+        assert(username && port && password);
+        assert(username->text() == QStringLiteral("previous-manual-owner"));
+
+        // The first explicit Username save cannot reach secure storage.
+        username->setText(QStringLiteral("new-manual-owner"));
+        assert(QMetaObject::invokeMethod(
+            username, "textEdited", Qt::DirectConnection,
+            Q_ARG(QString, QStringLiteral("new-manual-owner"))));
+        assert(QMetaObject::invokeMethod(
+            username, "editingFinished", Qt::DirectConnection));
+        assert(fakePreferenceSaves == 1);
+        assert(fakeStoredPreferences.lastExplicitUsername ==
+               "previous-manual-owner");
+        assert(fakeStoredPreferences.port == 3390U);
+
+        // A later explicit port edit retries the still-pending Username
+        // together with the new port, without touching R2 permission or R1.
+        fakeSaveStatus = RuntimeUserPreferencesStorageStatus::Stored;
+        port->setValue(3391);
+        assert(fakePreferenceSaves == 2);
+        assert(fakeStoredPreferences.lastExplicitUsername ==
+               "new-manual-owner");
+        assert(fakeStoredPreferences.port == 3391U);
+        assert(password->text().isEmpty());
+        assert(candidate.startCalls == 0);
+        assert(candidate.permissionSetupCalls == 0);
         return 0;
     }
 

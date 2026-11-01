@@ -843,6 +843,72 @@ class OwnerEvidenceTests(unittest.TestCase):
                                  "unknown")
                 self.assertNotIn(private_marker, json.dumps(summary, sort_keys=True))
 
+    def test_paired_private_malformed_nested_evidence_denials(self):
+        manifest = evidence.build_manifest(self.options)
+        private_marker = "private-session-password-sentinel"
+        malformed = (
+            ("first_client_error", "provider_category_exact",
+             [private_marker], "WINDOWS_FIRST_ERROR_INVALID"),
+            ("first_client_error", "provider_code_exact",
+             {"detail": private_marker}, "WINDOWS_FIRST_ERROR_INVALID"),
+            ("first_client_error", "event_time_utc",
+             [private_marker], "WINDOWS_FIRST_ERROR_INVALID"),
+            ("first_client_error", "normalized_category",
+             {"detail": private_marker}, "WINDOWS_FIRST_ERROR_INVALID"),
+            ("server_stage_matrix", "type3_received",
+             [private_marker], "WINDOWS_STAGES_INCOMPLETE"),
+            ("server_transport_observation", "terminal_attribution",
+             {"detail": private_marker}, "WINDOWS_TRANSPORT_INVALID"),
+            ("client_security_stages", "type2_received",
+             [private_marker], "WINDOWS_CLIENT_STAGES_INCOMPLETE"),
+            ("certificate_warning", "accepted",
+             [private_marker], "WINDOWS_CERTIFICATE_DECISION_INVALID"),
+        )
+        for section, field, value, expected in malformed:
+            with self.subTest(section=section, field=field):
+                pair = self._paired_record(manifest)
+                pair["windows"][section][field] = value
+                summary = ab_evidence.validate_pair(manifest, pair)
+                self.assertEqual(summary["evidence_status"], "FAIL")
+                self.assertIn(expected, summary["evidence_failures"])
+                self.assertNotIn(private_marker, json.dumps(summary, sort_keys=True))
+
+        for missing in ("first_client_error", "provider_code_exact"):
+            with self.subTest(missing=missing):
+                pair = self._paired_record(manifest)
+                if missing == "first_client_error":
+                    del pair["windows"]["first_client_error"]
+                else:
+                    del pair["windows"]["first_client_error"][missing]
+                summary = ab_evidence.validate_pair(manifest, pair)
+                self.assertEqual(summary["evidence_status"], "FAIL")
+                self.assertIn("WINDOWS_FIRST_ERROR_INVALID", summary["evidence_failures"])
+                self.assertEqual(summary["windows"]["first_client_error_category"],
+                                 "unknown")
+
+        pair = self._paired_record(manifest)
+        pair["windows"]["client_security_stages"]["type2_received"] = "PASS"
+        pair["windows"]["client_stage_evidence"]["type2_received"] = self._client_event(
+            pair, "windows")
+        pair["windows"]["client_stage_evidence"]["type2_received"][
+            "source_kind"] = {"detail": private_marker}
+        summary = ab_evidence.validate_pair(manifest, pair)
+        self.assertIn("WINDOWS_CLIENT_TYPE2_RECEIVED_SOURCE_UNSUPPORTED",
+                      summary["evidence_failures"])
+        self.assertNotIn(private_marker, json.dumps(summary, sort_keys=True))
+
+        # Values in a private collector's summary do not become public.
+        manifest["windows_app"]["version"] = private_marker
+        manifest["first_client_error"]["normalized_category"] = private_marker
+        pair = self._paired_record(manifest)
+        summary = ab_evidence.validate_pair(manifest, pair)
+        self.assertEqual(summary["evidence_status"], "FAIL")
+        self.assertIn("MACOS_CLIENT_VERSION_INVALID", summary["evidence_failures"])
+        self.assertIn("MACOS_FIRST_ERROR_INVALID", summary["evidence_failures"])
+        self.assertEqual(summary["macos"]["first_client_error_category"], "unknown")
+        self.assertEqual(summary["macos"]["version"]["version"], "INVALID")
+        self.assertNotIn(private_marker, json.dumps(summary, sort_keys=True))
+
     def test_paired_private_missing_client_stage_remains_fail_closed(self):
         manifest = evidence.build_manifest(self.options)
         pair = self._paired_record(manifest)

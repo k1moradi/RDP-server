@@ -156,6 +156,25 @@ unauthorized.
 
 ## R6 first-error redacted FAIL projection correction (2026-10-31)
 
+**R6 nested privacy qualification (2026-11-01):** Hosted Microsoft
+SSPI `379f05d3` / Actions `41250520319` recorded COMPLETE_PASS with
+Type 3, nonempty authInfo, CredentialsVerified, selected binding,
+mandatory invalid AV and bad-server-binding denial, not physical
+Windows App receipt. Owner trace locally committed Type 2, received zero
+later client TLS bytes, no Type 3 and peer FIN about 34.7 ms later;
+cause and client receipt unobserved. R6 now bounds nested provider
+errors/stages/transport/client events/certificate data, makes missing
+first-error a typed FAIL and fixes private macOS version/error public
+projection, without v3 schema growth. One offline
+`interop.windows-client-ab-malformed-nested-evidence-denials` CTest,
+existing anti-splice checks preserved. Source review PASS, connector
+local/full Windows MSVC/Clang23 and sanitizer NOT RUN, publication
+SHA CI PENDING. Next: current-head CI; separately owner-authorized
+Windows App/mstsc client-side Type-2 TLS receipt, CredSSP parse, Type-3
+generation and TLS submission. Windows native activation remains disabled.
+
+
+
 **Authoring parent:** `5b0e284671455aa86f60a1b39723f35048d07bd7`. R6 v3 previously emitted the raw private
 `first_client_error.normalized_category` even after classifying an invalid
 category as `WINDOWS_FIRST_ERROR_INVALID`. An unhashable category/source

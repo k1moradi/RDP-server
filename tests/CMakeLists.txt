@@ -1471,6 +1471,15 @@ add_test(NAME interop.windows-client-ab-invalid-first-error-redaction-denials
 set_tests_properties(interop.windows-client-ab-invalid-first-error-redaction-denials
     PROPERTIES LABELS "interop;offline;security;evidence" TIMEOUT 15)
 
+# R6 nested malformed private A/B evidence: fixed redacted FAIL.
+add_test(NAME interop.windows-client-ab-malformed-nested-evidence-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_windows_app_owner_evidence.py"
+        --script "${PROJECT_SOURCE_DIR}/scripts/macos_windows_app_owner_evidence.py"
+        -k paired_private_malformed_nested_evidence_denials)
+set_tests_properties(interop.windows-client-ab-malformed-nested-evidence-denials
+    PROPERTIES LABELS "interop;offline;security;evidence" TIMEOUT 15)
+
 # R5 owner-private Linux/X11 evidence validation is offline only. No listener,
 # XTEST/XCB, credentials, native R2 lease or physical desktop is opened.
 add_test(NAME linux.x11-owner-private-evidence-validation-denials

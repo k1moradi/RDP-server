@@ -187,6 +187,32 @@ Source audit PASS; local configure/compile/focused/full CTest and sanitizers
 NOT RUN. Exact-publication-SHA hosted CI PENDING. Manual R9 candidate
 NOT NOMINATED; physical client/native desktop NOT RUN / unauthorized.
 
+## R6 nested client A/B private evidence qualification (2026-11-01)
+
+Reviewed the current R6 evidence validator, source/certificate/attempt/client
+anti-splice CTests and Microsoft SSPI artifact at
+[Actions 41250520319](https://github.com/k1moradi/RDP-server/actions/runs/41250520319),
+exact SHA `379f05d3ff3a31df5ae80cd7f437b508c23653f9`.
+The hosted `COMPLETE_PASS` includes Type 3, nonempty authInfo,
+CredentialsVerified, selected binding, mandatory invalid AV and bad-server-
+binding denials, not physical Windows App receipt. Physical owner trace:
+local Type-2 commit, zero subsequent client TLS bytes, no Type 3,
+peer FIN approximately 34.7 ms later; no observed client receipt.
+
+R6 found malformed nested private list/dict provider errors, stages,
+transport, certificate decisions and client event sources could throw
+rather than return redacted FAIL; private macOS versions/categories also
+escaped the paired public projection. The v3 closed-schema validator now
+returns typed denial and allowlisted projections; absent Windows first
+error is a typed FAIL. One new offline
+`interop.windows-client-ab-malformed-nested-evidence-denials` CTest.
+No public schema, anti-splice binding, native activation, credentials,
+packet capture, TLS or protocol policy change. Source review PASS.
+Connector-local Python/full CTest, Windows MSVC/Clang23 and sanitizer
+NOT RUN; publication-SHA hosted CI PENDING. Prior ancestor Windows
+MSVC/Clang23, sanitizer and WTS/DXGI/SendInput CTests PASS only at
+their source SHA. Next: exact-SHA CI and owner-approved client-stage A/B.
+
 ## R6 malformed first-client-error public category privacy correction (2026-10-31)
 
 Reviewed base `5b0e284671455aa86f60a1b39723f35048d07bd7`. `scripts/windows_client_ab_evidence.py`

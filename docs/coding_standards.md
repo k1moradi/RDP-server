@@ -61,6 +61,16 @@ The existing macOS `snapshot.graphicsReady = nativeDesktop_.ready()` is a
 deferred status-only correction, not a reason to fabricate GraphicsReady now.
 R7/Qt status remains non-authorizing.
 
+## R6 private A/B nested JSON fields are untrusted (2026-11-01)
+
+Require string types before closed-enum membership on client/server
+stages, transport, certificate decisions or event source. Invalid nested
+first-error provider strings/timestamps and missing Windows error record
+must yield a typed FAIL, never reflected exceptions or private text.
+Project macOS version/category through fixed allowlists too. Preserve
+the v3 summary schema, independent attempt/certificate/client binding
+and no inferred client Type-2 receipt from a local R1 write.
+
 ## R5 implicit X11 owner destruction is no-post by default (2026-10-31)
 
 A C++ destructor cannot assume native R2 authority is still current.

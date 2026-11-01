@@ -82,9 +82,13 @@ def _utc(value: object, name: str) -> datetime:
     return timestamp.astimezone(timezone.utc)
 
 
+def _is_allowed(value: object, allowed: set[str]) -> bool:
+    return isinstance(value, str) and value in allowed
+
+
 def _redacted_stage(value: object, allowed: set[str], fallback: str) -> str:
     # Malformed private input must never be mirrored into shared output.
-    return value if isinstance(value, str) and value in allowed else fallback
+    return value if _is_allowed(value, allowed) else fallback
 
 
 def _redacted_client_stages(stages: object) -> dict[str, str]:
@@ -104,7 +108,7 @@ def _stage_failures(stage: object, native_admission: object,
                     transport: object, prefix: str) -> list[str]:
     failures: list[str] = []
     if (not isinstance(stage, dict) or set(stage) != set(STAGES) | {"post_type2_client_bytes", "typed_terminal_outcome"}
-            or any(stage.get(name) not in STAGE_STATES for name in STAGES)):
+            or any(not _is_allowed(stage.get(name), STAGE_STATES) for name in STAGES)):
         return [f"{prefix}_STAGES_INCOMPLETE"]
     bytes_after_type2 = stage.get("post_type2_client_bytes")
     if type(bytes_after_type2) is not int or not 0 <= bytes_after_type2 <= (1 << 30):
@@ -119,7 +123,7 @@ def _stage_failures(stage: object, native_admission: object,
         failures.append(f"{prefix}_POST_TYPE2_BEFORE_COMMIT")
     if stage["type3_received"] == "PASS" and bytes_after_type2 == 0:
         failures.append(f"{prefix}_TYPE3_WITHOUT_POST_TYPE2_BYTES")
-    if native_admission not in STAGE_STATES:
+    if not _is_allowed(native_admission, STAGE_STATES):
         failures.append(f"{prefix}_NATIVE_ADMISSION_INVALID")
     elif native_admission != "NOT_REACHED" and stage["credentials_verified"] != "PASS":
         failures.append(f"{prefix}_NATIVE_BEFORE_CREDENTIALS_VERIFIED")
@@ -129,9 +133,9 @@ def _stage_failures(stage: object, native_admission: object,
         failures.append(f"{prefix}_TRANSPORT_INCOMPLETE")
     elif (type(transport["peer_fin_observed"]) is not bool or
           type(transport["tls_alert_observed"]) is not bool or
-          transport["terminal_attribution"] not in {
+          not _is_allowed(transport["terminal_attribution"], {
               "peer-fin", "tls-alert", "other", "unknown"
-          }):
+          })):
         failures.append(f"{prefix}_TRANSPORT_INVALID")
     else:
         if transport["terminal_attribution"] == "tls-alert" and not transport["tls_alert_observed"]:
@@ -143,7 +147,7 @@ def _stage_failures(stage: object, native_admission: object,
 
 def _client_stage_failures(stages: object, prefix: str) -> list[str]:
     if (not isinstance(stages, dict) or set(stages) != set(CLIENT_SECURITY_STAGES)
-            or any(stages.get(name) not in CLIENT_STAGE_STATES
+            or any(not _is_allowed(stages.get(name), CLIENT_STAGE_STATES)
                    for name in CLIENT_SECURITY_STAGES)):
         return [f"{prefix}_CLIENT_STAGES_INCOMPLETE"]
 
@@ -237,12 +241,12 @@ def _client_event_failures(stages: object, evidence: object, binding: object,
             if event is not None:
                 failures.append(f"{label}_UNOBSERVED_EVENT_CONTRADICTION")
             continue
-        if state not in {"PASS", "FAIL"}:
+        if not _is_allowed(state, {"PASS", "FAIL"}):
             continue
         if not isinstance(event, dict) or set(event) != CLIENT_EVENT_FIELDS:
             failures.append(f"{label}_PROVENANCE_MISSING")
             continue
-        if event["source_kind"] not in CLIENT_EVENT_SOURCES:
+        if not _is_allowed(event["source_kind"], CLIENT_EVENT_SOURCES):
             failures.append(f"{label}_SOURCE_UNSUPPORTED")
         if not isinstance(event["source_record_sha256"], str) or not SHA256.fullmatch(
                 event["source_record_sha256"]):
@@ -306,33 +310,34 @@ def _server_type3_failures(stage: object, evidence: object, binding: object,
 
 
 def _first_error_failures(first_error: object) -> list[str]:
-    if not isinstance(first_error, dict):
+    if not isinstance(first_error, dict) or set(first_error) != {
+            "normalized_category", "source", "provider_category_exact",
+            "provider_code_exact", "event_time_utc"}:
         return ["WINDOWS_FIRST_ERROR_INVALID"]
-    if set(first_error) != {"normalized_category", "source", "provider_category_exact",
-                             "provider_code_exact", "event_time_utc"}:
-        return ["WINDOWS_FIRST_ERROR_INVALID"]
+
     category = first_error["normalized_category"]
     source = first_error["source"]
-    if (not isinstance(category, str) or category not in ERROR_CATEGORIES or
-            not isinstance(source, str) or source not in ERROR_SOURCES):
+    if not _is_allowed(category, ERROR_CATEGORIES) or not _is_allowed(source, ERROR_SOURCES):
         return ["WINDOWS_FIRST_ERROR_INVALID"]
     if category == "not-observed":
         if source != "not-observed" or any(first_error[name] is not None for name in (
-            "provider_category_exact", "provider_code_exact", "event_time_utc"
-        )):
+                "provider_category_exact", "provider_code_exact", "event_time_utc")):
             return ["WINDOWS_FIRST_ERROR_CONTRADICTORY"]
     else:
         if source == "not-observed":
             return ["WINDOWS_FIRST_ERROR_CONTRADICTORY"]
         if category != "unknown" and not first_error["provider_category_exact"]:
             return ["WINDOWS_FIRST_ERROR_UNGROUNDED"]
-        for name in ("provider_category_exact", "provider_code_exact"):
-            if first_error[name] is not None:
-                _text(first_error[name], name, 128)
-        if first_error["event_time_utc"] is not None:
-            _utc(first_error["event_time_utc"], "Windows first-error event time")
+        try:
+            # Never mirror nested private provider values or their exception text.
+            for name in ("provider_category_exact", "provider_code_exact"):
+                if first_error[name] is not None:
+                    _text(first_error[name], name, 128)
+            if first_error["event_time_utc"] is not None:
+                _utc(first_error["event_time_utc"], "Windows first-error event time")
+        except ValueError:
+            return ["WINDOWS_FIRST_ERROR_INVALID"]
     return []
-
 
 def validate_pair(macos_manifest: dict, pair: dict) -> dict:
     """Validate evidence, never infer server/client event ordering or cause."""
@@ -351,7 +356,7 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         "server_type3_evidence", "target_identity_exact", "attempt_id_exact",
         "server_transport_observation", "native_admission",
     }, "macOS supplement")
-    windows = _fields(pair["windows"], {
+    windows_required_fields = {
         "server_sha", "server_certificate_sha256", "destination_exact",
         "service_endpoint_exact", "server_tls_configuration_profile",
         "windows_11_build", "mstsc_file_version", "attempt_time_utc",
@@ -360,7 +365,13 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         "client_security_stages", "client_stage_evidence",
         "server_type3_evidence", "target_identity_exact", "attempt_id_exact",
         "server_stage_matrix", "server_transport_observation", "native_admission",
-    }, "Windows row")
+    }
+    windows_record = pair["windows"]
+    if (isinstance(windows_record, dict) and
+            set(windows_record) == windows_required_fields - {"first_client_error"}):
+        # Absent private error observation must result in a typed FAIL.
+        windows_record = {**windows_record, "first_client_error": None}
+    windows = _fields(windows_record, windows_required_fields, "Windows row")
     credential = _fields(windows["credential"], {
         "source", "deliberately_reentered", "saved_credential_use",
         "username_exact", "session_password_intentionally_matched"
@@ -425,13 +436,14 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         failures.append("AB_STANDALONE_CREDENTIAL_MISMATCH")
     macos_warning = macos_manifest.get("certificate_warning", {})
     if (type(warning["appeared"]) is not bool or
-            warning["accepted"] not in {"yes", "no", "not-applicable"} or
+            not _is_allowed(warning["accepted"], {"yes", "no", "not-applicable"}) or
             (warning["appeared"] and warning["accepted"] == "not-applicable") or
             (not warning["appeared"] and warning["accepted"] != "not-applicable")):
         failures.append("WINDOWS_CERTIFICATE_DECISION_INVALID")
     elif warning != macos_warning:
         failures.append("CERTIFICATE_DECISION_NOT_COMPARABLE")
-    failures.extend(_first_error_failures(windows["first_client_error"]))
+    first_error_record = windows["first_client_error"]
+    failures.extend(_first_error_failures(first_error_record))
 
     macos_correlation = macos_manifest.get("linux_correlation", {})
     failures.extend(_source_binding_failures(
@@ -506,7 +518,8 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         _text(correlation["connection_id"], "Windows connection ID")
         if abs((terminal - start).total_seconds()) > macos.MAX_CORRELATION_DELTA_SECONDS:
             failures.append("WINDOWS_ATTEMPT_CORRELATION_MISMATCH")
-        first_event = windows["first_client_error"]["event_time_utc"]
+        first_event = (first_error_record.get("event_time_utc")
+                       if isinstance(first_error_record, dict) else None)
         if first_event is not None and abs((_utc(first_event, "Windows first error") - start).total_seconds()) > macos.MAX_CORRELATION_DELTA_SECONDS:
             failures.append("WINDOWS_FIRST_ERROR_ATTEMPT_MISMATCH")
         if start <= macos_start:
@@ -515,6 +528,23 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
             failures.append("AB_CONNECTION_ID_REUSED")
     except ValueError:
         failures.append("WINDOWS_ATTEMPT_CORRELATION_INVALID")
+
+    # The macOS collector summary is also untrusted private input.
+    macos_version = macos_summary.get("windows_app")
+    if not isinstance(macos_version, dict):
+        macos_version = {}
+    redacted_macos_version = {
+        name: _redacted_windows_version(macos_version.get(name))
+        for name in ("version", "build")
+    }
+    if "INVALID" in redacted_macos_version.values():
+        failures.append("MACOS_CLIENT_VERSION_INVALID")
+    macos_error = macos_summary.get("client_error")
+    macos_error_category = (
+        macos_error.get("first_typed_category") if isinstance(macos_error, dict) else None
+    )
+    if not _is_allowed(macos_error_category, ERROR_CATEGORIES):
+        failures.append("MACOS_FIRST_ERROR_INVALID")
 
     # Treat every input string as private. Only enumerated, redacted facts enter stdout.
     macos_type3 = _redacted_stage(
@@ -544,8 +574,9 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         ),
         "cross_source_event_order": "ORDER_UNDETERMINED",
         "macos": {
-            "app": "Windows App", "version": macos_summary.get("windows_app"),
-            "first_client_error_category": macos_summary.get("client_error", {}).get("first_typed_category"),
+            "app": "Windows App", "version": redacted_macos_version,
+            "first_client_error_category": _redacted_stage(
+                macos_error_category, ERROR_CATEGORIES, "unknown"),
             "type3_received": macos_type3,
             "client_security_stages": _redacted_client_stages(
                 macos_row["client_security_stages"]),

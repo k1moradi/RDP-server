@@ -90,6 +90,18 @@ existing negative-length/exception/multidisplay tests, not another test runner
 or a new fixed sanitizer selector. Python callback mocks establish the
 collector's behavior only, not native ColorSync safety or the warning caller.
 
+## R6 nested malformed paired evidence typed FAIL test (2026-11-01)
+
+Ordinary offline `interop.windows-client-ab-malformed-nested-evidence-denials`
+reuses the shared Python fixture; nested private provider category/code/time,
+server/client stages, transport, certificate decisions, client source and
+macOS-origin summary fields receive string/list/dict sentinels; absent
+first-error fields also fail closed. The entire JSON must contain only typed
+fixed errors and allowlisted fallback values, never a secret sentinel.
+Preserve first-error and source/certificate/attempt/client anti-splice
+tests. One CTest outside fixed sanitizer census; no physical client,
+credentials, listener, capture or native input.
+
 ## R5 implicit X11 destructor no-XTEST contract (2026-10-31)
 
 Ordinary source-only

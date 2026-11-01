@@ -46,6 +46,11 @@ _FIRST_ERROR_CATEGORIES = (
 )
 _FIRST_ERROR_SOURCES = ("core", "ui", "ui-error", "core-and-ui", _NOT_OBSERVED)
 _UI_ERROR_CODE = re.compile(r"(?:0[xX][0-9a-fA-F]{1,8}|[0-9]{1,10})\Z")
+_PUBLIC_APP_VERSION = re.compile(r"[0-9]{1,6}(?:\.[0-9]{1,6}){0,7}\Z")
+_PUBLIC_LOG_LEVELS = frozenset((
+    "not-recorded", "not recorded", "off", "none", "error", "warning",
+    "info", "debug", "verbose", "trace",
+))
 
 
 def _bounded_text(value: str, name: str) -> str:
@@ -844,6 +849,12 @@ def build_redacted_summary(
         failures.append("CLIENT_VERSION_MISSING")
         client_version = None
         client_build = None
+    elif (_PUBLIC_APP_VERSION.fullmatch(windows_app["version"]) is None or
+          _PUBLIC_APP_VERSION.fullmatch(windows_app["build"]) is None):
+        # Private Info.plist metadata is not a public free-text channel.
+        failures.append("CLIENT_VERSION_INVALID")
+        client_version = None
+        client_build = None
     else:
         client_version = windows_app["version"]
         client_build = windows_app["build"]
@@ -858,6 +869,13 @@ def build_redacted_summary(
     )
     if not credential_valid:
         failures.append("INVALID_CREDENTIAL_CONTROL")
+    credential_match = (
+        saved.get("server_client_credentials_intentionally_matched")
+        if isinstance(saved, dict) else None
+    )
+    if not isinstance(credential_match, str) or credential_match not in (
+            "yes", "no", _NOT_APPLICABLE):
+        credential_match = None
 
     warning = manifest.get("certificate_warning")
     warning_appeared = warning.get("appeared") if isinstance(warning, dict) else None
@@ -871,15 +889,36 @@ def build_redacted_summary(
     )
     if not warning_consistent:
         failures.append("CERTIFICATE_DECISION_INCONSISTENT")
+    redacted_warning_appeared = (
+        warning_appeared if isinstance(warning_appeared, bool) else None
+    )
+    redacted_warning_accepted = (
+        warning_accepted if isinstance(warning_accepted, str)
+        and warning_accepted in ("yes", "no", _NOT_APPLICABLE) else None
+    )
 
     logging = manifest.get("logging")
     logging_available = isinstance(logging, dict) and logging.get("available") is True
     if not logging_available:
         failures.append("CLIENT_LOGS_MISSING")
-    if not isinstance(logging, dict) or not logging.get("started_before_attempt") or not logging.get(
-        "stopped_after_attempt"
-    ):
+    if (not isinstance(logging, dict) or
+            logging.get("started_before_attempt") is not True or
+            logging.get("stopped_after_attempt") is not True):
         failures.append("LOGGING_LIFECYCLE_INCOMPLETE")
+    # A privately edited log level must not be copied into shared JSON.
+    redacted_log_levels: dict[str, str] = {}
+    for field in ("core_level", "ui_level"):
+        value = logging.get(field) if isinstance(logging, dict) else None
+        if not isinstance(value, str) or value.lower() not in _PUBLIC_LOG_LEVELS:
+            failures.append("CLIENT_LOG_LEVEL_INVALID")
+            value = _NOT_RECORDED
+        redacted_log_levels[field] = value
+    log_file_count = logging.get("file_count") if logging_available else None
+    if logging_available and (
+            type(log_file_count) is not int or
+            not 1 <= log_file_count <= MAX_LOG_FILES):
+        failures.append("CLIENT_LOG_FILE_COUNT_INVALID")
+        log_file_count = None
 
     linux = manifest.get("linux_correlation")
     linux_connection_id_present = (
@@ -891,12 +930,16 @@ def build_redacted_summary(
         failures.append("LINUX_CONNECTION_CORRELATION_MISSING")
 
     correlation_delta_seconds: float | None = None
+    redacted_attempt_time: str | None = None
+    redacted_terminal_time: str | None = None
     try:
         attempt_time = _parse_utc(manifest.get("attempt_time_utc"), "attempt time")
         terminal_time = _parse_utc(
             linux.get("terminal_time_utc") if isinstance(linux, dict) else None,
             "Linux terminal time",
         )
+        redacted_attempt_time = attempt_time.astimezone(timezone.utc).isoformat()
+        redacted_terminal_time = terminal_time.astimezone(timezone.utc).isoformat()
         correlation_delta_seconds = abs((terminal_time - attempt_time).total_seconds())
         if correlation_delta_seconds > MAX_CORRELATION_DELTA_SECONDS:
             failures.append("CLOCK_SKEW_OR_ATTEMPT_MISMATCH")
@@ -1028,7 +1071,7 @@ def build_redacted_summary(
         "diagnostic_findings": timing_findings,
         "server_sha": server_sha,
         "server_certificate_sha256": fingerprint,
-        "attempt_time_utc": manifest.get("attempt_time_utc"),
+        "attempt_time_utc": redacted_attempt_time,
         "destination": {
             "exact_value_redacted": True,
             "sha256": destination_digest,
@@ -1042,16 +1085,12 @@ def build_redacted_summary(
                 isinstance(saved, dict)
                 and saved.get("state") == "explicit-saved-selected"
             ),
-            "server_client_credentials_intentionally_matched": (
-                saved.get("server_client_credentials_intentionally_matched")
-                if isinstance(saved, dict)
-                else None
-            ),
+            "server_client_credentials_intentionally_matched": credential_match,
             "username_redacted": True,
         },
         "certificate_warning": {
-            "appeared": warning_appeared,
-            "accepted": warning_accepted,
+            "appeared": redacted_warning_appeared,
+            "accepted": redacted_warning_accepted,
         },
         "client_error": {
             "ui_code": ui_error_code,
@@ -1065,17 +1104,15 @@ def build_redacted_summary(
         },
         "logging": {
             "available": logging_available,
-            "core_level": logging.get("core_level") if isinstance(logging, dict) else None,
-            "ui_level": logging.get("ui_level") if isinstance(logging, dict) else None,
-            "file_count": logging.get("file_count") if isinstance(logging, dict) else None,
+            "core_level": redacted_log_levels["core_level"],
+            "ui_level": redacted_log_levels["ui_level"],
+            "file_count": log_file_count,
             "raw_logs_preserved_outside_summary": True,
         },
         "linux_correlation": {
             "connection_id_present": linux_connection_id_present,
             "connection_id_redacted": True,
-            "terminal_time_utc": (
-                linux.get("terminal_time_utc") if isinstance(linux, dict) else None
-            ),
+            "terminal_time_utc": redacted_terminal_time,
             "absolute_timestamp_delta_seconds": correlation_delta_seconds,
             "maximum_allowed_delta_seconds": MAX_CORRELATION_DELTA_SECONDS,
         },

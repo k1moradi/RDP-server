@@ -918,6 +918,58 @@ class OwnerEvidenceTests(unittest.TestCase):
                     self.assertFalse(summary["client_error"]["provider_category_present"])
                     self.assertFalse(summary["client_error"]["provider_code_present"])
 
+        # Public metadata is also sourced from the private manifest.
+        # Invalid fields must never reflect a private marker or nested value.
+        private_metadata = (
+            (None, "attempt_time_utc", private_marker,
+             "CORRELATION_TIMESTAMP_INVALID", "attempt_time_utc", None),
+            ("linux_correlation", "terminal_time_utc", [private_marker],
+             "CORRELATION_TIMESTAMP_INVALID", "linux_correlation", "terminal_time_utc"),
+            ("windows_app", "version", private_marker,
+             "CLIENT_VERSION_INVALID", "windows_app", "version"),
+            ("windows_app", "build", {"secret": private_marker},
+             "CLIENT_VERSION_MISSING", "windows_app", "build"),
+            ("saved_credential", "server_client_credentials_intentionally_matched",
+             private_marker, "INVALID_CREDENTIAL_CONTROL",
+             "credential_control", "server_client_credentials_intentionally_matched"),
+            ("certificate_warning", "appeared", [private_marker],
+             "CERTIFICATE_DECISION_INCONSISTENT", "certificate_warning", "appeared"),
+            ("certificate_warning", "accepted", private_marker,
+             "CERTIFICATE_DECISION_INCONSISTENT", "certificate_warning", "accepted"),
+            ("logging", "core_level", private_marker,
+             "CLIENT_LOG_LEVEL_INVALID", "logging", "core_level"),
+            ("logging", "ui_level", [private_marker],
+             "CLIENT_LOG_LEVEL_INVALID", "logging", "ui_level"),
+            ("logging", "file_count", {"secret": private_marker},
+             "CLIENT_LOG_FILE_COUNT_INVALID", "logging", "file_count"),
+        )
+        for private_section, private_field, private_value, denial, public_section, public_field in private_metadata:
+            with self.subTest(metadata=private_field, type=type(private_value).__name__):
+                manifest = evidence.build_manifest(self.options)
+                if private_section is None:
+                    manifest[private_field] = private_value
+                else:
+                    manifest[private_section][private_field] = private_value
+                summary = evidence.build_redacted_summary(manifest)
+                self.assertEqual(summary["evidence_status"], "FAIL")
+                self.assertIn(denial, summary["evidence_failures"])
+                self.assertEqual(set(summary), expected_keys)
+                self.assertNotIn(private_marker, json.dumps(summary, sort_keys=True))
+                projected = (summary[public_section] if public_field is None
+                             else summary[public_section][public_field])
+                expected = ("not-recorded" if private_section == "logging"
+                            and private_field in ("core_level", "ui_level") else None)
+                self.assertEqual(projected, expected)
+
+        # A truthy private string is not evidence of logging lifecycle.
+        for lifecycle_field in ("started_before_attempt", "stopped_after_attempt"):
+            manifest = evidence.build_manifest(self.options)
+            manifest["logging"][lifecycle_field] = private_marker
+            summary = evidence.build_redacted_summary(manifest)
+            self.assertEqual(summary["evidence_status"], "FAIL")
+            self.assertIn("LOGGING_LIFECYCLE_INCOMPLETE", summary["evidence_failures"])
+            self.assertNotIn(private_marker, json.dumps(summary, sort_keys=True))
+
         for missing in ("first_client_error", "provider_code_exact"):
             with self.subTest(missing=missing):
                 manifest = evidence.build_manifest(self.options)

@@ -1,3 +1,7 @@
+## Linux first-frame visibility ACK-gate qualification (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. After canonical Debug configure/build run `ctest --test-dir build -C Debug -R '^runtime[.]linux-host-control-(first-frame-visibility-requires-genuine-ack|first-live-graphics-trace-projection)$' --output-on-failure`, then `ctest --test-dir build -C Debug --output-on-failure`. Reconfigure/reuse the same root for Release and run complete CTest plus the existing applicable R4/R9 graphics and native-security sanitizer lanes. No new dependency, executable, secondary build root, benchmark or physical client action. Source review parent `6d9a9617f2ffa0bc218a4c7e4180ba580e79b945` PASS; local execution NOT RUN and publication-SHA hosted CI PENDING.
+
 ## R1 Linux Type-2 immediate half-close / independent TLS lifetime (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. With Linux native host-security dependencies available, after canonical configure and Debug build run `ctest --test-dir build -C Debug -R '^runtime[.]linux-direct-ntlm-post-type2-(fin-tls-boundaries-reconnect|partial-tsrequest-fin-drain|orderly-fin|immediate-retry)$' --output-on-failure`, then ordinary full Debug CTest. Reconfigure the same build root for Release, build and run full Release CTest. The native fixture may SKIP (77) without the required logged-in Linux owner environment; SKIP is not PASS.

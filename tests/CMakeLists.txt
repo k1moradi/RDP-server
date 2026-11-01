@@ -918,6 +918,7 @@ if(TARGET rdp-server-linux-host-control)
             linux-host-control-standalone-credential-native-admission-separation
             linux-host-control-retained-credential-lock-session-loss
             linux-host-control-first-live-graphics-trace-projection
+            linux-host-control-first-frame-visibility-requires-genuine-ack
             linux-host-control-route-aware-lan-recommendation
             linux-host-control-stop-revoke-retirement)
         add_test(NAME "runtime.${host_control_case}"

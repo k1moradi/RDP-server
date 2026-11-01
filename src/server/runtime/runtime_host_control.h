@@ -1302,6 +1302,18 @@ projectRuntimeFirstLiveGraphicsTrace(
         firstGenuineMatchingFrameAcknowledge};
 }
 
+// Product-visible desktop state is stronger than local frame preparation or
+// a complete outbound TLS write. R4's genuine matching client ACK is the
+// independent delivery boundary; outstanding later frames do not revoke it.
+[[nodiscard]] constexpr bool runtimeFirstClientFrameVisibilityConfirmed(
+    const RuntimeFirstLiveGraphicsTrace& trace) noexcept
+{
+    return trace.firstFramebufferAvailable &&
+           trace.firstClearCodecFramePrepared &&
+           trace.firstExactTlsWriteCommitted &&
+           trace.firstGenuineMatchingFrameAcknowledge;
+}
+
 struct RuntimeHostStatus
 {
     RuntimeHostStage stage{RuntimeHostStage::Stopped};

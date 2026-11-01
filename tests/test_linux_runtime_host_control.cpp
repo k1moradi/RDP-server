@@ -1120,6 +1120,30 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (testCase ==
+        "linux-host-control-first-frame-visibility-requires-genuine-ack")
+    {
+        assert(!runtimeFirstClientFrameVisibilityConfirmed(
+            projectRuntimeFirstLiveGraphicsTrace(
+                true, true, true, 1U, false)));
+        assert(!runtimeFirstClientFrameVisibilityConfirmed(
+            projectRuntimeFirstLiveGraphicsTrace(
+                false, true, true, 0U, true)));
+        assert(!runtimeFirstClientFrameVisibilityConfirmed(
+            projectRuntimeFirstLiveGraphicsTrace(
+                true, false, true, 0U, true)));
+        assert(!runtimeFirstClientFrameVisibilityConfirmed(
+            projectRuntimeFirstLiveGraphicsTrace(
+                true, true, false, 0U, true)));
+
+        // A genuine first ACK remains sufficient even if newer frames are
+        // outstanding; it confirms the first complete R4 publication only.
+        assert(runtimeFirstClientFrameVisibilityConfirmed(
+            projectRuntimeFirstLiveGraphicsTrace(
+                true, true, true, 7U, true)));
+        return 0;
+    }
+
     if (testCase == "linux-host-control-route-aware-lan-recommendation")
     {
         using Family = RuntimeHostAddressFamily;

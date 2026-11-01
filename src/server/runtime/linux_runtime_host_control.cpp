@@ -2841,8 +2841,10 @@ RuntimeHostResult LinuxRuntimeHostControl::serviceNativeDesktopOnce() noexcept
             nativeDesktop_->graphicsWritePending = false;
             if (nativeDesktop_->framePublicationPending)
             {
+                // Exact outbound DATA delivery is not client visibility.
+                // R3's independently consumed matching FRAME_ACK promotes
+                // the product stage after the post-Share read below.
                 nativeDesktop_->framePublicationPending = false;
-                stage_ = RuntimeHostStage::DesktopVisible;
             }
             break;
         case FrameStep::Progress:
@@ -2871,8 +2873,22 @@ RuntimeHostResult LinuxRuntimeHostControl::serviceNativeDesktopOnce() noexcept
                 *deploymentPolicy_, socketReadable, socketWritable, sink);
         switch (read.status)
         {
-        case ReadStep::Progress:
         case ReadStep::Routed:
+        {
+            const auto acceptance =
+                acceptedClient_->firstClientAcceptanceObservability();
+            const auto firstFrameTrace = projectRuntimeFirstLiveGraphicsTrace(
+                nativeDesktop_->firstFramebufferAvailable,
+                acceptance.firstClearCodecFramePrepared,
+                acceptance.firstExactFrameWriteCommitted,
+                acceptance.outstandingFrameAcknowledgements,
+                acceptance.firstGenuineFrameAcknowledge);
+            if (stage_ == RuntimeHostStage::ShareActivated &&
+                runtimeFirstClientFrameVisibilityConfirmed(firstFrameTrace))
+                stage_ = RuntimeHostStage::DesktopVisible;
+            break;
+        }
+        case ReadStep::Progress:
         case ReadStep::NeedRead:
         case ReadStep::NeedWrite:
             break;

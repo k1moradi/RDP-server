@@ -1,3 +1,9 @@
+## R10 macOS frame-pump source-contract correction qualification (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. After canonical Debug configure/build run `ctest --test-dir build -C Debug -R '^runtime[.]macos-(host-control-native-frame-pump-composition-contract|host-control-native-frame-callback-rejection-retires|graphics-ready-native-attach-composition-contract|native-retirement-single-owner-callers|native-owner-global-namespace-contract)$' --output-on-failure`, then ordinary full Debug CTest. Repeat full Release and unchanged applicable macOS/native/security sanitizer lanes on the publication SHA.
+
+This increment changes only the existing source-contract assertion and its registry comment; it permits the already-required resize control handoff after native observation while continuing to forbid successful inbound dispatch from returning before native service. No new binary, dependency, listener, encoder, ACK owner, build root or physical action. Authoring parent `c34b5e3f7a937b1873dd75699b1aea4a2d62ae2f`: hosted ancestor failure reproduction/source review PASS; local build/CTest/sanitizers NOT RUN; exact-SHA hosted execution PENDING.
+
 ## R7 preference save-failure retry offline qualification (2026-11-01)
 
 Reuse the single canonical `~/rdp-server/build/` root. After the

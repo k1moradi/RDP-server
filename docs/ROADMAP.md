@@ -1,3 +1,11 @@
+## R10/R4 follow-up — frame-pump guard no longer treats resize control as starvation (2026-11-01)
+
+**Current parent:** `c34b5e3f7a937b1873dd75699b1aea4a2d62ae2f`. Hosted ancestor full CTest reproduced a source-contract failure in `runtime.macos-host-control-native-frame-pump-composition-contract`: its textual check searched from ACK consumption all the way to frame preflight and therefore rejected the legitimate `RdpGraphicsSurfaceReconfiguration::Started` return that hands DELETE/CREATE/MAP to the sole R3/R1 writer before a resized frame can be preflighted. Production ordering is correct: successful bounded inbound ACK/input/Clipboard dispatch falls through to current R7 native service; after native observation begins, changed geometry may defer frame work while R3 remaps.
+
+**Implemented now:** narrow only the existing offline source guard to the inbound-dispatch region ending at the native-service boundary, while retaining the later frame-preflight ordering assertion. The existing CTest name/executable remains authoritative; no production source, queue, encoder, frame ID, ACK window, native borrow or resize behavior changes. The separate R10 global `::rdp::macos` namespace correction on main addresses the actual macOS Clang compile blocker.
+
+**Dependency state:** R4 ACK-credit deferral, segmented accepted-byte accounting, native-borrow lifetime, resize fencing and session-retirement contracts remain source-integrated. This removes a false CI blocker but does not establish client-visible pixels. Exact publication-SHA hosted CTest/CI remains required; owner-local Debug/Release and physical Windows App/mstsc frame/FRAME_ACK remain NOT RUN.
+
 ## R5/R7 hosted qualification unblock: isolate updateTray source-contract body (2026-11-01)
 
 - Hosted exact-R5 correction `5edb1d339b5de45c7f84f71d9fa01c22928c2d5a`, Actions `41352378346`, records fixed native X11 ASan/UBSan **45/45 PASS**, supplemental aggregate implicit-destructor **2/2 PASS**, and Linux GUI ZIP **PASS**. Its full Ubuntu Debug CTest failed five other cases, including `gui.round2-refresh-tray-function-boundary`, not R5 native behavior.

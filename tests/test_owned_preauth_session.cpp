@@ -8917,7 +8917,10 @@ void testMacProtectedBatchedChannelJoinsClientInfoTlsReceipts()
            McsSessionPhase::AwaitServerLicenseRequest);
     assert(!fixture->session->firstClientAcceptanceObservability()
                 .shareActivated);
+    // The next fresh R2 authorization visit observes and retires Stop.
     fixture->ownerAuthority.revoke(OwnerConsentRevocationReason::Stop);
+    assert(!fixture->broker.revalidate(kConsoleViewPermission));
+    assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
     assert(fixture->session->phase() == McsSessionPhase::Closed);
     assert(fixture->connection.stage() == PreauthStage::Closed);
 }

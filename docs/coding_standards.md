@@ -1,3 +1,9 @@
+## R9 preferences object permissions are exact, not merely owner-only (2026-11-01)
+
+For the R2 per-user preferences store, POSIX production acceptance of the application directory/file uses exact permission bits: 0700 directory and regular single-link 0600 file owned by the effective UID. Owner-only executable/special modes are not canonical and fail closed rather than being silently normalized. Ancestor home/config directories keep the existing no-group/world-write requirement. Windows accepts only the current user SID, no reparse point, owner-only explicit ACEs and a DACL marked `SE_DACL_PROTECTED` so later parent inheritance cannot widen access. Atomic replacement semantics and the fixed non-secret record stay unchanged.
+
+R9 CLI process tests may use a clearly synthetic sentinel solely to prove diagnostics do not reflect private argv/stdin bytes. They must not pass a real password in argv, write secrets to CTest output, or launch Qt/listeners for malformed-input cases.
+
 ## R6 first-error attempt window has one terminal-relative owner (2026-11-01)
 
 For paired owner evidence, keep the source binding's attempt-start to terminal

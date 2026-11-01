@@ -1,3 +1,9 @@
+## R9 shipped CLI denial and exact preference-mode regressions (2026-11-01)
+
+The ordinary `gui.rapid-cli-executable-denials` must execute the built desktop binary, not only `parseDesktopLaunchOptions()`. Under an intentionally invalid QPA backend, help and every invalid argv/stdin case must terminate before QApplication: unknown and duplicate switches, all argv-password spellings, conflicting help, empty redirected password input, malformed UTF-8/NUL and >256-byte input. Diagnostics are bounded and fixed-category; a synthetic secret sentinel must not be reflected. Existing fake-HostControl offscreen tests remain responsible for --enable's presentation-only behavior and explicit Sharing action.
+
+The existing `runtime.user-preferences-owner-private-versioned-roundtrip-denials` must verify actual POSIX app-directory owner/mode 0700 and regular single-link preferences-file owner/mode 0600. A same-owner 0700 preferences file is deliberately invalid and must deny both load and save until restored to 0600. Windows production validation must require current-user owner-only, non-inherited, **protected** DACL and no reparse point; its ordinary round-trip exercises the created protected objects. These are non-secret settings checks and never authorize R2/R1 or physical client activity. R7 GUI restoration remains a separate test only after the public preferences API is actually consumed.
+
 ## R6 terminal-relative first-error boundary regression (2026-11-01)
 
 Extend the existing ordinary

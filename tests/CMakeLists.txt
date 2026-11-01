@@ -5772,6 +5772,16 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         ENVIRONMENT "QT_QPA_PLATFORM=invalid-headless-backend"
         LABELS "gui;cli;security;offline" TIMEOUT 10)
 
+    # Exercise the shipped executable, not only the header parser. Every case
+    # exits before QApplication and must not echo synthetic private input.
+    add_test(NAME gui.rapid-cli-executable-denials
+        COMMAND "${Python3_EXECUTABLE}"
+            "${PROJECT_SOURCE_DIR}/tests/test_desktop_cli.py"
+            $<TARGET_FILE:rdp-server-desktop>)
+    set_tests_properties(gui.rapid-cli-executable-denials PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=rdp-intentionally-invalid"
+        LABELS "gui;cli;credentials;security;offline" TIMEOUT 20)
+
     # Qt must display the current platform's native target without an X11 claim.
     add_test(NAME gui.offscreen-native-desktop-platform-labels
         COMMAND test_desktop_gui_offline native-desktop-platform-labels)

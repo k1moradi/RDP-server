@@ -163,6 +163,13 @@ int main()
         ("runtime-user-preferences-" + std::to_string(processId));
     assert(createPrivateDirectory(directory));
     const auto file = directory / "preferences.bin";
+#if !defined(_WIN32)
+    struct stat directoryMetadata{};
+    assert(::lstat(directory.c_str(), &directoryMetadata) == 0);
+    assert(S_ISDIR(directoryMetadata.st_mode));
+    assert(directoryMetadata.st_uid == ::geteuid());
+    assert((directoryMetadata.st_mode & 07777) == 0700);
+#endif
 
     RuntimeUserPreferences loaded = original;
     assert(detail::loadRuntimeUserPreferencesFromDirectory(
@@ -178,6 +185,26 @@ int main()
     assert(loaded.preferredStableLanInterfaceId ==
            original.preferredStableLanInterfaceId);
     assert(loaded.port == original.port);
+#if !defined(_WIN32)
+    struct stat fileMetadata{};
+    assert(::lstat(file.c_str(), &fileMetadata) == 0);
+    assert(S_ISREG(fileMetadata.st_mode));
+    assert(fileMetadata.st_uid == ::geteuid());
+    assert(fileMetadata.st_nlink == 1);
+    assert((fileMetadata.st_mode & 07777) == 0600);
+
+    // Exact private mode is part of the file contract; owner execute bits are
+    // not accepted merely because group/world access remains absent.
+    assert(::chmod(file.c_str(), 0700) == 0);
+    loaded = original;
+    assert(detail::loadRuntimeUserPreferencesFromDirectory(
+               directory, loaded) == RuntimeUserPreferencesStorageStatus::Invalid);
+    assert(detail::saveRuntimeUserPreferencesToDirectory(
+               directory, original) == RuntimeUserPreferencesStorageStatus::Invalid);
+    assert(::chmod(file.c_str(), 0600) == 0);
+    assert(detail::loadRuntimeUserPreferencesFromDirectory(
+               directory, loaded) == RuntimeUserPreferencesStorageStatus::Loaded);
+#endif
 
     // Independent reload simulates restart. This path neither owns a secret
     // nor depends on HostControl; the deny-only runtime remains unchanged.

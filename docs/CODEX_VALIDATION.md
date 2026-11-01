@@ -1,3 +1,15 @@
+## R9 rapid CLI executable denials and strict preferences permissions (2026-11-01)
+
+**Reviewed parent:** `9e35da1d67b2ad132a39cfa94753fdf10fed07d4`. R7's rapid-test desktop CLI and R2's typed non-secret preferences API have now landed, resolving the earlier implementation-absent blocker for their independent assurance surfaces. Source review found one concrete R2 storage mismatch: POSIX "exact private" validation accepted owner modes such as 0700 for the preferences file instead of the documented exact 0600 file / 0700 app directory, and Windows owner-only DACL validation did not require `SE_DACL_PROTECTED`. Production validation now requires those exact POSIX modes and a protected Windows DACL before accepting the object. The existing ordinary `runtime.user-preferences-owner-private-versioned-roundtrip-denials` adds POSIX uid/type/link/mode assertions plus a 0700-file denial before restoring 0600. No credential, listener, authority or preference schema changes.
+
+R7's existing Qt fixture already validates parser duplicates/unknown argv, invalid UTF-8, bounded stdin wiping, --enable presentation-only consent and restart-empty password UI. R9 adds ordinary `gui.rapid-cli-executable-denials`, which invokes the shipped `rdp-server-desktop` under a deliberately invalid QPA backend and requires --help, unknown/duplicate switches, argv-password spellings, empty/invalid/NUL/oversized redirected stdin and fixed exit categories to terminate **before QApplication**. A synthetic sentinel must never appear in stdout/stderr; no real password is supplied.
+
+**Dependency graph refresh:** R4 `ddf7a157` now requires a genuine matching FRAME_ACK before Linux DesktopVisible, and R5 `cb3cc05d` records the accepted-client/post-Share frame+input path plus additive implicit-held-input sanitizer coverage as landed. Those resolve earlier offline frame/input composition blockers but do not reach the current physical authentication failure, which remains before client NTLM Type 3. R3's batched MCS-join regression is therefore downstream of the present failure rather than its cause.
+
+The remaining settings integration blocker is narrow and explicit: current `rdp-server-desktop` does not link or call `rdp-server-runtime-user-preferences`, so end-to-end restart restoration and stale saved-interface re-enumeration cannot yet be truthfully tested through the GUI. R2 storage is ready; R7 must consume only the public no-path API and apply saved interface IDs only after fresh R10 enumeration while keeping Sharing OFF. Do not fabricate that coverage in R9.
+
+**Verification:** source/registry review PASS; Python syntax of the new test helper PASS in the authoring environment. Canonical local configure/build/focused/full CTest, Windows/macOS native execution, ASan/UBSan and benchmarks NOT RUN. Exact publication-SHA hosted CI PENDING. No manual workflow, listener, native desktop, Windows App/mstsc, credential or packet activity performed. Physical login requires separate owner authorization.
+
 ## R6 terminal-relative first error and current physical-client blocker (2026-11-01)
 
 Reviewed current `main` parent `cb3cc05d609d62fa9f5bcc1779629b07e18c2d52`

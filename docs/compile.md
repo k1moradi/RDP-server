@@ -1,3 +1,14 @@
+## R9 rapid CLI executable and preferences permission focused qualification (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build, run:
+
+```sh
+ctest --test-dir build -C Debug -R '^(gui[.]rapid-(help-before-qapplication|cli-executable-denials)|runtime[.]user-preferences-owner-private-versioned-roundtrip-denials)$' --output-on-failure
+ctest --test-dir build -C Debug --output-on-failure
+```
+
+Then normal Release, Linux/GCC, macOS/Clang, Windows MSVC/Clang 23 and applicable existing sanitizer lanes on the exact publication SHA. The CLI denial test uses no display, listener or real credential; the preference fixture writes only inside the existing build root. Local execution and benchmarks NOT RUN at authoring.
+
 ## Linux first-frame visibility ACK-gate qualification (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. After canonical Debug configure/build run `ctest --test-dir build -C Debug -R '^runtime[.]linux-host-control-(first-frame-visibility-requires-genuine-ack|first-live-graphics-trace-projection)$' --output-on-failure`, then `ctest --test-dir build -C Debug --output-on-failure`. Reconfigure/reuse the same root for Release and run complete CTest plus the existing applicable R4/R9 graphics and native-security sanitizer lanes. No new dependency, executable, secondary build root, benchmark or physical client action. Source review parent `6d9a9617f2ffa0bc218a4c7e4180ba580e79b945` PASS; local execution NOT RUN and publication-SHA hosted CI PENDING.

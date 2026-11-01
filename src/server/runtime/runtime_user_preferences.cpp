@@ -168,9 +168,20 @@ private:
     if (::fstat(descriptor, &metadata) != 0 ||
         metadata.st_uid != ::geteuid() ||
         (directory ? !S_ISDIR(metadata.st_mode) :
-                     !S_ISREG(metadata.st_mode)) ||
-        (metadata.st_mode & (exactPrivateMode ? 0077 : 0022)) != 0)
+                     !S_ISREG(metadata.st_mode)))
         return false;
+
+    const mode_t permissionBits = metadata.st_mode & 07777;
+    if (exactPrivateMode)
+    {
+        const mode_t requiredMode = directory ? 0700 : 0600;
+        if (permissionBits != requiredMode)
+            return false;
+    }
+    else if ((permissionBits & 0022) != 0)
+    {
+        return false;
+    }
     return directory || metadata.st_nlink == 1;
 }
 
@@ -427,9 +438,14 @@ struct LocalMemoryCloser final
             &owner, nullptr, &acl, nullptr, &descriptor) != ERROR_SUCCESS)
         return false;
     std::unique_ptr<void, LocalMemoryCloser> descriptorOwner{descriptor};
-    if (!descriptorOwner || !::IsValidSid(owner) ||
-        !::EqualSid(owner, expectedOwner) || acl == nullptr ||
-        !::IsValidAcl(acl) || acl->AceCount == 0U)
+    SECURITY_DESCRIPTOR_CONTROL descriptorControl{};
+    DWORD descriptorRevision = 0U;
+    if (!descriptorOwner ||
+        !::GetSecurityDescriptorControl(
+            descriptor, &descriptorControl, &descriptorRevision) ||
+        (descriptorControl & SE_DACL_PROTECTED) == 0U ||
+        !::IsValidSid(owner) || !::EqualSid(owner, expectedOwner) ||
+        acl == nullptr || !::IsValidAcl(acl) || acl->AceCount == 0U)
         return false;
     for (DWORD index = 0U; index < acl->AceCount; ++index)
     {

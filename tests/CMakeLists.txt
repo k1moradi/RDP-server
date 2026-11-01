@@ -2022,6 +2022,14 @@ function(add_rdp_test source_file suite behavior)
         set_tests_properties(
             graphics.frame-partial-data-retirement-successor-generation
             PROPERTIES LABELS "protocol;graphics;transport;offline")
+        # Original native framebuffer borrow and early ACK over segmented DATA.
+        # The 23-case Graphics DVC sanitizer census is intentionally unchanged.
+        add_test(NAME graphics.frame-native-borrow-segmented-receipt-fence
+            COMMAND "${test_target}"
+                "dvc-graphics-frame-native-borrow-segmented-receipt-fence")
+        set_tests_properties(
+            graphics.frame-native-borrow-segmented-receipt-fence
+            PROPERTIES LABELS "protocol;graphics;transport;offline")
     elseif(test_target STREQUAL "test_owned_preauth_session")
         # Behavior groups from ONE existing executable: no duplicate
         # compilation, executables, state controllers or fixture sources.

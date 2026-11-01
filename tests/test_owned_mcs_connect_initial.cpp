@@ -5942,6 +5942,120 @@ void testGraphicsFrameStaleReceiptAbort()
 }
 
 
+// Original mapped-owner native borrow ends before R3 segmented DATA receipts.
+// Unlike the two retirement regressions, this tests early ACK + live owner.
+void testGraphicsNativeBorrowSegmentedReceiptFence()
+{
+    constexpr RdpDynamicVirtualChannelAllocation allocation{15U, 216U};
+    constexpr std::uint32_t frameId = 109U;
+    constexpr PixelSize geometry{64U, 64U};
+    constexpr std::size_t strideBytes = 64U * 4U + 16U;
+    RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+    completeGraphicsDynamicVirtualChannelReady(dvc, allocation, 1007U, 1005U);
+    assert(dvc.preflightFramePublication(frameId) ==
+           RdpGraphicsFramePublicationReadiness::Ready);
+
+    // Native pixels are top-left BGRA with 16 bytes of padding per row.
+    std::vector<std::byte> nativePixels(
+        strideBytes * geometry.heightPixels, std::byte{0xa5});
+    for (std::size_t row = 0; row < geometry.heightPixels; ++row)
+        for (std::size_t column = 0; column < geometry.widthPixels; ++column)
+        {
+            const std::size_t offset = row * strideBytes + column * 4U;
+            nativePixels[offset] = static_cast<std::byte>(column);
+            nativePixels[offset + 1U] = static_cast<std::byte>(row);
+            nativePixels[offset + 2U] = std::byte{0x7b};
+            nativePixels[offset + 3U] = std::byte{0xff};
+        }
+    const FramebufferView nativeView{
+        std::span<const std::byte>{nativePixels}, 64U, 64U, strideBytes};
+    rdp_server::rdp::GfxAvc420SegmentedFrame frame;
+    assert(dvc.prepareClearCodecFrame(frameId, nativeView, frame));
+    const std::vector<std::byte> encodedSnapshot(
+        frame.wireBytes().begin(), frame.wireBytes().end());
+    // Source borrow is over; its contents may change before any TLS receipt.
+    std::fill(nativePixels.begin(), nativePixels.end(), std::byte{0x5a});
+    assert(dvc.beginFramePublication(
+        std::move(frame), RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    const std::size_t recordCount = dvc.frameRecordMap().size();
+    assert(recordCount > 1U && dvc.outstandingGraphicsFrames() == 0U);
+    const auto earlyAck = makeR3GraphicsFrameAcknowledgeTpkt(
+        allocation.channelId, frameId, 4096U, 1U);
+
+    std::size_t frameOffset = 0U;
+    for (std::size_t index = 0U; index < recordCount; ++index)
+    {
+        const auto record = dvc.frameRecordMap()[index];
+        const auto pending = dvc.pendingServerWrite();
+        assert(pending && pending.kind ==
+               RdpGraphicsDvcWriteKind::GraphicsFrameData);
+        const std::size_t headerBytes =
+            record.outerPlaintextBytes - record.frameBytes;
+        assert(record.frameOffset == frameOffset &&
+               pending.bytes.size() == record.outerPlaintextBytes);
+        for (std::size_t offset = 0U; offset < record.frameBytes; ++offset)
+            assert(pending.bytes[headerBytes + offset] ==
+                   std::to_integer<std::uint8_t>(
+                       encodedSnapshot[frameOffset + offset]));
+
+        if (index == 0U)
+        {
+            assert(dvc.onServerBytesWritten(
+                pending.channelGeneration, pending.replySequence,
+                pending.writeSliceSequence, 0U) ==
+                RdpGraphicsDvcWriteOutcome::Pending);
+            assert(dvc.pendingServerWrite().writeSliceSequence ==
+                   pending.writeSliceSequence);
+            const std::size_t acceptedPrefix = headerBytes + 1U;
+            assert(acceptedPrefix < pending.bytes.size());
+            assert(dvc.onServerBytesWritten(
+                pending.channelGeneration, pending.replySequence,
+                pending.writeSliceSequence, acceptedPrefix) ==
+                RdpGraphicsDvcWriteOutcome::Pending);
+            assert(dvc.outstandingGraphicsFrames() == 0U);
+            assert(dvc.beginSurfaceReconfiguration(
+                allocation.generation, {65U, 64U}) ==
+                RdpGraphicsSurfaceReconfiguration::Deferred);
+            assert(dvc.onClientTpkt(allocation.generation, earlyAck) ==
+                   RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+            assert(dvc.consumePendingClientFrameAcknowledge(
+                allocation.generation) ==
+                RdpGraphicsFrameAcknowledgeIntake::Unmatched);
+            assert(dvc.outstandingGraphicsFrames() == 0U);
+            const auto suffix = dvc.pendingServerWrite();
+            assert(suffix && suffix.replySequence == pending.replySequence &&
+                   suffix.writeSliceSequence != pending.writeSliceSequence);
+            assert(dvc.onServerBytesWritten(
+                suffix.channelGeneration, suffix.replySequence,
+                suffix.writeSliceSequence, suffix.bytes.size()) ==
+                RdpGraphicsDvcWriteOutcome::Pending);
+        }
+        else
+        {
+            const auto result = dvc.onServerBytesWritten(
+                pending.channelGeneration, pending.replySequence,
+                pending.writeSliceSequence, pending.bytes.size());
+            assert(result == (index + 1U == recordCount
+                ? RdpGraphicsDvcWriteOutcome::Delivered
+                : RdpGraphicsDvcWriteOutcome::Pending));
+        }
+        frameOffset += record.frameBytes;
+        if (index + 1U < recordCount)
+            assert(dvc.outstandingGraphicsFrames() == 0U);
+    }
+    assert(frameOffset == encodedSnapshot.size());
+    assert(!dvc.pendingServerWrite());
+    assert(dvc.outstandingGraphicsFrames() == 1U);
+    // Early unmatched ACK did not consume later frame credit.
+    assert(dvc.onClientTpkt(allocation.generation, earlyAck) ==
+           RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+    assert(dvc.consumePendingClientFrameAcknowledge(
+        allocation.generation) ==
+        RdpGraphicsFrameAcknowledgeIntake::Acknowledged);
+    assert(dvc.outstandingGraphicsFrames() == 0U);
+}
+
 void testGraphicsFrameDeliveredSessionRetirementBeforeAcknowledge()
 {
     constexpr RdpDynamicVirtualChannelAllocation allocation{13U, 209U};
@@ -13262,6 +13376,7 @@ int main(int argc, char **argv)
         // R4 assurance CTest still executes in an all-cases invocation.
         testGraphicsFrameDeliveredSessionRetirementBeforeAcknowledge();
         testGraphicsFramePartialDataRetirementSuccessorGeneration();
+        testGraphicsNativeBorrowSegmentedReceiptFence();
         return 0;
     }
     if (argc != 2)
@@ -13276,6 +13391,12 @@ int main(int argc, char **argv)
         "dvc-graphics-frame-partial-data-retirement-successor-generation")
     {
         testGraphicsFramePartialDataRetirementSuccessorGeneration();
+        return 0;
+    }
+    if (std::string_view{argv[1]} ==
+        "dvc-graphics-frame-native-borrow-segmented-receipt-fence")
+    {
+        testGraphicsNativeBorrowSegmentedReceiptFence();
         return 0;
     }
     for (const auto &test : kMcsTestCases)

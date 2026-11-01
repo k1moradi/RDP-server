@@ -1,3 +1,21 @@
+## R7 P0 — same-index interface owner action now persists stable ID (2026-11-01)
+
+After the R2 storage, R7 restore and R10 endpoint boundaries were all present,
+a follow-up Qt audit found one UI-only gap: explicit selection of an already
+selected automatic LAN recommendation emits `activated` but not
+`currentIndexChanged`. R7 now records manual intent from `activated` itself,
+then persists only the current fresh R10-approved stable interface ID through
+the existing R2 API. Repeating the same choice is write-elided by the prior
+complete-record comparison. No saved address, admission, permission, listener
+or Sharing state is introduced.
+
+The existing ordinary
+`gui.offscreen-rapid-preferences-write-coalescing` regression now covers this
+same-index path, repeated no-op activation, changed-port persistence and zero
+Start/permission calls. R2/R7/R10 source dependencies are unblocked; hosted
+cross-platform build/full CTest remains the verification gate, with physical
+RDP client evidence independently owner-authorized.
+
 ## R3 P0 — make the coalesced Share fixture prove one successful TLS write (2026-11-01)
 
 Parent `81ae3ca26f9640cdb01791b165202d96670fcf06`. Re-review of the earlier coalesced Confirm Active/finalization regression found that the general loopback helper allowed successful partial `SSL_write_ex` progress, while the CTest name and documentation promised one client TLS application write. Tighten only the fixture: before success, WANT_READ/WANT_WRITE must accept zero bytes; the first successful `SSL_write_ex` must accept the complete five-TPKT batch. The original R1 TLS owner still exposes complete packet-sized plaintext reads to the existing R2/R3 gates, and all R3 server replies remain exact positive accepted-byte receipts. No production protocol change or new CTest is added.

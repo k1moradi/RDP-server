@@ -1,3 +1,14 @@
+## R7 same-index interface preference activation (2026-11-01)
+
+The existing dedicated
+`gui.offscreen-rapid-preferences-write-coalescing` CTest starts with no saved
+interface preference while fake R10 supplies one automatic recommendation.
+It must prove that explicit activation of that already-selected item stores its
+stable ID once even though `currentIndexChanged` is silent, a second identical
+activation performs zero additional writes, and a changed port still persists.
+This is GUI preference behavior only; it grants no endpoint or Sharing
+authority.
+
 ## R3 P0 — make the coalesced Share fixture prove one successful TLS write (2026-11-01)
 
 The existing `security.macos-protected-share-confirm-active-finalization-single-tls-write` regression must literally prove the condition named by the test. Its client helper may retry after `SSL_ERROR_WANT_READ` / `SSL_ERROR_WANT_WRITE` only while OpenSSL has accepted **zero** plaintext; the single successful `SSL_write_ex` must accept the entire Confirm Active + Synchronize + Cooperate + Request Control + Font List batch. A successful partial application write is a fixture failure rather than a second successful client write. The ordinary batched-finalization test keeps the general all-bytes helper. No production R1/R2/R3 code or second protocol state owner is introduced.

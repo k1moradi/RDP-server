@@ -1,3 +1,20 @@
+## R7 same-index automatic-interface save correction (2026-11-01)
+
+Review of descendant `50f0e3902b39b673e32714d6364ea5032e202572`,
+rebased through current `1361259f704b537e393e9ceb6d21b5d884015ea9`
+while preserving concurrent protocol/qualification work, found a Qt signal-edge
+in the restored preference UI. The code treated `currentIndexChanged` as the
+only source of `manualInterfaceOverride_`, but an owner selecting the
+already-current automatic R10 recommendation emits `activated` without an
+index change. That explicit action therefore failed to save the preferred
+stable interface ID. The correction sets manual intent in the existing
+`activated` handler before calling the same R2 preference save path. The
+write-coalescing fixture now starts with an empty interface preference and
+proves one same-index owner activation stores the fresh stable ID, a repeated
+activation is a no-op, and no R10 Start/permission call occurs. Source review
+PASS; local build/CTest and sanitizers NOT RUN; exact-SHA hosted qualification
+remains required.
+
 ## R3 P0 — make the coalesced Share fixture prove one successful TLS write (2026-11-01)
 
 Reviewed current `main` parent `81ae3ca26f9640cdb01791b165202d96670fcf06` after the earlier R3 publication `cf2348ff211418118f4c0e91908960048c5bb585`. The R3 test and registration remain present. Dependency refresh: `55aa4a1a` fixed the inherited macOS native-owner namespace compile blocker; `c34b5e3f` fixed the unrelated tray source-contract scope; `9ecc26fa` fixed the unrelated macOS frame-pump source-contract false failure. R1 has also recorded hosted Type-2/FIN Debug and sanitizer receipts on current documentation, but that evidence remains separate from R3 and does not establish physical Windows App Type-3 progress.

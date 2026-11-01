@@ -1003,7 +1003,7 @@ int main(int argc, char** argv)
         fakeSaveStatus = RuntimeUserPreferencesStorageStatus::Stored;
         fakePreferenceSaves = 0;
         fakeStoredPreferences = {
-            "stored-owner", "ethernet-1", 3390U, false, 22U};
+            "stored-owner", "", 3390U, false, 22U};
         FakeRuntimeHost candidate;
         prepareReadyHost(candidate);
         HostControl candidateHost(candidate);
@@ -1016,22 +1016,29 @@ int main(int argc, char** argv)
         assert(!port->keyboardTracking());
         assert(!lifetime->keyboardTracking());
         assert(fakePreferenceSaves == 0);
+        assert(interfaces->currentData(Qt::UserRole + 1).toString() ==
+               QStringLiteral("ethernet-1"));
+        assert(fakeStoredPreferences.preferredStableLanInterfaceId.empty());
 
-        // Re-activating the already restored exact stable interface is a
-        // no-op record and must not rewrite the secure preferences object.
+        // Explicitly choosing the already selected automatic recommendation
+        // must persist its stable ID even though currentIndexChanged is silent.
         assert(QMetaObject::invokeMethod(
             interfaces, "activated", Qt::DirectConnection,
             Q_ARG(int, interfaces->currentIndex())));
-        assert(fakePreferenceSaves == 0);
+        assert(fakePreferenceSaves == 1);
+        assert(fakeStoredPreferences.preferredStableLanInterfaceId ==
+               "ethernet-1");
+
+        // Re-activating the now-stored exact choice is a complete no-op.
+        assert(QMetaObject::invokeMethod(
+            interfaces, "activated", Qt::DirectConnection,
+            Q_ARG(int, interfaces->currentIndex())));
+        assert(fakePreferenceSaves == 1);
 
         // A real changed value still persists immediately once Qt commits it.
         port->setValue(3391);
-        assert(fakePreferenceSaves == 1);
+        assert(fakePreferenceSaves == 2);
         assert(fakeStoredPreferences.port == 3391U);
-        assert(QMetaObject::invokeMethod(
-            interfaces, "activated", Qt::DirectConnection,
-            Q_ARG(int, interfaces->currentIndex())));
-        assert(fakePreferenceSaves == 1);
         assert(candidate.startCalls == 0);
         assert(candidate.permissionSetupCalls == 0);
         return 0;

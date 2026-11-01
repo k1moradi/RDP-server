@@ -1156,7 +1156,12 @@ DesktopWindow::DesktopWindow(
                 refresh();
             });
     connect(interfaces_, &QComboBox::activated, this,
-            [this](int) { saveOwnerPreferences(); });
+            [this](int) {
+                // activated() is the owner action even when the already
+                // selected automatic recommendation is chosen again.
+                manualInterfaceOverride_ = true;
+                saveOwnerPreferences();
+            });
     connect(port_, &QSpinBox::valueChanged, this, [this](int) {
         saveOwnerPreferences();
         refresh();

@@ -1,3 +1,13 @@
+## Explicit same-index interface activation is a manual preference action (2026-11-01)
+
+For the R7 LAN selector, `QComboBox::activated` is the owner action;
+`currentIndexChanged` is only change notification. An owner may deliberately
+choose the already selected R10 automatic recommendation, in which case Qt does
+not change the index. Mark the interface as a manual override from
+`activated` before saving so the current fresh R10-approved stable ID can be
+persisted. The saved record still contains no address, permission or listener
+authority, and complete no-op records remain write-elided.
+
 ## R10 macOS immediate-progress servicing uses the shared bounded owner burst (2026-11-01)
 
 R10's `RuntimeHostResult::retryable` remains the scheduler boundary: `false` after successful local protocol progress means more owner work may be immediately actionable, while `true` means yield for peer/native readiness. Linux and macOS GUI servicing must use the same finite eight-call burst and zero-delay reschedule after a fully productive burst. This changes scheduling only; it creates no second socket poller, packet framer, frame queue, TLS writer, ACK tracker or native owner. Post-Graphics R3 DATA still advances only through the original R1 accepted-byte receipts, and each burst yields back to Qt before continuing.

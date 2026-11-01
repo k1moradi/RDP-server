@@ -20,14 +20,16 @@ do not nominate a physical/manual R9 client candidate from this test.
 
 ## R4 mapped-first-frame owner-retirement seam (2026-11-01)
 
+Current source inventory check selects 45 portable R4, 23 R3 DVC and 29 x264/BGRA cases at the corrected base; this is static CMake/workflow inspection rather than an executed CTest listing. The added ordinary case is outside these selectors. Prior 42/42 results are historical, not the current selection.
+
 **Registration follow-up:** At `42f2248b` the new case was initially entered under the R3 test executable despite its R4 dispatch; this would not have executed the intended regression. A direct-main corrective commit relocates it into the existing `test_gfx_presentation_lifecycle` case list, outside fixed sanitizer selectors. The first publication is not a passing test receipt. Corrected CMake/static dispatch review PASS; compile/CTest/ASan/UBSan still NOT RUN and corrective exact-SHA hosted CI PENDING.
 
-Base \`e4534704900c4a3ef890e55aa35e91a76653f0ec\` inspected via GitHub: R4 mapped/resize tests,
+Base `e4534704900c4a3ef890e55aa35e91a76653f0ec` inspected via GitHub: R4 mapped/resize tests,
 pre/post DATA tests, macOS R2 prepared-only Graphics denial, real R1 TLS
 Graphics DATA receipt fixture and fixed CI sanitizer selectors. Missing
 isolated R4 case was owner retirement *after* MAP delivery but before
 the first framebuffer borrow. Added ordinary production-R4 lifecycle
-CTest \`graphics.mapped-before-first-frame-owner-retirement\` to the
+CTest `graphics.mapped-before-first-frame-owner-retirement` to the
 shared registry (not the fixed R4/R3 sanitizer inventories). Verify
 stale output/receipt untouched, no R1/ACK claims, and replacement
 generation using newly supplied bytes. It cannot prove original R2 native

@@ -1,3 +1,15 @@
+## R7 macOS post-Share status isolation source regression (2026-11-01)
+
+Ordinary `runtime.macos-share-activation-does-not-imply-graphics-status`
+reuses the existing offline accepted-client retirement source fixture. It
+pins the protected R2 Share receipt and the distinct GUI projections:
+ShareActivated may be reported, but `graphicsReady` stays false until R3
+Graphics exists; native readiness remains independent, and Share alone never
+means DesktopVisible. This is source-only, not a fabricated positive native
+session, true first-frame receipt, or live-client acceptance. A future R10
+Graphics/first-frame increment must replace the temporary deny-only check with
+production-backed four-state and delivered-vs-prepared first-frame behavior.
+
 ## R4 protected first-frame R1 DATA receipt and independent client ACK (2026-11-01)
 
 Source parent `d014a6e46f29`. The preexisting mapped-before-first-frame

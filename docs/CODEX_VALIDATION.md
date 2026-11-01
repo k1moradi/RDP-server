@@ -1,3 +1,26 @@
+## R7 post-Share status contract and current dependency graph (2026-11-01)
+
+**Authoring parent:** `d014a6e46f29ea460d73893f8b402e66fb7e0031`. R10 `fc7126dfd4fa1dc1707ff4199fbf09ff9398214c`
+now completes original R1/R2/R3 macOS PersonalDesktop Demand/Confirm Active
+and Share finalization; it does **not** yet activate R3 Graphics DVC,
+CAPS/CREATE/MAP, R4 presentation or native R7 capture/attachment. R7
+`ae4bb224339beec16d15b821bfab7c4715464463` separately passed same-SHA
+Linux/macOS/Windows protocol, R7 lifecycle/session sanitizers and R9
+security sanitizer gates. Current `status()` still contained the stale
+claim that R10 stopped at AwaitDemandActive. Correct that comment and add one
+ordinary source-only CTest to assert protected ShareActivated projection is
+not GraphicsReady, native resource readiness or DesktopVisible.
+
+At `1447dd0c` hosted all-platform configure failed before tests because an
+R8 CTest name contained the internal `r2` agent taxonomy. This was fixed
+concurrently at `0bf6730c2e0137b49e9b96a52860a8218f1a8c31`;
+the corrected head's checks are being requalified. Local full CTest,
+ASan/UBSan, macOS 27 physical native ColorSync/profiles, attributed Qt
+warning, TCC/capture/input/Clipboard and Microsoft-client first-frame all
+remain NOT RUN. Source/graph review PASS; new publication-SHA CI PENDING.
+**Next:** R10 protected Graphics DVC/surface readiness, then R7 original
+proof-bound native attachment and first-frame retirement tests.
+
 ## R4 post-Share first-frame R1 receipt and independent ACK seam (2026-11-01)
 
 Authoring parent `d014a6e46f29`. R10's protected macOS Share scheduler landed

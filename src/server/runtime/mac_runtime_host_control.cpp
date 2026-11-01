@@ -1810,8 +1810,8 @@ RuntimeHostStatus MacRuntimeHostControl::status() const
         }
     }
 
-    // R10 currently stops at R3 AwaitDemandActive. Native resource readiness
-    // must never impersonate completed R3 Graphics DVC/surface activation.
+    // R10 now reaches ShareActivated, but Graphics DVC/surfaces are not yet
+    // active. Native readiness cannot impersonate R3 GraphicsReady.
     snapshot.graphicsReady = false;
     snapshot.nativeDesktopReady = nativeDesktop_.ready();
     snapshot.nativeDesktopInitializing = false; // No R2-authorized macOS attach yet.

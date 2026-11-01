@@ -1,3 +1,14 @@
+## R7 macOS ShareActivated is not GraphicsReady (2026-11-01)
+
+The macOS R10 owner now advances its original R1/R2/R3 connection through
+receipt-complete ShareActivated. Until separately R2-protected Graphics DVC
+CAPS/CREATE/MAP and R4 presentation activation exist, HostControl must keep
+`graphicsReady=false` while reporting actual ShareActivated independently
+and keeping `nativeDesktopReady` tied only to local native readiness. A
+ShareActivated client is not DesktopVisible; visibility requires genuine
+client-delivered frame evidence later. Keep lifetime retirement ordering
+R2/R3 -> native -> proof/R1 and never infer native authorization from GUI flags.
+
 ## R3 real-licensed Demand Active receipt fence (2026-11-01)
 
 The R3 PersonalDesktop `AwaitDemandActive` phase must be reached only after

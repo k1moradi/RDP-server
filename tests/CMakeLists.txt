@@ -1403,6 +1403,17 @@ add_test(NAME runtime.macos-native-retirement-single-owner-callers
 set_tests_properties(runtime.macos-native-retirement-single-owner-callers
     PROPERTIES LABELS "runtime;macos;security;offline;lifecycle" TIMEOUT 15)
 
+
+# R10 now has real R2-protected Share, but no Graphics DVC/native frame.
+# Pin the distinct non-authorizing GUI status without synthetic admission.
+add_test(NAME runtime.macos-share-activation-does-not-imply-graphics-status
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_native_proof_retirement_order.py"
+        --source "${PROJECT_SOURCE_DIR}/src/server/runtime/mac_runtime_host_control.cpp"
+        --check-share-without-graphics)
+set_tests_properties(runtime.macos-share-activation-does-not-imply-graphics-status
+    PROPERTIES LABELS "runtime;macos;security;graphics;gui;offline" TIMEOUT 15)
+
 # macOS HostControl's owner scheduler is noexcept but uses bounded dynamic
 # state during client acceptance/admission. Allocation failure must retire the
 # accepted/native lifetime and report InternalFailure rather than terminate.

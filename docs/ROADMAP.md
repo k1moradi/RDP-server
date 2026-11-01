@@ -17511,36 +17511,36 @@ ColorSync/profile execution and the warning-site backtrace remain NOT RUN.
 Collector-only Python mocks do not prove native ColorSync or identify the
 reproduced invalid-primaries QColorSpace constructor.
 
-**Native R10 dependency:** R10 now completes protected PersonalDesktop
-licensing through `ValidClientDelivered` / R3 `AwaitDemandActive`; that
-licensing blocker is resolved. R2 already exposes protected macOS Demand Active,
-Share receipt/client-finalization, application-traffic and Graphics DVC
-wrappers, R3 already owns those state machines, and the macOS HostControl target
-already links the native desktop/capture stack. The remaining blocker is R10
-composition of Demand/Confirm Active/finalization to genuine
-`ShareActivated`, then R3 Graphics DVC CAPS/CREATE/MAP readiness. Only then
-may R10 attach native resources using the original current R2-bound CredSSP
+**Native R10 dependency:** Protected macOS PersonalDesktop licensing and
+Demand/Confirm Active through real `ShareActivated` are now in R10 main
+(`fc7126df`). The original R1 TLS/BIO writer, native-evidence-bound R2
+broker and R3 share activation/accepted-byte receipts are reused; no new
+session or issuer is added. The **remaining protocol dependency** is R10's
+R2-protected R3 Graphics DVC activation and capability/surface
+CAPS/CREATE/MAP receipts, followed by R4 presentation readiness. Only then
+may R10 attach the R7 native desktop using its original current CredSSP
 proof, View consent epoch, native console/audit-session epoch and owner-thread
-authority. The proof and original R1 must outlive all native borrows.
-`retireAcceptedClient()` remains the sole accepted-client native retirement
-owner; Stop, timeout, explicit disconnect, allocator failure and consent
-revocation funnel through it without a second native retirement. No actual
-native attachment, client frame, input, TCC prompt or clipboard access is
-authorized.
+authority. Keep R2/R3 close -> native retirement -> proof/R1 destruction.
+Share does not yet authorize native capture/input/Clipboard or imply a client
+frame. The previously shared `r2` CTest naming/configure blocker at
+`1447dd0c` was fixed by another agent at `0bf6730c`; exact new-head
+full CI and physical native acceptance remain pending.
 
-**R7 fail-closed status correction:** While the macOS R10 scheduler stops at
-`ValidClientDelivered` / `AwaitDemandActive`, its GUI projection now keeps
-`graphicsReady=false` rather than falsely equating native resource readiness
-to R3 GraphicsReady. `nativeDesktopReady` remains independent. The
-production macOS `runtime.macos-host-control-pre-share-graphics-status-denials`
-CTest covers credential setup, owner permission, idle service and revocation
-without opening a listener. New publication-SHA hosted CI PENDING and owner
-macOS 27 CTest NOT RUN. Once R10 composes real Share/Graphics activation,
-replace the fail-closed value only with fresh R2-protected R3
-graphics/presentation observations and add a production-backed behavior CTest
-that independently tests native-only, R3-only, both and revoked states,
-plus delivered-first-frame versus merely prepared frames. GUI flags
-remain non-authorizing; no QColorSpace workaround is justified.
+**R7 fail-closed status correction:** R10 now reaches ShareActivated rather
+than stopping at AwaitDemandActive. Until R3 Graphics DVC and presentation
+are truly ready, `MacRuntimeHostControl::status().graphicsReady` remains
+false and `nativeDesktopReady` independently reports local native resource
+state. Existing `runtime.macos-host-control-pre-share-graphics-status-denials`
+exercises real HostControl startup/consent/revocation, and the new
+`runtime.macos-share-activation-does-not-imply-graphics-status`
+source regression pins ShareActivated != GraphicsReady != DesktopVisible
+without fabricating a live native borrower. R7 `ae4bb224` hosted same-SHA
+Linux/macOS/Windows protocol, native lifecycle and sanitizer jobs PASS;
+new publication-SHA qualification PENDING. The later R10/R7 live graphics
+increment must replace the deny-only status with R2-protected R3
+graphics/presentation evidence and a real production-backed four-state
+status + genuine delivered-first-frame test. GUI projection never grants
+native authority; no QColorSpace warning suppression is justified.
 
 **Owner-only warning attribution:** Without enabling Sharing, capture or any
 permission prompt, start the extracted app under LLDB with symbols for the

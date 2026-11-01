@@ -10,6 +10,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", required=True, type=Path)
     parser.add_argument("--check-centralized-callers", action="store_true")
+    parser.add_argument("--check-share-without-graphics", action="store_true")
     args = parser.parse_args()
     text = args.source.read_text(encoding="utf-8")
     start = text.find("void MacRuntimeHostControl::retireAcceptedClient() noexcept")
@@ -105,6 +106,51 @@ def main() -> int:
             raise SystemExit("native service failure must retain one direct retirement")
 
         print("macOS accepted-client native retirement single-owner PASS")
+    elif args.check_share_without_graphics:
+        # A receipt-complete ShareActivated is a protocol fact, not a native
+        # framebuffer borrow, Graphics DVC channel, or first-frame delivery.
+        scheduler_start = text.find(
+            "MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try")
+        scheduler_stop = text.find("catch (const std::bad_alloc&)", scheduler_start)
+        if scheduler_start < 0 or scheduler_stop <= scheduler_start:
+            raise SystemExit("cannot isolate macOS protected Share scheduler")
+        scheduler = text[scheduler_start:scheduler_stop]
+        if (
+            "authorizeR3ApplicationTrafficReady(" not in scheduler or
+            "stage_ = RuntimeHostStage::ShareActivated;" not in scheduler or
+            "acceptedClientDiagnostics_.shareActivated = true;" not in scheduler
+        ):
+            raise SystemExit("macOS Share activation lost its original R2/R3 receipt")
+
+        status_start = text.find("RuntimeHostStatus MacRuntimeHostControl::status() const")
+        status_stop = text.find(
+            "RuntimeHostResult MacRuntimeHostControl::configure(", status_start)
+        if status_start < 0 or status_stop <= status_start:
+            raise SystemExit("cannot isolate macOS HostControl status projection")
+        status = text[status_start:status_stop]
+        if status.count("snapshot.graphicsReady = false;") != 1:
+            raise SystemExit("Share without Graphics DVC must not report GraphicsReady")
+        if status.count("snapshot.nativeDesktopReady = nativeDesktop_.ready();") != 1:
+            raise SystemExit("native desktop status must remain independent")
+
+        share_start = status.find("client.shareActivated =")
+        share_stop = status.find(";", share_start)
+        visible_start = status.find("client.desktopVisible =")
+        visible_stop = status.find(";", visible_start)
+        if min(share_start, share_stop, visible_start, visible_stop) < 0:
+            raise SystemExit("cannot isolate client Share/desktop status")
+        share_projection = status[share_start:share_stop]
+        visible_projection = status[visible_start:visible_stop]
+        if "RuntimeHostStage::ShareActivated" not in share_projection:
+            raise SystemExit("genuine ShareActivated is no longer projected")
+        if (
+            "RuntimeHostStage::ShareActivated" in visible_projection or
+            "snapshot.nativeDesktopReady" not in visible_projection or
+            "RuntimeHostStage::DesktopVisible" not in visible_projection or
+            "RuntimeHostStage::ClientConnected" not in visible_projection
+        ):
+            raise SystemExit("Share alone must not project a visible desktop")
+        print("macOS Share without GraphicsReady/native-first-frame status PASS")
     else:
         print("macOS native-proof borrow teardown ordering PASS")
     return 0

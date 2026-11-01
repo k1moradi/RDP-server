@@ -1,3 +1,13 @@
+## R7 macOS Share-vs-Graphics status review (2026-11-01)
+
+After canonical Debug configure/build in the only `~/rdp-server/build/` root,
+run `ctest --test-dir build -C Debug -R '^runtime[.]macos-(share-activation-does-not-imply-graphics-status|native-proof-retired-before-credential-destruction|native-retirement-single-owner-callers)$' --output-on-failure`, then
+full CTest, hosted macOS Release and unchanged sanitizer selections. The new
+source-only test reuses an existing Python interpreter and CTest registry; no
+target, listener, permission request, native operation or physical RDP client
+is introduced. Connector-local CTest/ASan/UBSan NOT RUN; exact-publication-SHA
+hosted CI PENDING.
+
 ## R4 macOS protected mapped-first-frame R1 DATA / ACK qualification (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build,

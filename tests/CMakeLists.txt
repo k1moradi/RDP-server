@@ -2080,6 +2080,16 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "protocol;security;transport;tls;licensing;admission;offline"
                 TIMEOUT 60)
 
+        # R8 production R3 Share completion with synthetic licensing/native
+        # proof; macOS Clipboard stays denied outside the fixed 107 cases.
+        add_test(NAME security.macos-share-activated-clipboard-permission-denial
+            COMMAND "${test_target}"
+                "macos-share-activated-clipboard-permission-denial")
+        set_tests_properties(
+            security.macos-share-activated-clipboard-permission-denial PROPERTIES
+                LABELS "security;native-authorization;transport;tls;mcs;admission;offline"
+                TIMEOUT 60)
+
         # R8 joined cliprdr remains denied after complete real R1 TLS Join
         # Confirm receipts and protected Client Info with View|Input only.
         add_test(NAME security.macos-post-join-clipboard-view-input-denial

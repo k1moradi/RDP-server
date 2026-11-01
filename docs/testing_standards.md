@@ -1,3 +1,7 @@
+## R8 distinct post-Share native Clipboard denial (2026-11-01)
+
+Keep ordinary `security.macos-share-activated-clipboard-permission-denial` outside the fixed 107-case sanitizer selection. It uses original production R1 TLS, concrete macOS R2/R3, real Share state transitions and exact accepted bytes, but test-only synthetic licensed phase and native proof. A joined cliprdr route must remain dormant without independent native Clipboard permission; R3's classifier denies FORMAT_LIST/FILECONTENTS and R2 activated-channel denial terminally retires the owners, rejecting later write/receipt attempts. This does not certify real licensing, native desktop or Clipboard use. Existing pre-Share/post-Join tests and fixed sanitizer census remain unchanged. Local compilation/CTest NOT RUN and exact-SHA hosted CI PENDING.
+
 ## R1/R2 protected macOS partial Server License Request callback-revocation CTest (2026-11-01)
 
 Ordinary

@@ -1,3 +1,7 @@
+## R8 macOS post-Share independent Clipboard denial (2026-11-01)
+
+Original accepted R1 HYBRID/TLS, concrete R2 and joined R3 Client Info remain in the reusable fixture. The new ordinary `security.macos-share-activated-clipboard-permission-denial` stages only the licensed phase synthetically, then drives production R3 Demand/Confirm Active and final Share through protected R2 calls and exact R1 accepted-byte receipts. With View|Input but no macOS Clipboard permission, joined cliprdr must not classify FORMAT_LIST/FILECONTENTS before activated-route authorization. The R2 activated-channel denial revokes R1/R2/R3, rejecting late Clipboard queue, PDU and fake receipt. No native owner or real clipboard is constructed. Source/registry inspection only; local full/focused CTest and 107-case sanitizer NOT RUN, exact publication-SHA hosted CI PENDING. No Microsoft client, native Clipboard, file destination or OS privilege tested.
+
 ## R1 macOS licensing positive-partial receipt / callback revocation review (2026-11-01)
 
 **Source parent:** `2d38df86668283e701fc57b8c3a8c46796016449`. Re-audited R1 application TLS I/O,

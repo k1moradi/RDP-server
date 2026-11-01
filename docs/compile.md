@@ -1,3 +1,7 @@
+## R8 ShareActivated Clipboard denial test build scope (2026-11-01)
+
+Reuse existing `test_owned_preauth_session` and central `tests/CMakeLists.txt`; no new library/worker/native Clipboard owner/build root or sanitizer selector change. After canonical configure/build run `ctest --test-dir build -C Debug -R '^security[.]macos-(share-activated-clipboard-permission-denial|post-join-clipboard-view-input-denial)$' --output-on-failure`, followed by full Debug CTest and unchanged fixed 107-case clipboard sanitizer suite. Local build/CTest NOT RUN (connector-only); exact publication-SHA hosted CI PENDING.
+
 ## R1 protected licensing partial-write/revocation test build scope (2026-11-01)
 
 No new executable or build root is introduced. The existing

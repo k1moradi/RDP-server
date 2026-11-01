@@ -70,6 +70,31 @@
 
 using namespace rdp_server::server::transport;
 using namespace rdp_server::server::security;
+
+namespace rdp_server::server::transport
+{
+// Only the licensed phase is synthesized; actual Share uses production R3.
+class McsSessionLifecycleTestAccess final
+{
+public:
+    static void stageSyntheticLicensedShareBoundary(
+        McsSessionLifecycle &session) noexcept
+    {
+        assert(session.phase_ == McsSessionPhase::AwaitServerLicenseRequest);
+        assert(session.personalDesktopPolicySelected_);
+        session.licensing_.phase_ = RdpLicensingPhase::Licensed;
+        session.phase_ = McsSessionPhase::AwaitDemandActive;
+    }
+
+    [[nodiscard]] static RdpPostShareTpktRoute classifyWithoutNativeClipboard(
+        const McsSessionLifecycle &session,
+        const SecurityNegotiationProvenance &provenance,
+        std::span<const std::uint8_t> packet) noexcept
+    {
+        return session.classifyVerifiedR2PostShareTpkt(provenance, packet);
+    }
+};
+} // namespace rdp_server::server::transport
 using rdp_server::server::runtime::RuntimeServerTlsContext;
 #ifdef RDP_TEST_LINUX_GSSAPI
 using rdp_server::server::runtime::LinuxCredSspStepStatus;
@@ -8910,6 +8935,192 @@ void testMacProtectedServerLicenseRequestPartialWriteCallbackRevocation()
 
 // A complete, real R1 TLS/Join/Client Info path still has no independently
 // issued native Clipboard scope. A joined cliprdr channel ID is not a lease.
+// Real accepted R1 HYBRID/TLS and the original macOS R2/R3 owners complete
+// the Share exchange. Licensed-state and native proof are synthetic; this
+// denial test never constructs a product-valid macOS or Clipboard lease.
+void testMacProtectedShareActivatedClipboardPermissionDenial()
+{
+    using rdp_server::server::runtime::RuntimeDeploymentPolicy;
+    using rdp_server::server::transport::McsSessionLifecycleTestAccess;
+    using Write = RdpShareActivationWriteOutcome;
+    using Read = RdpShareActivationClientIntake;
+
+    auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture(
+        kConsoleViewPermission | kConsoleInputPermission);
+    RuntimeDeploymentPolicy policy;
+    assert(policy.configurePersonalDesktop(false, 0U));
+    assert(fixture->broker.authorizeR3PersonalDesktopLicensingMode(
+        *fixture->session, policy));
+    McsSessionLifecycleTestAccess::stageSyntheticLicensedShareBoundary(
+        *fixture->session);
+    const auto profile =
+        fixture->broker.authorizeR3PersonalDesktopMacDemandActiveProfile(
+            *fixture->session, policy, RdpDemandActiveFeature::None);
+    assert(profile);
+    const auto first =
+        fixture->broker.authorizeR3PersonalDesktopShareActivation(
+            *fixture->session, policy, *profile);
+    assert(first && first->kind == RdpShareServerWriteKind::DemandActive);
+
+    const auto write16 = [](std::span<std::uint8_t> bytes,
+                            std::size_t offset, std::uint16_t value) {
+        bytes[offset] = static_cast<std::uint8_t>(value);
+        bytes[offset + 1U] = static_cast<std::uint8_t>(value >> 8U);
+    };
+    const auto write32 = [&](std::span<std::uint8_t> bytes,
+                             std::size_t offset, std::uint32_t value) {
+        write16(bytes, offset, static_cast<std::uint16_t>(value));
+        write16(bytes, offset + 2U,
+                static_cast<std::uint16_t>(value >> 16U));
+    };
+    const auto clientUserId = fixture->session->allocatedUserId();
+    const auto ioChannelId = fixture->session->allocatedIoChannelId();
+    assert(clientUserId == 1002U && ioChannelId == 1003U);
+    const auto makeClientTpkt =
+        [&](std::span<const std::uint8_t> body,
+            std::uint16_t channelId) {
+            assert(body.size() < 128U);
+            std::vector<std::uint8_t> packet(14U + body.size(), 0U);
+            packet[0] = 0x03U;
+            packet[2] = static_cast<std::uint8_t>(packet.size() >> 8U);
+            packet[3] = static_cast<std::uint8_t>(packet.size());
+            packet[4] = 0x02U;
+            packet[5] = 0xf0U;
+            packet[6] = 0x80U;
+            packet[7] = 0x64U;
+            packet[8] = static_cast<std::uint8_t>(
+                (clientUserId - 1001U) >> 8U);
+            packet[9] = static_cast<std::uint8_t>(clientUserId - 1001U);
+            packet[10] = static_cast<std::uint8_t>(channelId >> 8U);
+            packet[11] = static_cast<std::uint8_t>(channelId);
+            packet[12] = 0x70U;
+            packet[13] = static_cast<std::uint8_t>(body.size());
+            std::copy(body.begin(), body.end(), packet.begin() + 14U);
+            return packet;
+        };
+    const auto sendShare = [&](std::span<const std::uint8_t> sharePdu,
+                               Read expected) {
+        const auto packet = makeClientTpkt(sharePdu, ioChannelId);
+        writeNativeTlsClientAll(fixture->tls.client.get(), packet);
+        std::vector<std::uint8_t> received(packet.size());
+        readOwnedRuntimeTlsAll(fixture->connection, received);
+        assert(received == packet);
+        assert(fixture->broker.authorizeR3PersonalDesktopShareActivationPdu(
+            *fixture->session, policy, received) == expected);
+    };
+    const auto flushShare = [&](RdpShareServerWriteKind kind, Write final) {
+        auto pending = fixture->broker
+            .authorizeR3PersonalDesktopShareActivationWrite(
+                *fixture->session, policy);
+        assert(pending && pending->kind == kind);
+        const std::size_t length = pending->bytes.size();
+        for (std::size_t accepted = 0U; accepted < length; ++accepted)
+        {
+            pending = fixture->broker
+                .authorizeR3PersonalDesktopShareActivationWrite(
+                    *fixture->session, policy);
+            assert(pending && pending->kind == kind &&
+                   pending->bytes.size() == length - accepted);
+            const auto bytes = writeOneMacProtectedPlaintextByte(
+                *fixture, pending->bytes);
+            assert(bytes == 1U);
+            const auto outcome =
+                fixture->broker.completeR3PersonalDesktopShareActivationWrite(
+                    *fixture->session, policy, pending->replySequence,
+                    pending->writeSliceSequence, bytes);
+            assert(outcome == (accepted + 1U == length
+                ? final : Write::Pending));
+        }
+    };
+    const auto bindShare = [&](std::span<std::uint8_t> pdu) {
+        write16(pdu, 4U, static_cast<std::uint16_t>(clientUserId));
+        write32(pdu, 6U, profile->shareId());
+    };
+
+    flushShare(RdpShareServerWriteKind::DemandActive, Write::Delivered);
+    std::array<std::uint8_t, 36> confirm{{
+        0x24,0x00,0x13,0x00,0xef,0x03,0xea,0x03,0x01,0x00,0xea,0x03,
+        0x04,0x00,0x10,0x00,0x52,0x44,0x50,0x00,0x02,0x00,0x34,0x12,
+        0x09,0x00,0x08,0x00,0xea,0x03,0xdc,0xe2,0x0e,0x00,0x04,0x00
+    }};
+    bindShare(confirm);
+    sendShare(confirm, Read::ConfirmActiveAccepted);
+
+    std::array<std::uint8_t, 22> synchronize{{
+        0x16,0x00,0x17,0x00,0xef,0x03,0xea,0x03,0x01,0x00,0x00,0x01,
+        0x08,0x00,0x1f,0x00,0x00,0x00,0x01,0x00,0xea,0x03
+    }};
+    std::array<std::uint8_t, 26> cooperate{{
+        0x1a,0x00,0x17,0x00,0xef,0x03,0xea,0x03,0x01,0x00,0x00,0x01,
+        0x0c,0x00,0x14,0x00,0x00,0x00,0x04,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00
+    }};
+    auto requestControl = cooperate;
+    requestControl[18] = 1U;
+    std::array<std::uint8_t, 26> fontList{{
+        0x1a,0x00,0x17,0x00,0xef,0x03,0xea,0x03,0x01,0x00,0x00,0x01,
+        0x1a,0x00,0x27,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0x03,0x00,0x32,0x00
+    }};
+    bindShare(synchronize);
+    bindShare(cooperate);
+    bindShare(requestControl);
+    bindShare(fontList);
+    sendShare(synchronize, Read::SynchronizeAccepted);
+    sendShare(cooperate, Read::CooperateAccepted);
+    sendShare(requestControl, Read::RequestControlAccepted);
+    sendShare(fontList, Read::FontListAccepted);
+    flushShare(RdpShareServerWriteKind::Synchronize, Write::Delivered);
+    flushShare(RdpShareServerWriteKind::Cooperate, Write::Delivered);
+    flushShare(RdpShareServerWriteKind::GrantedControl, Write::Delivered);
+    flushShare(RdpShareServerWriteKind::FontMap, Write::Activated);
+
+    assert(fixture->session->phase() == McsSessionPhase::ShareActivated);
+    assert(fixture->session->firstClientAcceptanceObservability().shareActivated);
+    assert(fixture->broker.revalidate(kConsoleViewPermission));
+    assert(fixture->broker.revalidate(kConsoleInputPermission));
+    assert(!fixture->broker.revalidate(kConsoleClipboardPermission));
+
+    const auto channels = fixture->session->allocatedStaticChannelIds();
+    assert(channels.size() == 3U);
+    const auto clipboardChannelId = channels[1U];
+    assert(fixture->session->channelJoinConfirmed(clipboardChannelId));
+    const auto provenance = fixture->connection.securityNegotiationProvenance();
+    assert(provenance);
+    // Joined CLIPRDR + Share cannot classify FORMAT_LIST or FILECONTENTS
+    // unless a separately authorized activated Clipboard route exists.
+    for (const std::uint8_t type : {0x02U, 0x09U})
+    {
+        const std::array<std::uint8_t, 16> data{{
+            0x08,0x00,0x00,0x00,0x03,0x00,0x00,0x00,
+            type,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+        }};
+        const auto tpkt = makeClientTpkt(data, clipboardChannelId);
+        const auto route = McsSessionLifecycleTestAccess::
+            classifyWithoutNativeClipboard(*fixture->session,
+                                           *provenance, tpkt);
+        assert(route.kind == RdpPostShareTpktRouteKind::UnsupportedOrMalformed);
+    }
+    assert(fixture->session->phase() == McsSessionPhase::ShareActivated);
+    assert(!fixture->broker.authorizeR3ActivatedClipboardChannel(
+        *fixture->session, policy));
+    assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+    assert(fixture->session->phase() == McsSessionPhase::Closed);
+    assert(fixture->connection.stage() == PreauthStage::Closed);
+    std::span<const std::uint8_t> completePdu{};
+    assert(fixture->broker.authorizeR3ClipboardTpkt(
+        *fixture->session, policy, {}, completePdu) ==
+        RdpClipboardChunkIntake::Rejected);
+    assert(completePdu.empty());
+    assert(!fixture->broker.queueR3ClipboardPdu(
+        *fixture->session, policy, {}));
+    assert(!fixture->broker.pendingR3ClipboardWrite(
+        *fixture->session, policy));
+    assert(fixture->broker.completeR3ClipboardWrite(
+        *fixture->session, policy, 1U, 1U, 1U, 1U) ==
+        RdpClipboardWriteOutcome::Rejected);
+}
+
 void testMacProtectedPostJoinClipboardViewInputDenial()
 {
     using rdp_server::server::runtime::RuntimeDeploymentPolicy;
@@ -13551,6 +13762,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedFirstMcsPartialReadStopRetirement},
     {"macos-protected-post-mcs-semantic-audit-loss",
      &testMacProtectedPostMcsSemanticAuditLoss},
+    {"macos-share-activated-clipboard-permission-denial",
+     &testMacProtectedShareActivatedClipboardPermissionDenial},
     {"macos-post-join-clipboard-view-input-denial",
      &testMacProtectedPostJoinClipboardViewInputDenial},
     {"macos-transport-admitted-clipboard-permission-denials",

@@ -1,3 +1,20 @@
+## R8 post-Join macOS native Clipboard-scope denial (2026-10-31)
+
+The ordinary `security.macos-post-join-clipboard-view-input-denial` CTest
+continues a real loopback R1 HYBRID/TLS and production R2/R3 owner through
+Erect, Attach Confirm, all three joined static channels (including `cliprdr`),
+and protected Client Info. All channel-confirmation bytes are acknowledged
+through the existing exact R1 receipt path. Controlled fixture proof/native
+observations permit View|Input mechanics only and are **not** a product-valid
+native macOS lease. At `AwaitServerLicenseRequest`, a joined-CLIPRDR
+observation must still require separate Clipboard authorization and retire
+the original R1/R2/R3. Subsequent activated route, PDU, queue/pending write and
+fabricated positive write receipt remain denied. Reuse existing fixture
+helpers; no new TLS reader, native clipboard, destination or allocation adapter.
+Keep this CTest outside the fixed 107-case R8 sanitizer inventory. Connector
+source review PASS; owner-local configure/build/focused/full CTest and
+sanitizers **NOT RUN**; exact publication-SHA hosted CI **PENDING**.
+
 ## R7 multi-display ICC native-borrow retirement regressions (2026-10-31)
 
 The established `macos.gui-qcolor-provenance-parser-and-redaction` offline CTest

@@ -504,12 +504,26 @@ Prior publication `8c68f687173d7396b4bb77625620bdaee6959987`, Actions
 code, CTest or sanitizer count changed. This follow-up's publication-SHA CI
 **PENDING**; owner-local build/full CTest **NOT RUN**.
 
-**Remaining blocker:** R10 macOS runtime now reaches protected Erect Domain
-after Connect-Response, but still stops before Attach/ChannelJoin/Client Info/
-PersonalDesktop/Share. R2 macOS native authorization also still exposes only
-View|Input rather than Clipboard. Therefore R8 cannot truthfully construct a
-native owner or report Enabled. Physical client, native clipboard and file
-tests remain **NOT RUN / unauthorized**.
+**R8 continuation after R10 joined-channel progress (2026-10-31):** parent
+`036f3d826de17cee26e1c8ae91f90dc523d4330b` now contains the original R10 serialized Attach Confirm, all
+Channel Join/Confirm receipts and protected Client Info, stopping at
+`AwaitServerLicenseRequest`. The ordinary dedicated
+`security.macos-post-join-clipboard-view-input-denial` regression reuses that
+production R1 HYBRID/TLS + R2/R3 path and all three negotiated static joins,
+including `cliprdr`, with synthetic native View|Input evidence. It proves
+a fresh Clipboard-protected joined-channel observation still denies and
+terminalizes R1/R2/R3; later route, PDU and write receipts cannot revive it.
+This is post-join/pre-Share **denial**, not genuine OS admission or publication.
+The fixed 107-case clipboard sanitizer selection is unchanged.
+
+**Remaining blocker (updated):** R10 now stops immediately after protected
+Client Info, before PersonalDesktop licensing, Demand/Confirm Active and
+ShareActivated; the original macOS R2 native issuer also still provides only
+View|Input, not independent Clipboard. R10 must additionally preserve borrowed
+proof/native-owner lifetimes on future native attachment/teardown. R8 still
+cannot lawfully publish, create a native owner or report Enabled.
+Current-head hosted full CI/sanitizers **PENDING**; local owner build/CTest and
+physical client/native clipboard/file tests **NOT RUN / unauthorized**.
 
 ## R2 production R1 transport completion and broker receipt coverage (2026-10-31)
 

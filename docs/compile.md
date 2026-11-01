@@ -1,3 +1,13 @@
+## R8 post-join CLIPRDR permission-denial test scope (2026-10-31)
+
+Reuse the existing `test_owned_preauth_session` fixture and canonical
+`~/rdp-server/build/`. No new target, worker, native permission provider,
+R1 TLS reader, production clipboard object or build root is introduced.
+Run `ctest --test-dir build -C Debug -R '^security[.]macos-(post-join-clipboard-view-input-denial|transport-admitted-clipboard-permission-denials|protected-channel-join-client-info-after-attach)$' --output-on-failure`,
+then the full Debug CTest and the unchanged R9 107-case clipboard sanitizer
+selection. Connector-local build/CTest **NOT RUN**, publication-SHA hosted
+matrix **PENDING**; no physical-client or native clipboard access.
+
 ## R10 Channel Join/Client Info composition build boundary (2026-10-31)
 
 This increment reuses `rdp-server-macos-host-control`, the existing R1

@@ -2029,6 +2029,17 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "security;native-authorization;transport;tls;admission;offline"
                 TIMEOUT 20)
 
+        # R8 joined cliprdr remains denied after complete real R1 TLS Join
+        # Confirm receipts and protected Client Info with View|Input only.
+        add_test(NAME security.macos-post-join-clipboard-view-input-denial
+            COMMAND "${test_target}"
+                "macos-post-join-clipboard-view-input-denial")
+        set_tests_properties(
+            security.macos-post-join-clipboard-view-input-denial
+            PROPERTIES
+                LABELS "security;native-authorization;transport;tls;mcs;admission;offline"
+                TIMEOUT 20)
+
         # R8 macOS independent Clipboard scope after real R1 HYBRID/TLS.
         # Keep this distinct from the fixed 107-case clipboard sanitizer set.
         add_test(NAME security.macos-transport-admitted-clipboard-permission-denials

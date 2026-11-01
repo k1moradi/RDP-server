@@ -1,3 +1,24 @@
+## R8 joined-channel Clipboard denial after current macOS Client Info (2026-10-31)
+
+Reviewed main parent `036f3d826de17cee26e1c8ae91f90dc523d4330b`: R10 now composes protected
+Attach User/Confirm, all Channel Join/Confirm and Client Info through the
+original R1 TLS/R2/R3 owner. Existing `macos-transport-admitted-clipboard-
+permission-denials` stopped before actual joins. Added the distinct
+production-linked `security.macos-post-join-clipboard-view-input-denial`
+at `AwaitServerLicenseRequest` to prove View|Input remains insufficient
+despite all static joins including `cliprdr`. A failed independent Clipboard
+visit terminally revokes the original R1/R2/R3; stale activated routes,
+FileContents/CLIPRDR PDUs and accepted-byte write receipts stay denied.
+No native permission expansion, R8 production code change, native file
+operation, live client or browser paste. The literal
+`kLinuxProductionClipboardActivationApproved = false` and fixed 107 R8
+sanitizer selection remain unchanged. Current R10 licensing/Share and an
+independent native Clipboard permission issuer are separate blockers.
+Source/CTest registry review PASS; owner-local compile/focused/full CTest,
+sanitizers and benchmark **NOT RUN**. New exact-SHA hosted qualification
+**PENDING**, and real clipboard/files/physical-client tests remain
+**NOT RUN / unauthorized**.
+
 ## R7 ICC diagnostic native-borrow negative coverage follow-up (2026-10-31)
 
 Source review of the existing provenance collector at parent

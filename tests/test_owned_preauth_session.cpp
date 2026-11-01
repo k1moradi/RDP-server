@@ -8374,7 +8374,8 @@ void testMacProtectedPostMcsSemanticAuditLoss()
 
 
 [[nodiscard]] std::unique_ptr<MacProtectedTransportFixture>
-makeMacProtectedAwaitChannelJoinFixture()
+makeMacProtectedAwaitChannelJoinFixture(
+    const std::uint32_t grantedPermissions = kConsoleViewPermission)
 {
     using Outcome = TlsApplicationIoOutcome;
     using Receipt = McsConnectResponseWriteOutcome;
@@ -8385,7 +8386,8 @@ makeMacProtectedAwaitChannelJoinFixture()
     constexpr std::array<std::uint8_t, 8> attach{
         0x03U, 0x00U, 0x00U, 0x08U, 0x02U, 0xf0U, 0x80U, 0x28U};
 
-    auto fixture = std::make_unique<MacProtectedTransportFixture>();
+    auto fixture = std::make_unique<MacProtectedTransportFixture>(
+        grantedPermissions);
     assert(fixture->broker.authorizeR1CredSspAdmission(*fixture->session));
 
     const auto firstMcs = macProtectedHybridConnectInitial();
@@ -8524,9 +8526,11 @@ void testMacProtectedBufferedAttachConfirmAfterErect()
     assert(fixture->connection.stage() == PreauthStage::Closed);
 }
 
-void testMacProtectedChannelJoinClientInfoAfterAttach()
+[[nodiscard]] std::unique_ptr<MacProtectedTransportFixture>
+makeMacProtectedAwaitServerLicenseRequestFixture(
+    const std::uint32_t grantedPermissions = kConsoleViewPermission)
 {
-    auto fixture = makeMacProtectedAwaitChannelJoinFixture();
+    auto fixture = makeMacProtectedAwaitChannelJoinFixture(grantedPermissions);
     const std::uint32_t allocatedUserId = fixture->session->allocatedUserId();
     const std::uint16_t ioChannelId = fixture->session->allocatedIoChannelId();
     assert(allocatedUserId == 1002U);
@@ -8605,12 +8609,82 @@ void testMacProtectedChannelJoinClientInfoAfterAttach()
     assert(fixture->session->phase() ==
            McsSessionPhase::AwaitServerLicenseRequest);
     assert(!fixture->session->firstClientAcceptanceObservability().shareActivated);
+    return fixture;
+}
 
+void testMacProtectedChannelJoinClientInfoAfterAttach()
+{
+    auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture();
     fixture->ownerAuthority.revoke(OwnerConsentRevocationReason::Stop);
     assert(!fixture->broker.revalidate(kConsoleViewPermission));
     assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
     assert(fixture->session->phase() == McsSessionPhase::Closed);
     assert(fixture->connection.stage() == PreauthStage::Closed);
+}
+
+// A complete, real R1 TLS/Join/Client Info path still has no independently
+// issued native Clipboard scope. A joined cliprdr channel ID is not a lease.
+void testMacProtectedPostJoinClipboardViewInputDenial()
+{
+    using rdp_server::server::runtime::RuntimeDeploymentPolicy;
+
+    auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture(
+        kConsoleViewPermission | kConsoleInputPermission);
+    assert(fixture->broker.state() == MacConsoleAdmissionState::Admitted);
+    assert(fixture->session->phase() ==
+           McsSessionPhase::AwaitServerLicenseRequest);
+    assert(fixture->broker.revalidate(kConsoleViewPermission));
+    assert(fixture->broker.revalidate(kConsoleInputPermission));
+    assert(!fixture->broker.revalidate(kConsoleClipboardPermission));
+
+    // The canonical Microsoft Connect-Initial negotiates rdpdr, cliprdr and
+    // rdpsnd. Every original Join Confirm was delivered over R1 TLS.
+    const auto clientConnectInitial = macProtectedHybridConnectInitial();
+    constexpr std::array<std::uint8_t, 8> kClipboardChannelName{
+        'c', 'l', 'i', 'p', 'r', 'd', 'r', 0U};
+    assert(std::search(
+               clientConnectInitial.begin(), clientConnectInitial.end(),
+               kClipboardChannelName.begin(), kClipboardChannelName.end()) !=
+           clientConnectInitial.end());
+    const auto staticChannelIds = fixture->session->allocatedStaticChannelIds();
+    assert(staticChannelIds.size() == 3U);
+    assert(fixture->session->channelJoinConfirmed(
+        static_cast<std::uint16_t>(fixture->session->allocatedUserId())));
+    assert(fixture->session->channelJoinConfirmed(
+        fixture->session->allocatedIoChannelId()));
+    for (const std::uint16_t channelId : staticChannelIds)
+        assert(fixture->session->channelJoinConfirmed(channelId));
+    const auto acceptance =
+        fixture->session->firstClientAcceptanceObservability();
+    assert(acceptance.mcsEstablished && !acceptance.shareActivated);
+
+    // R2 must not borrow either View or Input to visit R3's joined-CLIPRDR
+    // observation. This denial retires the exact original R1/R2/R3 owners.
+    assert(!fixture->broker.authorizeR3JoinedClipboardChannel(
+        *fixture->session));
+    assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+    assert(fixture->broker.admissionGeneration() == 0U);
+    assert(fixture->session->phase() == McsSessionPhase::Closed);
+    assert(fixture->connection.stage() == PreauthStage::Closed);
+
+    // No late activated route, native/FileContents PDU, queued reply or
+    // fabricated accepted-byte receipt can revive the retired owner.
+    RuntimeDeploymentPolicy unconfiguredPolicy;
+    std::span<const std::uint8_t> completePdu{};
+    assert(!fixture->broker.authorizeR3ActivatedClipboardChannel(
+        *fixture->session, unconfiguredPolicy));
+    assert(fixture->broker.authorizeR3ClipboardTpkt(
+               *fixture->session, unconfiguredPolicy, {}, completePdu) ==
+           RdpClipboardChunkIntake::Rejected);
+    assert(completePdu.empty());
+    assert(!fixture->broker.queueR3ClipboardPdu(
+        *fixture->session, unconfiguredPolicy, {}));
+    assert(!fixture->broker.pendingR3ClipboardWrite(
+        *fixture->session, unconfiguredPolicy));
+    assert(fixture->broker.completeR3ClipboardWrite(
+               *fixture->session, unconfiguredPolicy,
+               1U, 1U, 1U, 1U) ==
+           RdpClipboardWriteOutcome::Rejected);
 }
 
 void testMacProtectedFirstMcsPartialReadStopRetirement()
@@ -13187,6 +13261,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedFirstMcsPartialReadStopRetirement},
     {"macos-protected-post-mcs-semantic-audit-loss",
      &testMacProtectedPostMcsSemanticAuditLoss},
+    {"macos-post-join-clipboard-view-input-denial",
+     &testMacProtectedPostJoinClipboardViewInputDenial},
     {"macos-transport-admitted-clipboard-permission-denials",
      &testMacProtectedTransportClipboardPermissionDenials},
     {"macos-protected-admission-reprepare-premcs-audit-retirement",

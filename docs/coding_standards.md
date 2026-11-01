@@ -1,3 +1,24 @@
+## R3 PersonalDesktop Client Licensing waits for the exact server write fence (2026-11-01)
+
+After all Channel Joins and one protected Client Info, R3 remains at
+`AwaitServerLicenseRequest` until its original R1 TLS writer has receipt-committed
+every byte of the R3-owned Server License Request. A zero-byte receipt retains the
+same reply/slice/bytes; a positive partial receipt retains the reply identity and
+advances only the suffix slice. Neither is permission to consume a Client Licensing
+TPKT. A full receipt alone advances to `AwaitClientLicenseResponse`.
+A premature, replayed, stale-generation or wrongly sourced licensing intake is
+terminal, retiring the original joins and all unactivated Share state.
+
+The immutable R2 PersonalDesktop choice sends the normative
+`STATUS_VALID_CLIENT/ST_NO_TRANSITION` response after one structurally valid
+client licensing message. No CAL signature verification is required for this
+personal-terminal-server path under MS-RDPELE 1.3.3, but that is not a bypass of
+R1 HYBRID/TLS, R2 fresh OS admission/owner consent, bounded R3 parsing or
+the exact Valid Client write receipt. AppServer CAL signature, hardware ID,
+expiry and issuer verification remain independently enforced in that mode;
+never copy CAL-validation policy into the PersonalDesktop path or expose a
+second positive admission API. R10 owns orchestration, not the R3 reply/phase.
+
 ## R7 post-Share macOS native attachment and GUI status boundary (2026-11-01)
 
 R10 alone may attach the existing macOS native desktop after the **same

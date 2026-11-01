@@ -1,3 +1,23 @@
+## R3 protected PersonalDesktop licensing fence review (2026-11-01)
+
+Source parent: `e4534704900c4a3ef890e55aa35e91a76653f0ec`.
+Inspected R3 licensing request and Valid Client reply gates, R2
+`MacConsoleAdmissionBroker` private wrappers, Linux R10 accepted-client
+licensing scheduler, macOS R10 HostControl and existing 171-case MCS inventory.
+New ordinary offline `transport.mcs-macos-client-licensing-before-server-request-denial`
+targets one previously unregistered R3 phase-ordering boundary after genuine
+protocol-shaped (but synthetic R2-scoped) positive Join and Client Info.
+The existing Client Info replay CTest, native permission rules and 171-case
+MCS inventory are unchanged. Review of test source and central registration:
+PASS. Local compile/focused/full CTest/sanitizers: NOT RUN. Hosted exact
+publication-SHA jobs: PENDING. Benchmarks and physical Microsoft-client or
+native desktop acceptance: NOT RUN/unauthorized.
+
+Suggested owner-local command, using only the canonical build root:
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug -R '^transport[.]mcs-macos-client-licensing-before-server-request-denial$' --output-on-failure && ctest --test-dir build -C Debug --output-on-failure`.
+Then obtain same-SHA Linux/macOS/Windows hosted and R9 sanitizer results;
+do not nominate a physical/manual R9 client candidate from this test.
+
 ## R4 mapped-first-frame owner-retirement seam (2026-11-01)
 
 **Registration follow-up:** At `42f2248b` the new case was initially entered under the R3 test executable despite its R4 dispatch; this would not have executed the intended regression. A direct-main corrective commit relocates it into the existing `test_gfx_presentation_lifecycle` case list, outside fixed sanitizer selectors. The first publication is not a passing test receipt. Corrected CMake/static dispatch review PASS; compile/CTest/ASan/UBSan still NOT RUN and corrective exact-SHA hosted CI PENDING.

@@ -2408,6 +2408,16 @@ add_test(NAME transport.mcs-macos-client-info-join-replay-denials
 set_tests_properties(transport.mcs-macos-client-info-join-replay-denials
     PROPERTIES LABELS "protocol;transport;security;macos;admission;offline")
 
+# Once Join and Client Info are complete, a genuine-shaped Client Licensing
+# TPKT still cannot skip the R3-owned Server License Request delivery fence.
+# This production R3 denial remains separate from the fixed 171 MCS cases.
+add_test(NAME transport.mcs-macos-client-licensing-before-server-request-denial
+    COMMAND test_macos_r2_mcs_gateway
+        "client-licensing-before-server-request-denial")
+set_tests_properties(
+    transport.mcs-macos-client-licensing-before-server-request-denial
+    PROPERTIES LABELS "protocol;transport;security;licensing;macos;admission;offline")
+
 # R3 canonical production Demand Active profile. These cases are pure offline
 # protocol tests and mint no positive R2 admission lease.
 add_executable(test_rdp_demand_active_profile

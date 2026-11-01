@@ -10,6 +10,7 @@
 #include <cassert>
 #include <cstdint>
 #include <fstream>
+#include <initializer_list>
 #include <sstream>
 #include <span>
 #include <string>
@@ -164,6 +165,23 @@ public:
             admissionGeneration, authorizationGeneration);
         return session.acceptVerifiedR2ClientInfoPacket(
             provenance, completeTpkt);
+    }
+
+    // Exercise the real private R3 licensing entry after the same R2
+    // generation fence. Fixture generations never constitute native authority.
+    [[nodiscard]] static std::optional<RdpLicensingIntake>
+    acceptClientLicensingMessage(
+        McsSessionLifecycle &session,
+        std::uint64_t admissionGeneration,
+        std::uint64_t authorizationGeneration,
+        const SecurityNegotiationProvenance &provenance,
+        const RdpLicensingServiceCredential &credential,
+        std::span<const std::uint8_t> completeTpkt) noexcept
+    {
+        session.revokeUnlessAdmissionBindingMatches(
+            admissionGeneration, authorizationGeneration);
+        return session.acceptVerifiedR2ClientLicensingMessage(
+            provenance, credential, completeTpkt);
     }
 };
 } // namespace rdp_server::server::transport
@@ -464,7 +482,8 @@ void testPrematureJoinBeforeAttachConfirmDeliveryIsTerminal()
     assertTerminal(session);
 }
 
-void testClientInfoJoinAndReplayDenials()
+void testClientInfoJoinAndReplayDenials(
+    bool verifyPrematureLicensingInsteadOfReplay = false)
 {
     // R3 alone owns channel joins and the one-shot Client Info transition.
     constexpr std::uint64_t admissionGeneration = 91U;
@@ -512,16 +531,19 @@ void testClientInfoJoinAndReplayDenials()
         assert(session.channelJoinConfirmed(channelId));
     };
 
-    McsSessionLifecycle premature;
-    advanceToConfirmedAttach(
-        premature, firstMcs, provenance,
-        admissionGeneration, authorizationGeneration);
-    confirmJoin(premature, 1002U);
-    assert(!premature.channelJoinConfirmed(1003U));
-    assert(!MacConsoleAdmissionR3TestAccess::acceptClientInfo(
-        premature, admissionGeneration, authorizationGeneration,
-        provenance, clientInfo));
-    assertTerminal(premature);
+    if (!verifyPrematureLicensingInsteadOfReplay)
+    {
+        McsSessionLifecycle premature;
+        advanceToConfirmedAttach(
+            premature, firstMcs, provenance,
+            admissionGeneration, authorizationGeneration);
+        confirmJoin(premature, 1002U);
+        assert(!premature.channelJoinConfirmed(1003U));
+        assert(!MacConsoleAdmissionR3TestAccess::acceptClientInfo(
+            premature, admissionGeneration, authorizationGeneration,
+            provenance, clientInfo));
+        assertTerminal(premature);
+    }
 
     McsSessionLifecycle duplicate;
     advanceToConfirmedAttach(
@@ -540,6 +562,63 @@ void testClientInfoJoinAndReplayDenials()
     assert(accepted && accepted->unicode && !accepted->hasExtendedInfo);
     assert(duplicate.phase() == McsSessionPhase::AwaitServerLicenseRequest);
     assert(!duplicate.firstClientAcceptanceObservability().shareActivated);
+    if (verifyPrematureLicensingInsteadOfReplay)
+    {
+        // Valid MS-RDPELE CLIENT_NEW_LICENSE_REQUEST, not malformed noise:
+        // R3 must still refuse it until the complete Server License Request
+        // has been receipt-committed by the original R1 TLS writer.
+        std::vector<std::uint8_t> licensingMessage{
+            0x13U, 0x83U, 0U, 0U,
+            1U, 0U, 0U, 0U,       // KEY_EXCHANGE_ALG_RSA
+            0U, 0U, 1U, 4U};      // WinNT platform
+        for (std::uint8_t value = 0U; value < 32U; ++value)
+            licensingMessage.push_back(value);
+        const auto appendBlob = [&](std::uint16_t type,
+                                    std::initializer_list<std::uint8_t> bytes) {
+            licensingMessage.push_back(static_cast<std::uint8_t>(type));
+            licensingMessage.push_back(static_cast<std::uint8_t>(type >> 8U));
+            licensingMessage.push_back(static_cast<std::uint8_t>(bytes.size()));
+            licensingMessage.push_back(0U);
+            licensingMessage.insert(
+                licensingMessage.end(), bytes.begin(), bytes.end());
+        };
+        appendBlob(0x0002U, {0x11U, 0x22U, 0x33U});
+        appendBlob(0x000fU, {0x75U, 0x73U, 0x65U, 0x72U, 0U});
+        appendBlob(0x0010U, {0x68U, 0x6fU, 0x73U, 0x74U, 0U});
+        assert(licensingMessage.size() <= 127U);
+        licensingMessage[2] =
+            static_cast<std::uint8_t>(licensingMessage.size());
+        assert(parseRdpLicensingMessage(licensingMessage));
+
+        std::vector<std::uint8_t> completeTpkt{
+            0x03U, 0U, 0U, 0U, 0x02U, 0xf0U, 0x80U,
+            0x64U, 0U, 1U, 0x03U, 0xebU, 0x70U, 0U,
+            0x80U, 0U, 0U, 0U}; // SEC_LICENSE_PKT on joined global I/O
+        completeTpkt[13] =
+            static_cast<std::uint8_t>(4U + licensingMessage.size());
+        completeTpkt.insert(
+            completeTpkt.end(), licensingMessage.begin(),
+            licensingMessage.end());
+        assert(completeTpkt.size() <= 255U);
+        completeTpkt[3] =
+            static_cast<std::uint8_t>(completeTpkt.size());
+        const auto parsed = parseMcsChannelRequest(completeTpkt);
+        assert(parsed);
+        assert(parseEnhancedSecurityLicensingEnvelope(
+            parsed.request.userData));
+
+        const RdpLicensingServiceCredential unusedCredential{};
+        assert(!MacConsoleAdmissionR3TestAccess::acceptClientLicensingMessage(
+            duplicate, admissionGeneration, authorizationGeneration,
+            provenance, unusedCredential, completeTpkt));
+        assertTerminal(duplicate);
+        assert(!MacConsoleAdmissionR3TestAccess::acceptClientLicensingMessage(
+            duplicate, admissionGeneration, authorizationGeneration,
+            provenance, unusedCredential, completeTpkt));
+        assertTerminal(duplicate);
+        return;
+    }
+
     assert(!MacConsoleAdmissionR3TestAccess::acceptClientInfo(
         duplicate, admissionGeneration, authorizationGeneration,
         provenance, clientInfo));
@@ -648,6 +727,12 @@ int main(int argc, char *argv[])
             "client-info-join-replay-denials")
     {
         testClientInfoJoinAndReplayDenials();
+        return 0;
+    }
+    if (argc == 2 && std::string_view{argv[1]} ==
+            "client-licensing-before-server-request-denial")
+    {
+        testClientInfoJoinAndReplayDenials(true);
         return 0;
     }
     if (argc == 2 && std::string_view{argv[1]} ==

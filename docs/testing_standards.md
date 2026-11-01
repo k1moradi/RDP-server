@@ -1,3 +1,28 @@
+## R3 premature Client Licensing after fully joined Client Info (2026-11-01)
+
+The ordinary offline `transport.mcs-macos-client-licensing-before-server-request-denial`
+CTest reuses the existing `test_macos_r2_mcs_gateway` executable and its
+private R2-scoped production R3 transitions. A checked-in Microsoft GCC fixture
+is accepted through Erect, Attach, all configured Channel Join confirmations and
+one valid Unicode Client Info. A structurally valid Client New License Request
+is then carried in a correctly joined global-I/O MCS SendDataRequest with
+`SEC_LICENSE_PKT` **before any Server License Request has been delivered**.
+The real `McsSessionLifecycle::acceptVerifiedR2ClientLicensingMessage` must
+reject the premature packet terminally, retire the joins/licensing/Share owner,
+and reject a late replay. Verify both inner licensing and outer MCS/security
+packet parsers accept the fixture, so malformed input cannot masquerade as the
+ordering denial. The credential object remains unconfigured because no positive
+licensing dispatch is authorized; protocol fixture generations do not create a
+real native lease. Existing `transport.mcs-macos-client-info-join-replay-denials`
+is unchanged and the fixed 171-case MCS table/sanitizer census must not grow.
+
+Source/test/CMake review on source parent `e4534704900c4a3ef890e55aa35e91a76653f0ec`:
+PASS. Owner-local configure, compile, focused/full CTest and ASan/UBSan:
+NOT RUN (no authorized local checkout). Exact publication-SHA hosted CI:
+PENDING. No physical macOS, Linux seat0, Windows App, clipboard, input or
+graphics acceptance is inferred. The next gate is real R1/R2/R3 licensing
+write/response/Valid Client receipt coverage at the publication SHA.
+
 ## R4 mapped-before-first-frame retirement without native admission (2026-11-01)
 
 Register ordinary \`graphics.mapped-before-first-frame-owner-retirement\`

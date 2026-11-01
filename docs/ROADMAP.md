@@ -1,3 +1,92 @@
+## R3 PersonalDesktop one-shot licensing fence and Demand/Confirm Active handoff (2026-11-01)
+
+**Source review parent:** `e4534704900c4a3ef890e55aa35e91a76653f0ec`.
+**New R3 denial regression:** ordinary
+`transport.mcs-macos-client-licensing-before-server-request-denial` in
+`test_macos_r2_mcs_gateway` uses the original private R2-scoped production
+R3 fixture, a structurally valid MCS/global-I/O licensing TPKT, and confirms
+that Client Licensing before full Server License Request delivery closes the
+original joins/licensing/Share. This is separate from the completed Client Info
+join/replay regression and from the fixed 171-case MCS inventory.
+
+**Exact one-shot transition map (R2 may invoke each R3 private method only
+after fresh original proof, consent, session generation and R1 TLS checks):**
+
+1. Client Info completion leaves R3 `McsSessionPhase::AwaitServerLicenseRequest`
+   and `RdpLicensingPhase::NotStarted`. R2 macOS
+   `authorizeR3PersonalDesktopLicensingMode` selects R3
+   `selectVerifiedR2PersonalDesktopLicensingMode` with the same immutable
+   `RuntimeDeploymentPolicy`; the Linux R2 broker enforces the equivalent
+   private policy. It does not issue a CAL, lease, Share or native permission.
+2. R2 `authorizeR3PersonalDesktopServerLicenseRequestWrite` borrows
+   `McsSessionLifecycle::prepareServerLicenseRequestWrite` with the current
+   `RdpServerLicenseIdentity`/`RdpLicensingServiceCredential` fingerprint
+   and exact bound HYBRID negotiation provenance. The `RdpServerLicenseRequestWriteGate`
+   is the sole fixed-buffer owner (maximum 16 KiB licensing request). R2
+   `completeR3PersonalDesktopServerLicenseRequestWrite` passes original
+   reply/slice and **R1-accepted** bytes to R3
+   `completeServerLicenseRequestWrite`. Zero bytes preserve original slice;
+   positive partial bytes advance only the suffix slice; completion alone
+   advances R3 to `AwaitClientLicenseResponse`, and licensing to
+   `RdpLicensingPhase::AwaitClientLicenseResponse`. Early Client Licensing is
+   terminal, not speculative R3 state.
+3. R2 `authorizeR3PersonalDesktopClientLicensingMessage` calls
+   `McsSessionLifecycle::acceptVerifiedR2ClientLicensingMessage` with one
+   complete bounded TPKT (at most 8192 bytes), matching original HYBRID
+   provenance, joined user/I/O/static channels, correct global I/O recipient,
+   `SEC_LICENSE_PKT` and identical server certificate fingerprint.
+   One structurally valid Client License Info or Client New License Request
+   advances to `McsSessionPhase::AwaitPersonalDesktopValidClientWrite` /
+   `RdpLicensingPhase::AwaitServerDecision` with
+   `PersonalDesktopCompletionRequired`. Replay or wrong phase retires R3.
+   The personal-server MS-RDPELE 1.3.3 flow does not inspect a presented CAL
+   signature/HWID or require a CAL; the separate application-server branch
+   continues to perform signed-chain, product, expiry, HWID and key checks.
+4. R2 `authorizeR3PersonalDesktopValidClientWrite` borrows
+   `McsSessionLifecycle::preparePersonalDesktopValidClientWrite`. The sole R3
+   gate writes the exact 34-byte server `STATUS_VALID_CLIENT` /
+   `ST_NO_TRANSITION` message. R2
+   `completeR3PersonalDesktopValidClientWrite` reports original reply/slice
+   and only genuine R1 accepted bytes. Zero/partial receipts leave
+   `AwaitPersonalDesktopValidClientWrite`; complete once only moves licensing
+   to `Licensed` and R3 to `AwaitDemandActive`. Duplicates, stale receipts,
+   policy replacement or revocation are terminal; no activation occurs before
+   this completion.
+5. After `AwaitDemandActive`, R2
+   `authorizeR3PersonalDesktopMacDemandActiveProfile` invokes
+   `prepareVerifiedR2MacDemandActiveProfile` and validates exact native
+   View/Input scope, while Linux uses the platform-specific counterpart.
+   The canonical profile advertises macOS General Capability OSMAJORTYPE_OSX
+   (6) / minor unspecified (0), requested bounded geometry and only supported
+   negotiated capability flags. R3
+   `beginVerifiedR2ShareActivation` moves to `ShareActivation` with an
+   R3-owned Demand Active write; only a full receipt permits Confirm Active.
+   Confirm Active and ordered finalization are parsed by the sole
+   `RdpShareActivationLifecycle`. No early client Share/input/graphics/
+   clipboard traffic can activate the session. Only completed finalization
+   leads to `ShareActivated` plus a fresh R2 authorization per operation.
+
+**R10 integration audit:** Linux `LinuxRuntimeConnection` already performs
+`advancePersonalDesktopServerLicenseRequestWrite`,
+`advancePersonalDesktopClientLicensingIntake` and
+`advancePersonalDesktopValidClientWrite`: one original R1 OpenSSL reader/
+writer, exact R3 reply/slice receipts, bounded stage-specific licensing TPKT
+framing and buffered TLS plaintext readiness. R10's host scheduler advances
+only after Delivered; WANT_READ/WANT_WRITE is zero protocol progress. The
+macOS HostControl currently reaches `ClientInfoAccepted` but has not yet
+composed these positive licensing steps, despite existing R2 macOS wrappers.
+This is an integration dependency, not proof of successful native admission.
+
+**Verification and next gate:** source, specification, test selection and
+registry review PASS. Owner-local compile/CTest/sanitizers NOT RUN; exact-SHA
+hosted Linux/macOS/Windows/R9 qualification PENDING. Physical native admission,
+Microsoft Windows App/mstsc, Share/input/capture/clipboard NOT RUN and not
+authorized. Next R3/R10 increment: production-linked exact zero/partial/full
+Server License Request and Valid Client receipts; coherent coalesced licensing
+intake; protected macOS Demand/Confirm Active/finalization; then separately
+authorized physical evidence. Do not claim M1/M2 complete or nominate R9
+manual acceptance without exact-SHA full test receipts.
+
 ## R9/R10 macOS native-proof retirement ordering (2026-10-31)
 
 Review parent `f4a8bf46d49cb74335138871c29683daa8c84a4b` after protected Channel Join/Client Info and

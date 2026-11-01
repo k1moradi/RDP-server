@@ -8933,6 +8933,246 @@ void testMacProtectedServerLicenseRequestPartialWriteCallbackRevocation()
     assert(successor->connection.stage() == PreauthStage::Closed);
 }
 
+// Complete original R1 HYBRID TLS and R2-private MCS, with deterministic
+// credential/native test observations only. A positive receipt below proves
+// protocol mechanics, never a product-valid native macOS admission.
+void testMacProtectedPersonalDesktopLicensingReceipts()
+{
+    using rdp_server::server::runtime::RuntimeDeploymentPolicy;
+    using rdp_server::server::runtime::RuntimeLicensingContext;
+    using RequestReceipt = RdpServerLicenseRequestWriteOutcome;
+    using ValidReceipt = RdpPersonalDesktopValidClientWriteOutcome;
+
+    RuntimeDeploymentPolicy policy;
+    assert(policy.configurePersonalDesktop(false, 3389U));
+    RuntimeLicensingContext licensing;
+    assert(licensing.configureGeneratedApplicationIdentity());
+    assert(licensing.identity() != nullptr && licensing.credential() != nullptr);
+    auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture();
+
+    assert(fixture->broker.authorizeR3PersonalDesktopLicensingMode(
+        *fixture->session, policy));
+    assert(fixture->session->phase() == McsSessionPhase::AwaitServerLicenseRequest);
+    // Repeating selection is an R2-terminal violation; no positive test
+    // repeats the immutable mode choice on its admitted lifetime.
+    const auto borrowRequest = [&]() {
+        return fixture->broker.authorizeR3PersonalDesktopServerLicenseRequestWrite(
+            *fixture->session, policy, *licensing.identity(),
+            *licensing.credential());
+    };
+    const auto first = borrowRequest();
+    assert(first && *first && first->bytes.size() > 1U);
+    assert(fixture->broker.completeR3PersonalDesktopServerLicenseRequestWrite(
+        *fixture->session, policy, first->replySequence,
+        first->writeSliceSequence, 0U) == RequestReceipt::Pending);
+    const auto zeroRetry = borrowRequest();
+    assert(zeroRetry && zeroRetry->replySequence == first->replySequence);
+    assert(zeroRetry->writeSliceSequence == first->writeSliceSequence);
+    assert(zeroRetry->bytes.data() == first->bytes.data());
+    assert(zeroRetry->bytes.size() == first->bytes.size());
+
+    // The sole R1 TLS writer accepts a real first byte, and only the
+    // previously unaccepted suffix is offered by R2/R3 on the next tick.
+    const auto acceptedFirst =
+        writeOneMacProtectedPlaintextByte(*fixture, zeroRetry->bytes);
+    assert(acceptedFirst == 1U);
+    assert(fixture->broker.completeR3PersonalDesktopServerLicenseRequestWrite(
+        *fixture->session, policy, zeroRetry->replySequence,
+        zeroRetry->writeSliceSequence, acceptedFirst) == RequestReceipt::Pending);
+    const auto remaining = borrowRequest();
+    assert(remaining && remaining->replySequence == first->replySequence);
+    assert(remaining->writeSliceSequence != first->writeSliceSequence);
+    assert(remaining->bytes.size() + acceptedFirst == first->bytes.size());
+
+    // Keep the test bounded: a single normal nonblocking TLS write usually
+    // accepts the remaining small request. Drain the actual client TLS bytes
+    // and retry only on the existing R1 WANT interest.
+    const auto deliverRemaining = [&](auto borrow, auto complete,
+                                      auto pendingResult, auto deliveredResult) {
+        const auto deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds{5};
+        for (std::size_t attempt = 0U;
+             attempt < 256U && std::chrono::steady_clock::now() < deadline;
+             ++attempt)
+        {
+            const auto view = borrow();
+            assert(view && *view);
+            const auto written =
+                fixture->connection.writeTlsApplicationData(view->bytes);
+            if (written.outcome != TlsApplicationIoOutcome::Progress)
+            {
+                assert(written.bytes == 0U);
+                assert(written.outcome == TlsApplicationIoOutcome::NeedRead ||
+                       written.outcome == TlsApplicationIoOutcome::NeedWrite);
+                const auto interest = fixture->connection.ioInterest();
+                const auto pollResult =
+                    fixture->connection.pollSocketOnce(deadline, kMaximumTcpPollWait);
+                assert(pollResult.outcome == TcpConnectionPollOutcome::Dispatched ||
+                       pollResult.outcome == TcpConnectionPollOutcome::NoEvent);
+                assert(pollResult.nextInterest == interest);
+                continue;
+            }
+            assert(written.bytes > 0U && written.bytes <= view->bytes.size());
+            std::vector<std::uint8_t> clientReceived(written.bytes);
+            readNativeTlsClientAll(fixture->tls.client.get(), clientReceived);
+            assert(std::equal(
+                clientReceived.begin(), clientReceived.end(), view->bytes.begin()));
+            const auto receipt = complete(
+                view->replySequence, view->writeSliceSequence, written.bytes);
+            if (receipt == deliveredResult)
+                return;
+            assert(receipt == pendingResult);
+        }
+        assert(false && "macOS licensing receipt did not complete");
+    };
+    deliverRemaining(
+        borrowRequest,
+        [&](std::uint64_t reply, std::uint64_t slice, std::size_t bytes) {
+            return fixture->broker.completeR3PersonalDesktopServerLicenseRequestWrite(
+                *fixture->session, policy, reply, slice, bytes);
+        },
+        RequestReceipt::Pending, RequestReceipt::Delivered);
+    assert(fixture->session->phase() == McsSessionPhase::AwaitClientLicenseResponse);
+
+    // Reuse the existing maximum-size structurally valid 8192-byte
+    // CLIENT_NEW_LICENSE_REQUEST. Bind the MCS initiator to the R3-allocated
+    // user 1002, not to the helper's different initial user 1001.
+    auto clientLicensing = makeMaximumClientLicensingTpkt();
+    assert(fixture->session->allocatedUserId() == 1002U);
+    clientLicensing[8] = 0U;
+    clientLicensing[9] = 1U;
+    writeNativeTlsClientAll(fixture->tls.client.get(), clientLicensing);
+    std::array<std::uint8_t, kMaximumInitialMcsTpktBytes> received{};
+    readOwnedRuntimeTlsAll(fixture->connection, received);
+    assert(received == clientLicensing);
+    const auto intake =
+        fixture->broker.authorizeR3PersonalDesktopClientLicensingMessage(
+            *fixture->session, policy, *licensing.credential(), received);
+    assert(intake && *intake == RdpLicensingIntake::ClientNewLicenseRequestAccepted);
+    assert(fixture->session->phase() ==
+           McsSessionPhase::AwaitPersonalDesktopValidClientWrite);
+
+    const auto borrowValid = [&]() {
+        return fixture->broker.authorizeR3PersonalDesktopValidClientWrite(
+            *fixture->session, policy);
+    };
+    const auto initialValid = borrowValid();
+    assert(initialValid && *initialValid &&
+           initialValid->bytes.size() == kRdpPersonalDesktopValidClientPacketBytes);
+    assert(fixture->broker.completeR3PersonalDesktopValidClientWrite(
+        *fixture->session, policy, initialValid->replySequence,
+        initialValid->writeSliceSequence, 0U) == ValidReceipt::Pending);
+    const auto validRetry = borrowValid();
+    assert(validRetry && validRetry->replySequence == initialValid->replySequence);
+    assert(validRetry->writeSliceSequence == initialValid->writeSliceSequence);
+    const auto firstValidByte =
+        writeOneMacProtectedPlaintextByte(*fixture, validRetry->bytes);
+    assert(firstValidByte == 1U);
+    assert(fixture->broker.completeR3PersonalDesktopValidClientWrite(
+        *fixture->session, policy, validRetry->replySequence,
+        validRetry->writeSliceSequence, firstValidByte) == ValidReceipt::Pending);
+    const auto validSuffix = borrowValid();
+    assert(validSuffix &&
+           validSuffix->replySequence == initialValid->replySequence &&
+           validSuffix->writeSliceSequence != initialValid->writeSliceSequence &&
+           validSuffix->bytes.size() + 1U == initialValid->bytes.size());
+    deliverRemaining(
+        borrowValid,
+        [&](std::uint64_t reply, std::uint64_t slice, std::size_t bytes) {
+            return fixture->broker.completeR3PersonalDesktopValidClientWrite(
+                *fixture->session, policy, reply, slice, bytes);
+        },
+        ValidReceipt::Pending, ValidReceipt::Delivered);
+    assert(fixture->session->phase() == McsSessionPhase::AwaitDemandActive);
+    assert(!fixture->session->firstClientAcceptanceObservability().shareActivated);
+    // A replay after complete STATUS_VALID_CLIENT cannot re-enter licensing.
+    assert(!fixture->broker.authorizeR3PersonalDesktopClientLicensingMessage(
+        *fixture->session, policy, *licensing.credential(), received));
+    assert(fixture->session->phase() == McsSessionPhase::Closed);
+    assert(fixture->connection.stage() == PreauthStage::Closed);
+    fixture->broker.revoke(MacConsoleAdmissionRevocationReason::OwnerStop);
+    assert(fixture->session->phase() == McsSessionPhase::Closed);
+    assert(fixture->connection.stage() == PreauthStage::Closed);
+}
+
+void testMacProtectedPersonalDesktopLicensingDenials()
+{
+    using rdp_server::server::runtime::RuntimeDeploymentPolicy;
+    using rdp_server::server::runtime::RuntimeLicensingContext;
+    RuntimeDeploymentPolicy policy;
+    RuntimeDeploymentPolicy replacementPolicy;
+    assert(policy.configurePersonalDesktop(false, 3389U));
+    assert(replacementPolicy.configurePersonalDesktop(false, 3389U));
+    RuntimeLicensingContext licensing;
+    assert(licensing.configureGeneratedApplicationIdentity());
+    assert(licensing.identity() != nullptr && licensing.credential() != nullptr);
+
+    auto clientLicensing = makeMaximumClientLicensingTpkt();
+    clientLicensing[8] = 0U;
+    clientLicensing[9] = 1U;
+
+    const auto prepare = [&](MacProtectedTransportFixture& fixture) {
+        assert(fixture.broker.authorizeR3PersonalDesktopLicensingMode(
+            *fixture.session, policy));
+        const auto pending =
+            fixture.broker.authorizeR3PersonalDesktopServerLicenseRequestWrite(
+                *fixture.session, policy, *licensing.identity(),
+                *licensing.credential());
+        assert(pending && *pending);
+        return *pending;
+    };
+
+    // A client message cannot overtake the undelivered server request.
+    {
+        auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture();
+        (void)prepare(*fixture);
+        assert(!fixture->broker.authorizeR3PersonalDesktopClientLicensingMessage(
+            *fixture->session, policy, *licensing.credential(), clientLicensing));
+        assert(fixture->session->phase() == McsSessionPhase::Closed);
+        assert(fixture->connection.stage() == PreauthStage::Closed);
+    }
+
+    // A separately instantiated but identically configured policy is not
+    // the original R10 service-lifetime policy object.
+    {
+        auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture();
+        const auto pending = prepare(*fixture);
+        assert(fixture->broker.completeR3PersonalDesktopServerLicenseRequestWrite(
+            *fixture->session, replacementPolicy, pending.replySequence,
+            pending.writeSliceSequence, 1U) ==
+            RdpServerLicenseRequestWriteOutcome::Rejected);
+        assert(fixture->session->phase() == McsSessionPhase::Closed);
+    }
+
+    // Native audit-session loss while a suffix is borrowed must retire
+    // R1/R2/R3 before even a plausible accepted-byte receipt.
+    {
+        auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture();
+        const auto pending = prepare(*fixture);
+        ++fixture->nativeEvidence.evidence.auditSessionId;
+        assert(fixture->broker.completeR3PersonalDesktopServerLicenseRequestWrite(
+            *fixture->session, policy, pending.replySequence,
+            pending.writeSliceSequence, 1U) ==
+            RdpServerLicenseRequestWriteOutcome::Rejected);
+        assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(fixture->session->phase() == McsSessionPhase::Closed);
+        assert(fixture->connection.stage() == PreauthStage::Closed);
+    }
+
+    // Stop while a borrowed slice is pending cannot complete it later.
+    {
+        auto fixture = makeMacProtectedAwaitServerLicenseRequestFixture();
+        const auto pending = prepare(*fixture);
+        fixture->broker.revoke(MacConsoleAdmissionRevocationReason::OwnerStop);
+        assert(fixture->session->phase() == McsSessionPhase::Closed);
+        assert(fixture->connection.stage() == PreauthStage::Closed);
+        assert(fixture->broker.completeR3PersonalDesktopServerLicenseRequestWrite(
+            *fixture->session, policy, pending.replySequence,
+            pending.writeSliceSequence, 1U) ==
+            RdpServerLicenseRequestWriteOutcome::Rejected);
+    }
+}
+
 // A complete, real R1 TLS/Join/Client Info path still has no independently
 // issued native Clipboard scope. A joined cliprdr channel ID is not a lease.
 // Real accepted R1 HYBRID/TLS and the original macOS R2/R3 owners complete
@@ -13758,6 +13998,10 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedServerLicenseRequestPartialWriteCallbackRevocation},
     {"macos-protected-channel-join-client-info-after-attach",
      &testMacProtectedChannelJoinClientInfoAfterAttach},
+    {"macos-protected-personal-desktop-licensing-receipts",
+     &testMacProtectedPersonalDesktopLicensingReceipts},
+    {"macos-protected-personal-desktop-licensing-denials",
+     &testMacProtectedPersonalDesktopLicensingDenials},
     {"macos-protected-first-mcs-partial-read-stop-retirement",
      &testMacProtectedFirstMcsPartialReadStopRetirement},
     {"macos-protected-post-mcs-semantic-audit-loss",

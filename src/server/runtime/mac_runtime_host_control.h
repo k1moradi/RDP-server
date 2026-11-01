@@ -147,6 +147,11 @@ private:
         ChannelJoinConfirmPending,
         ClientInfoExpected,
         ClientInfoAccepted,
+        ServerLicenseRequestPending,
+        ServerLicenseRequestDelivered,
+        ClientLicenseResponseAccepted,
+        ValidClientPending,
+        ValidClientDelivered,
     };
 
     const std::thread::id ownerThread_;

@@ -1,3 +1,17 @@
+## R10 macOS original-owner PersonalDesktop licensing (2026-11-01)
+
+After Client Info, select the no-CAL PersonalDesktop protocol mode exactly
+once via concrete R2, borrowing the original immutable deployment policy and
+service-lifetime RuntimeLicensingContext identity and credential. R3 alone
+owns licensing state and reply/slice generations; R10 uses only R1 SSL/BIO,
+one bounded TPKT buffer and single scheduler. Zero bytes or WANT_READ/WRITE
+must not advance protocol state. Only actual positive R1 accepted bytes may
+commit the exact R3 reply/slice; resumed writes borrow only its current suffix.
+No client response before full Request delivery. Replay, wrong policy, native
+or consent loss, timeout and Stop retire the original R2/R3/native borrows
+before proof/R1. Valid Client receipt means AwaitDemandActive, not Share,
+GraphicsReady, input, capture or Clipboard authorization.
+
 ## R2 PersonalDesktop licensing policy lifetime and late receipts (2026-11-01)
 
 The original admitted `MacConsoleAdmissionBroker` may select PersonalDesktop

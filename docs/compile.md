@@ -1,3 +1,17 @@
+## R10 protected macOS licensing build/test scope (2026-11-01)
+
+The existing `test_owned_preauth_session` links the existing
+`rdp-server-runtime-licensing` producer for real R1/R2/R3 offline testing.
+No second native owner, listener, worker, SSL reader or build root; use only
+`~/rdp-server/build/`. After mandatory Debug configure/build run:
+
+```sh
+ctest --test-dir build -C Debug -R '^security[.]macos-protected-(personal-desktop-licensing-(receipts|denials)|channel-join-client-info-after-attach)$' --output-on-failure
+ctest --test-dir build -C Debug --output-on-failure
+```
+Run applicable unchanged ASan/UBSan suites and exact-publication-SHA hosted
+CI. Connector-local compile/CTest NOT RUN; hosted qualification PENDING.
+
 ## R8 ShareActivated Clipboard denial test build scope (2026-11-01)
 
 Reuse existing `test_owned_preauth_session` and central `tests/CMakeLists.txt`; no new library/worker/native Clipboard owner/build root or sanitizer selector change. After canonical configure/build run `ctest --test-dir build -C Debug -R '^security[.]macos-(share-activated-clipboard-permission-denial|post-join-clipboard-view-input-denial)$' --output-on-failure`, followed by full Debug CTest and unchanged fixed 107-case clipboard sanitizer suite. Local build/CTest NOT RUN (connector-only); exact publication-SHA hosted CI PENDING.

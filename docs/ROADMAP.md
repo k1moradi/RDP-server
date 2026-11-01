@@ -1,3 +1,28 @@
+## R10 macOS protected PersonalDesktop licensing after Client Info (2026-11-01)
+
+**R10 P0 authored from `e4534704900c4a3ef890e55aa35e91a76653f0ec` and
+reconciled against shared main.** The serialized HostControl now selects
+PersonalDesktop exactly once through the original R2 broker and immutable
+deployment policy. It borrows the service-owned RuntimeLicensingContext
+identity and credential; no per-client licensing key or state owner is created.
+The existing R1 TLS writer drains the R3-owned Server License Request suffix
+with exact positive accepted-byte receipts, then the sole bounded TPKT reader
+consumes one licensing response, and the same R1/R2/R3 path delivers
+STATUS_VALID_CLIENT. Missing/replaced credential, listener, policy, native audit,
+proof, consent or connection causes terminal retirement; R3 stops at
+AwaitDemandActive, NOT Share/GraphicsReady/desktop or Clipboard authority.
+Dedicated real-loopback, production-linked offline CTests
+`security.macos-protected-personal-desktop-licensing-receipts` and
+`security.macos-protected-personal-desktop-licensing-denials` cover
+zero/partial/full receipts, early/replay, wrong policy, native loss and Stop.
+Test proof/native evidence is synthetic and never product authorization.
+Local configure/build/focused/full CTest/ASan/UBSan NOT RUN (GitHub connector
+cannot execute a checkout). Hosted exact-published-SHA CI PENDING.
+Owner-native/client/capture/input/Clipboard NOT RUN/unauthorized.
+**Next independent increment:** Demand Active macOS profile and protected
+Confirm Active/Share finalization through actual ShareActivated, without
+premature GraphicsReady or native attachment.
+
 ## R8 macOS Clipboard denial after mechanical Share (2026-11-01)
 
 New ordinary production-backed `security.macos-share-activated-clipboard-permission-denial` builds on the original accepted R1 HYBRID/TLS, joined R3 static channels and Client Info, then uses test-only synthetic licensing state plus real R2-protected R3 Demand/Confirm Active and final Share receipts. It verifies that joined cliprdr plus ShareActivated is not an independent native Clipboard scope. Without a current R2-authorized activated route, R3 must not classify FORMAT_LIST or FILECONTENTS and macOS R2 must revoke the original R1/R2/R3 rather than create Clipboard. Late PDUs/writes/receipts remain denied. Synthetic native proof/licensing is not a product-valid OS lease or authenticated desktop. Keep Linux `kLinuxProductionClipboardActivationApproved = false` and current macOS View|Input-only native issuer. R10 must not construct an R8 native Clipboard owner merely on licensing, Share or join. Local full/focused CTest and 107-case sanitizer NOT RUN (connector-only); exact-publication-SHA hosted CI PENDING. No physical Clipboard or file transfer.

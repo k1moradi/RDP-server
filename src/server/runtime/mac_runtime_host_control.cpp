@@ -258,6 +258,9 @@ struct MacRuntimeCredSspState final
     bool connectResponseWriteNeedsRead{};
     bool attachConfirmWriteNeedsRead{};
     bool channelJoinConfirmWriteNeedsRead{};
+    // These are R1 WANT direction hints only, not R3 licensing state.
+    bool serverLicenseRequestWriteNeedsRead{};
+    bool validClientWriteNeedsRead{};
 
     [[nodiscard]] bool prepareChallenge() noexcept
     {
@@ -418,6 +421,40 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
             return {RuntimeHostError::None, false};
         }
 
+        // The existing immutable R10 policy and service-lifetime licensing
+        // identity are borrowed, never recreated for an accepted peer.
+        // Only the original concrete R2 broker may choose the no-CAL mode.
+        if (activeAdmissionStage_ ==
+            AcceptedClientAdmissionStage::ClientInfoAccepted)
+        {
+            if (activeMcsSession_ == nullptr || !deploymentPolicy_ ||
+                !deploymentPolicy_->usesPersonalTerminalServerLicensingFlow() ||
+                !licensingContext_.configured() ||
+                licensingContext_.identity() == nullptr ||
+                licensingContext_.credential() == nullptr ||
+                activeMcsSession_->phase() !=
+                    transport::McsSessionPhase::AwaitServerLicenseRequest ||
+                !activeAdmissionBroker_->authorizeR3PersonalDesktopLicensingMode(
+                    *activeMcsSession_, *deploymentPolicy_) ||
+                !activeAdmissionBroker_->revalidate(
+                    activeAdmissionPermissionMask_))
+                return rejectAdmission();
+            activeAdmissionStage_ =
+                AcceptedClientAdmissionStage::ServerLicenseRequestPending;
+            return {RuntimeHostError::None, false};
+        }
+        if (activeAdmissionStage_ ==
+            AcceptedClientAdmissionStage::ClientLicenseResponseAccepted)
+        {
+            if (activeMcsSession_ == nullptr ||
+                activeMcsSession_->phase() !=
+                    transport::McsSessionPhase::AwaitPersonalDesktopValidClientWrite)
+                return rejectAdmission();
+            activeAdmissionStage_ =
+                AcceptedClientAdmissionStage::ValidClientPending;
+            return {RuntimeHostError::None, false};
+        }
+
         const bool readingFirstMcs =
             activeAdmissionStage_ == AcceptedClientAdmissionStage::TransportAdmitted;
         const bool writingConnectResponse =
@@ -440,22 +477,42 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
         const bool readingClientInfo =
             activeAdmissionStage_ ==
                 AcceptedClientAdmissionStage::ClientInfoExpected;
+        const bool writingServerLicenseRequest =
+            activeAdmissionStage_ ==
+                AcceptedClientAdmissionStage::ServerLicenseRequestPending;
+        const bool readingClientLicenseResponse =
+            activeAdmissionStage_ ==
+                AcceptedClientAdmissionStage::ServerLicenseRequestDelivered;
+        const bool writingValidClient =
+            activeAdmissionStage_ ==
+                AcceptedClientAdmissionStage::ValidClientPending;
         if (!readingFirstMcs && !writingConnectResponse &&
             !readingErectDomain && !readingAttachUser &&
             !writingAttachConfirm && !readingChannelJoin &&
-            !writingChannelJoinConfirm && !readingClientInfo)
+            !writingChannelJoinConfirm && !readingClientInfo &&
+            !writingServerLicenseRequest && !readingClientLicenseResponse &&
+            !writingValidClient)
         {
-            // Licensing and later Share/graphics activation remain separate
-            // protected increments. Client Info acceptance is the bounded stop.
+            // Licensing is not Share or native desktop authority. R10 stops
+            // here until a later separately protected Demand Active increment.
             return activeAdmissionStage_ ==
-                           AcceptedClientAdmissionStage::ClientInfoAccepted
+                           AcceptedClientAdmissionStage::ValidClientDelivered
                 ? RuntimeHostResult{RuntimeHostError::None, true}
                 : rejectAdmission();
         }
 
+        if (activeMcsSession_ == nullptr)
+            return rejectAdmission();
         auto& connection = *activeConnection_;
         auto& credSsp = *activeCredSsp_;
         auto& session = *activeMcsSession_;
+        if ((writingServerLicenseRequest || readingClientLicenseResponse ||
+             writingValidClient) &&
+            (!deploymentPolicy_ || !licensingContext_.configured() ||
+             licensingContext_.identity() == nullptr ||
+             licensingContext_.credential() == nullptr ||
+             !deploymentPolicy_->usesPersonalTerminalServerLicensingFlow()))
+            return rejectAdmission();
         if (!connection.active() ||
             connection.stage() != PreauthStage::AwaitMcsConnectInitial ||
             session.phase() == transport::McsSessionPhase::Closed)
@@ -465,12 +522,17 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
         // during a pending write must poll Read; new writes start on Write.
         const bool readingMcsTpkt =
             readingFirstMcs || readingErectDomain || readingAttachUser ||
-            readingChannelJoin || readingClientInfo;
-        const bool writeNeedsRead = writingConnectResponse
-            ? credSsp.connectResponseWriteNeedsRead
-            : (writingAttachConfirm
-                   ? credSsp.attachConfirmWriteNeedsRead
-                   : credSsp.channelJoinConfirmWriteNeedsRead);
+            readingChannelJoin || readingClientInfo ||
+            readingClientLicenseResponse;
+        const bool writeNeedsRead = writingServerLicenseRequest
+            ? credSsp.serverLicenseRequestWriteNeedsRead
+            : (writingValidClient
+                   ? credSsp.validClientWriteNeedsRead
+                   : (writingConnectResponse
+                          ? credSsp.connectResponseWriteNeedsRead
+                          : (writingAttachConfirm
+                                 ? credSsp.attachConfirmWriteNeedsRead
+                                 : credSsp.channelJoinConfirmWriteNeedsRead)));
         const Interest interest = readingMcsTpkt
             ? connection.ioInterest()
             : (writeNeedsRead ? Interest::Read : Interest::Write);
@@ -629,6 +691,30 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
                 return {RuntimeHostError::None, false};
             }
 
+            if (readingClientLicenseResponse)
+            {
+                // The sole R1 reader has received exactly one bounded TPKT
+                // only after R3 committed the complete Server License Request.
+                const auto intake =
+                    activeAdmissionBroker_->
+                        authorizeR3PersonalDesktopClientLicensingMessage(
+                            session, *deploymentPolicy_,
+                            *licensingContext_.credential(), completeTpkt);
+                if (!intake ||
+                    (*intake != transport::RdpLicensingIntake::ClientLicenseInfoAccepted &&
+                     *intake != transport::RdpLicensingIntake::ClientNewLicenseRequestAccepted) ||
+                    session.phase() !=
+                        transport::McsSessionPhase::AwaitPersonalDesktopValidClientWrite ||
+                    !activeAdmissionBroker_->revalidate(
+                        activeAdmissionPermissionMask_))
+                    return rejectAdmission();
+                credSsp.firstMcsBytes = 0U;
+                credSsp.firstMcsExpectedBytes = 0U;
+                activeAdmissionStage_ =
+                    AcceptedClientAdmissionStage::ClientLicenseResponseAccepted;
+                return {RuntimeHostError::None, false};
+            }
+
             const auto clientInfo =
                 activeAdmissionBroker_->authorizeR3ClientInfoPacket(
                     session, completeTpkt);
@@ -642,6 +728,102 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
             credSsp.firstMcsExpectedBytes = 0U;
             activeAdmissionStage_ =
                 AcceptedClientAdmissionStage::ClientInfoAccepted;
+            return {RuntimeHostError::None, false};
+        }
+
+        if (writingServerLicenseRequest || writingValidClient)
+        {
+            using TlsOutcome = transport::TlsApplicationIoOutcome;
+            if (writingServerLicenseRequest)
+            {
+                const auto pending =
+                    activeAdmissionBroker_->
+                        authorizeR3PersonalDesktopServerLicenseRequestWrite(
+                            session, *deploymentPolicy_,
+                            *licensingContext_.identity(),
+                            *licensingContext_.credential());
+                if (!pending || !*pending)
+                    return rejectAdmission();
+                const auto sent = connection.writeTlsApplicationData(
+                    pending->bytes);
+                if (sent.outcome == TlsOutcome::NeedRead ||
+                    sent.outcome == TlsOutcome::NeedWrite)
+                {
+                    if (sent.bytes != 0U)
+                        return rejectAdmission();
+                    credSsp.serverLicenseRequestWriteNeedsRead =
+                        sent.outcome == TlsOutcome::NeedRead;
+                    return {RuntimeHostError::None, true};
+                }
+                if (sent.outcome != TlsOutcome::Progress ||
+                    sent.bytes == 0U || sent.bytes > pending->bytes.size() ||
+                    !activeAdmissionBroker_->revalidate(
+                        activeAdmissionPermissionMask_))
+                    return rejectAdmission();
+                credSsp.serverLicenseRequestWriteNeedsRead = false;
+                const auto receipt =
+                    activeAdmissionBroker_->
+                        completeR3PersonalDesktopServerLicenseRequestWrite(
+                            session, *deploymentPolicy_,
+                            pending->replySequence, pending->writeSliceSequence,
+                            sent.bytes);
+                if (receipt ==
+                        transport::RdpServerLicenseRequestWriteOutcome::Rejected ||
+                    !activeAdmissionBroker_->revalidate(
+                        activeAdmissionPermissionMask_))
+                    return rejectAdmission();
+                if (receipt ==
+                    transport::RdpServerLicenseRequestWriteOutcome::Delivered)
+                {
+                    if (session.phase() !=
+                        transport::McsSessionPhase::AwaitClientLicenseResponse)
+                        return rejectAdmission();
+                    activeAdmissionStage_ =
+                        AcceptedClientAdmissionStage::ServerLicenseRequestDelivered;
+                }
+                return {RuntimeHostError::None, false};
+            }
+
+            const auto pending =
+                activeAdmissionBroker_->
+                    authorizeR3PersonalDesktopValidClientWrite(
+                        session, *deploymentPolicy_);
+            if (!pending || !*pending)
+                return rejectAdmission();
+            const auto sent = connection.writeTlsApplicationData(pending->bytes);
+            if (sent.outcome == TlsOutcome::NeedRead ||
+                sent.outcome == TlsOutcome::NeedWrite)
+            {
+                if (sent.bytes != 0U)
+                    return rejectAdmission();
+                credSsp.validClientWriteNeedsRead =
+                    sent.outcome == TlsOutcome::NeedRead;
+                return {RuntimeHostError::None, true};
+            }
+            if (sent.outcome != TlsOutcome::Progress || sent.bytes == 0U ||
+                sent.bytes > pending->bytes.size() ||
+                !activeAdmissionBroker_->revalidate(activeAdmissionPermissionMask_))
+                return rejectAdmission();
+            credSsp.validClientWriteNeedsRead = false;
+            const auto receipt =
+                activeAdmissionBroker_->completeR3PersonalDesktopValidClientWrite(
+                    session, *deploymentPolicy_,
+                    pending->replySequence, pending->writeSliceSequence,
+                    sent.bytes);
+            if (receipt ==
+                    transport::RdpPersonalDesktopValidClientWriteOutcome::Rejected ||
+                !activeAdmissionBroker_->revalidate(
+                    activeAdmissionPermissionMask_))
+                return rejectAdmission();
+            if (receipt ==
+                transport::RdpPersonalDesktopValidClientWriteOutcome::Delivered)
+            {
+                if (session.phase() !=
+                    transport::McsSessionPhase::AwaitDemandActive)
+                    return rejectAdmission();
+                activeAdmissionStage_ =
+                    AcceptedClientAdmissionStage::ValidClientDelivered;
+            }
             return {RuntimeHostError::None, false};
         }
 

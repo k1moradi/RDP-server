@@ -1,3 +1,15 @@
+## R10 macOS PersonalDesktop licensing production-linked CTests (2026-11-01)
+
+The two ordinary `security.macos-protected-personal-desktop-licensing-(receipts|denials)`
+cases reuse the existing `test_owned_preauth_session`, a real accepted
+loopback HYBRID TLS/R1 owner, concrete macOS R2 broker and production R3.
+They assert exact zero/partial/full Server License Request/Valid Client
+receipts, bounded CLIENT_NEW_LICENSE_REQUEST, post-licensing replay, premature
+client licensing, policy replacement, native audit loss and Stop with a
+borrowed suffix. The proof/native evidence remains synthetic, not product
+admission or Share. Keep cases outside fixed 171 MCS and sanitizer selectors.
+Local focused/full CTest and sanitizers NOT RUN; hosted exact-SHA CI PENDING.
+
 ## R8 distinct post-Share native Clipboard denial (2026-11-01)
 
 Keep ordinary `security.macos-share-activated-clipboard-permission-denial` outside the fixed 107-case sanitizer selection. It uses original production R1 TLS, concrete macOS R2/R3, real Share state transitions and exact accepted bytes, but test-only synthetic licensed phase and native proof. A joined cliprdr route must remain dormant without independent native Clipboard permission; R3's classifier denies FORMAT_LIST/FILECONTENTS and R2 activated-channel denial terminally retires the owners, rejecting later write/receipt attempts. This does not certify real licensing, native desktop or Clipboard use. Existing pre-Share/post-Join tests and fixed sanitizer census remain unchanged. Local compilation/CTest NOT RUN and exact-SHA hosted CI PENDING.

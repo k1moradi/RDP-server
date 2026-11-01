@@ -2046,6 +2046,16 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "protocol;security;transport;tls;mcs;admission;offline"
                 TIMEOUT 20)
 
+        # R10 protected PersonalDesktop licensing through original R1 TLS.
+        # Genuine native admission is never synthesized by the offline fixture.
+        foreach(licensing_case IN ITEMS receipts denials)
+            add_test(NAME "security.macos-protected-personal-desktop-licensing-${licensing_case}"
+                COMMAND "${test_target}"
+                    "macos-protected-personal-desktop-licensing-${licensing_case}")
+            set_tests_properties("security.macos-protected-personal-desktop-licensing-${licensing_case}"
+                PROPERTIES LABELS "protocol;security;transport;tls;licensing;admission;offline" TIMEOUT 60)
+        endforeach()
+
         # Genuine accepted R1 HYBRID/TLS with synthetic authentication/native
         # evidence: owner-thread repeat preparation and pre-MCS audit loss.
         add_test(
@@ -2649,7 +2659,8 @@ target_link_libraries(test_owned_preauth_session PRIVATE
     rdp-server-runtime-tls
     rdp-server-runtime-licensing
     rdp-server-standalone-ntlmv2
-    rdp-server-mac-console-admission)
+    rdp-server-mac-console-admission
+    rdp-server-runtime-licensing)
 if(TARGET rdp-server-linux-gssapi)
     # Exercise real TLS -> actual MIT GSSAPI handoff using the existing
     # in-memory TLS fixture; no duplicate certificate/test implementation.

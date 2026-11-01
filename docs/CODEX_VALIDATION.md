@@ -1,3 +1,19 @@
+## R10 protected macOS PersonalDesktop licensing receipts (2026-11-01)
+
+Parent `e4534704900c4a3ef890e55aa35e91a76653f0ec`; shared main
+concurrent code/test/docs changes reconciled. Production R10 now composes
+existing R1 TLS/R2 protected R3 licensing from Client Info through
+receipt-complete STATUS_VALID_CLIENT and stops at AwaitDemandActive.
+Original native/proof/R1 teardown order is unchanged; no Share,
+GraphicsReady, native input/capture or Clipboard grant. Two ordinary
+production-linked real-loopback CTests cover zero/partial/full request/Valid
+Client receipts, bounded input, replay, early response, wrong policy,
+native session change and Stop; synthetic proof/native sources test only
+mechanics. Source/CTest registry inspection PASS. Local configure/build,
+focused/full CTest, ASan/UBSan NOT RUN (connector cannot run source).
+Exact publication-SHA hosted CI PENDING; physical macOS/Windows client
+NOT RUN/unauthorized. Next: protected Demand Active/Share increment.
+
 ## R8 macOS post-Share independent Clipboard denial (2026-11-01)
 
 Original accepted R1 HYBRID/TLS, concrete R2 and joined R3 Client Info remain in the reusable fixture. The new ordinary `security.macos-share-activated-clipboard-permission-denial` stages only the licensed phase synthetically, then drives production R3 Demand/Confirm Active and final Share through protected R2 calls and exact R1 accepted-byte receipts. With View|Input but no macOS Clipboard permission, joined cliprdr must not classify FORMAT_LIST/FILECONTENTS before activated-route authorization. The R2 activated-channel denial revokes R1/R2/R3, rejecting late Clipboard queue, PDU and fake receipt. No native owner or real clipboard is constructed. Source/registry inspection only; local full/focused CTest and 107-case sanitizer NOT RUN, exact publication-SHA hosted CI PENDING. No Microsoft client, native Clipboard, file destination or OS privilege tested.

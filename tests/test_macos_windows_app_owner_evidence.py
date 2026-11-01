@@ -938,6 +938,38 @@ class OwnerEvidenceTests(unittest.TestCase):
         self.assertNotIn("WINDOWS_FIRST_ERROR_OUTSIDE_ATTEMPT",
                          valid_followup["evidence_failures"])
 
+        # The post-terminal allowance is terminal-relative, not another
+        # attempt-start cap. A valid 110-second attempt plus the full bounded
+        # UI/provider delay must remain representable without splicing.
+        long_attempt_pair = self._paired_record(pristine)
+        long_attempt_pair["windows"]["linux_correlation"]["terminal_time_utc"] = (
+            "2026-10-27T12:33:50+00:00"
+        )
+        long_binding = long_attempt_pair["windows"]["source_binding"]
+        long_binding["terminal_time_utc"] = "2026-10-27T12:33:50+00:00"
+        long_binding["observation_window_end_utc"] = "2026-10-27T12:33:50+00:00"
+        long_error = long_attempt_pair["windows"]["first_client_error"]
+        long_error["normalized_category"] = "trust"
+        long_error["provider_category_exact"] = "private-provider-trust"
+        long_error["event_time_utc"] = "2026-10-27T12:35:50+00:00"
+        boundary_summary = ab_evidence.validate_pair(pristine, long_attempt_pair)
+        self.assertEqual(boundary_summary["evidence_status"], "PASS")
+        self.assertEqual(
+            boundary_summary["windows"]["first_client_error_category"], "trust"
+        )
+        self.assertNotIn("private-provider-trust", json.dumps(boundary_summary))
+
+        # One second beyond the same terminal-relative allowance fails closed.
+        long_error["event_time_utc"] = "2026-10-27T12:35:51+00:00"
+        late_summary = ab_evidence.validate_pair(pristine, long_attempt_pair)
+        self.assertEqual(late_summary["evidence_status"], "FAIL")
+        self.assertIn("WINDOWS_FIRST_ERROR_OUTSIDE_ATTEMPT",
+                      late_summary["evidence_failures"])
+        self.assertEqual(
+            late_summary["windows"]["first_client_error_category"], "unknown"
+        )
+        self.assertNotIn("private-provider-trust", json.dumps(late_summary))
+
         # R1 committed Type 2 and FIN cannot prove client-side decryption.
         pair = self._paired_record(pristine)
         pair["macos"]["client_security_stages"]["type2_received"] = "PASS"

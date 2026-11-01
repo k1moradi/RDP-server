@@ -623,10 +623,10 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         _text(correlation["connection_id"], "Windows connection ID")
         if abs((terminal - start).total_seconds()) > macos.MAX_CORRELATION_DELTA_SECONDS:
             failures.append("WINDOWS_ATTEMPT_CORRELATION_MISMATCH")
-        first_event = (first_error_record.get("event_time_utc")
-                       if isinstance(first_error_record, dict) else None)
-        if first_event is not None and abs((_utc(first_event, "Windows first error") - start).total_seconds()) > macos.MAX_CORRELATION_DELTA_SECONDS:
-            failures.append("WINDOWS_FIRST_ERROR_ATTEMPT_MISMATCH")
+        # First-error provenance has one authoritative time window above:
+        # [attempt start, terminal + bounded UI/provider reporting delay].
+        # Re-capping against attempt start would reject a valid delayed error
+        # after an otherwise valid near-limit attempt.
         if start <= macos_start:
             failures.append("AB_ATTEMPT_ORDER_INVALID")
         if correlation["connection_id"] == macos_correlation.get("connection_id"):

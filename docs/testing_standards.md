@@ -1,3 +1,18 @@
+## R6 terminal-relative first-error boundary regression (2026-11-01)
+
+Extend the existing ordinary
+`interop.windows-client-ab-first-error-attempt-provenance-denials` fixture
+rather than adding another test executable or schema. In addition to the
+pre-attempt macOS/Windows first-error denials and server-only fake Type-2
+client-receipt denial, use a Windows attempt whose terminal is 110 seconds
+after start: an independently typed first error exactly 120 seconds after
+that terminal must remain valid even though it is more than 120 seconds from
+attempt start, while one second later must fail with fixed
+`WINDOWS_FIRST_ERROR_OUTSIDE_ATTEMPT` and public `unknown`. The private
+provider sentinel must never enter shared JSON. This stays Python
+standard-library-only, read-only, offline and outside physical-client or
+native-input authority.
+
 ## Linux first-frame product visibility ACK gate (2026-11-01)
 
 Ordinary offline `runtime.linux-host-control-first-frame-visibility-requires-genuine-ack` reuses `test_linux_runtime_host_control` and the production `RuntimeFirstLiveGraphicsTrace` projection. It proves framebuffer/preparation/exact TLS write without a client ACK is insufficient, missing framebuffer/preparation/write facts remain insufficient even with an ACK flag, and a genuine matching first ACK confirms visibility even while later frames remain outstanding. Production HostControl consumes the same helper only after the serialized post-Share route has passed R2/R3 and R4's sole ACK window. This does not alter the fixed 23 Graphics DVC sanitizer inventory or the separately selected R4 retirement tests.

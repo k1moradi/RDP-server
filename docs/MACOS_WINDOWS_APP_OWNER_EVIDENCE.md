@@ -16,8 +16,9 @@ first error), `type3_generated` (client construction), and
 `type3_delivered` (submission to client TLS). Absent original
 first-party evidence must stay `NOT_OBSERVED`. Server-local Type-2
 delivery or FIN cannot populate a client field. A first-error event may
-lag the terminal server observation but must not predate the original
-attempt. The existing source binding remains closed, and record digests
+lag the terminal server observation by at most 120 seconds but must not
+predate the original attempt; do not also cap it to 120 seconds from
+attempt start. The existing source binding remains closed, and record digests
 are correlation only, not attestation.
 
 **Future owner A/B checklist — NOT RUN and not authorized:** After R9

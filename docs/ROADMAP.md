@@ -1,3 +1,37 @@
+## R6 P0 — terminal-relative first-error correction; physical client still BLOCKED (2026-11-01)
+
+**Reviewed parent:** `cb3cc05d609d62fa9f5bcc1779629b07e18c2d52`.
+The v3 evidence pair already has independent source-bound slots for client
+Type-2 TLS receipt/decryption, provider parse/typed first error, Type-3
+construction and Type-3-bearing TLS submission, so no new schema field or
+production TLS/NTLM behavior is warranted. A review of the prior R6 fix found
+one false-denial path: after validating first error against
+`[attempt start, terminal + 120 s]`, Windows validation also applied the old
+120-second distance from attempt start. Remove that redundant check and
+strengthen the existing
+`interop.windows-client-ab-first-error-attempt-provenance-denials` fixture:
+a 110-second attempt with an error exactly terminal+120 seconds is valid;
+terminal+121 seconds fails closed with public `unknown`. Keep the pre-attempt
+anti-splice, server-only Type-2-receipt denial, UTF-8/lone-surrogate handling,
+closed schema and source-digest uniqueness unchanged. The canonical focused
+R6 command now selects this test explicitly.
+
+The owner's 8.956 ms macOS Windows App FIN remains a separate attempt from
+~34.7 ms and from hosted SSPI. Do not carry over the challenge AV IDs,
+126-byte length, cipher, SNI/IP target, exact-IP-SAN certificate fingerprint,
+credential source or server SHA unless an original record for this same
+attempt actually observed each fact. The earliest missing physical fact is
+still first-party client receipt/decryption of the exact Type 2; absent that,
+provider parsing/first error and both Type-3 stages remain `NOT_OBSERVED`.
+R1 exact publication `6c21f509` is hosted-green but proves only the server
+boundary. Previous Microsoft SSPI `COMPLETE_PASS` at `559a89e1` is
+separate harness evidence. This correction has source/registry review PASS;
+local CTest/sanitizers NOT RUN and new exact-SHA hosted Microsoft SSPI/general
+CI PENDING. Physical A/B is BLOCKED pending R9 nomination, explicit owner
+authorization for each exact client attempt and permission to read existing
+first-party diagnostics; the owner checklist remains read-only and forbids
+Keychain access, secrets, trust changes, client launch and packet capture.
+
 ## R6 P0 — new 8.956 ms Type-2/peer-FIN attempt: first-party client receipt still unobserved (2026-11-01)
 
 **Reported separately from the historical ~34.7 ms attempt:** a newer

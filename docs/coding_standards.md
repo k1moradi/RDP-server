@@ -1,3 +1,20 @@
+## R6 first-error attempt window has one terminal-relative owner (2026-11-01)
+
+For paired owner evidence, keep the source binding's attempt-start to terminal
+correlation bound independent from delayed first-party client error reporting.
+When an original first-error timestamp exists, its sole admissible interval is
+from that attempt's start through at most 120 seconds after that attempt's
+terminal observation. Do not apply a second 120-second cap from attempt start:
+a valid near-limit connection can legitimately surface a typed UI/provider
+event after the server terminal line. The timestamp remains correlation
+metadata, not proof of cross-host event ordering or cause.
+
+Keep the public category allowlist and summary keys closed. Invalid,
+pre-attempt or too-late private first-error records project fixed `unknown`
+and typed failures without provider text, path or exception reflection. The
+four client stages remain separately source-bound; a server Type-2 write/FIN
+cannot establish client receipt/decryption or password rejection.
+
 ## R10/R4 Linux first-frame visibility requires genuine client ACK (2026-11-01)
 
 Linux R10 now has the production R2 View -> R3 mapped-surface/credit -> R5 synchronous BGRA borrow -> R4 ClearCodec -> R3 segmented DATA -> sole R1 TLS writer path. A complete outbound frame write establishes only `firstExactTlsWriteCommitted` and R4 outstanding ACK membership; it MUST NOT advance product state to `DesktopVisible`. Promote visibility only after the same R3/R4 generation independently consumes a genuine matching client `FRAME_ACKNOWLEDGE`, while native framebuffer availability and ClearCodec preparation are also proven. Do not create a second ACK flag/window: project the existing R3/R4 acceptance facts through `RuntimeFirstLiveGraphicsTrace`. Later outstanding frames do not revoke an already confirmed first-frame visibility fact. The existing 64-outstanding-frame preflight remains before native borrow/encode/TLS work.

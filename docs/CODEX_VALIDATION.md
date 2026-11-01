@@ -1,3 +1,47 @@
+## R6 terminal-relative first error and current physical-client blocker (2026-11-01)
+
+Reviewed current `main` parent `cb3cc05d609d62fa9f5bcc1779629b07e18c2d52`
+after R6 `f4fb197b` and the separately qualified R1 Type-2/FIN boundary.
+The private v3 pair already represents all four required original client-side
+observations independently: Type-2 TLS receipt/decryption, CredSSP/provider
+parse with typed first error, Type-3 construction and Type-3-bearing TLS
+submission. No evidence-schema or production TLS/NTLM change is justified.
+
+Review found one validator defect in the landed first-error hardening:
+Windows first-error time was correctly constrained to
+`[attempt start, terminal + 120 s]`, then redundantly constrained again to
+120 seconds from attempt start. That second check falsely rejects a valid
+delayed first-party error after a near-limit attempt. Remove only the
+redundant start-relative check and extend the existing dedicated offline
+negative fixture with the exact terminal+120-second accepted boundary and
+terminal+121-second denial. Pre-attempt anti-splice, source-digest uniqueness,
+closed redacted categories, malformed UTF-8/lone-surrogate handling and
+server-only fake Type-2 receipt denial remain unchanged. The canonical
+focused R6 command now explicitly includes that registered CTest.
+
+The newer 8.956 ms peer-FIN attempt remains distinct from the historical
+~34.7 ms attempt and hosted SSPI. For that physical attempt, client-origin
+Type-2 receipt/decryption, provider error, Type-3 construction/submission,
+and same-attempt originals for the 0xe08a8235 flags, AV IDs/126-byte
+challenge, TLS cipher, SNI versus numeric-IP target, exact-IP-SAN leaf
+fingerprint, credential-source selection and current server SHA must stay
+unqualified unless their original records actually contain them. Server-local
+Type-2 delivery plus FIN cannot establish any of those client facts or a
+password rejection.
+
+R1 publication `6c21f5097431f7e65f3e237b8ac6c98c54330e84`,
+Actions 41339927267, is separately hosted-green across the documented
+Linux/macOS/Windows full CTest matrices; that loopback result still is not
+physical Windows App receipt. Previous hosted Microsoft SSPI
+`COMPLETE_PASS` at `559a89e1`, Actions 41306620036, remains separate
+harness evidence. For this correction, source/registry review PASS;
+connector-local Python/CMake/full CTest/sanitizers **NOT RUN**. Exact
+publication-SHA Microsoft SSPI and general CI are **PENDING** until this
+commit is published and its jobs report independently. Physical A/B remains
+**BLOCKED** on R9 exact-SHA nomination plus explicit owner authorization for
+the specific client attempts and already-available first-party diagnostics;
+no Keychain, secret collection, trust change, client launch or packet capture.
+
 ## R4/R10 Linux first-frame product visibility ACK correction (2026-11-01)
 
 Reviewed current main parent `6d9a9617f2ffa0bc218a4c7e4180ba580e79b945`, including the production Linux R10 scheduler, R2/R3 protected frame APIs, R5 `consumeR4Frame`, R4 ClearCodec/ACK lifecycle, R3 segmented DATA writer and CMake dependency graph. The earlier R4 integration blocker is resolved on Linux: `rdp-server-linux-host-control` conditionally consumes `rdp-server-linux-runtime-security` and `rdp-server-linux-x11-desktop`, preflights R4 credit before the native borrow, copies padded BGRA synchronously, ends the borrow before later TLS service, and drives the existing R3/R1 segmented writer. A correctness defect remained: after exact `GraphicsFrameData` completion, HostControl set `RuntimeHostStage::DesktopVisible` immediately, although R4 had only created outstanding ACK membership and no independent client ACK had arrived.

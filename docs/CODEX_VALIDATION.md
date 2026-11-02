@@ -1,3 +1,11 @@
+## R5 exact-SHA Linux X11 corrective qualification (2026-11-01)
+
+Reviewed current main after the focused fixture correction `d6c5d90cd3981a0f5931319ef4c4fcec84eeb6ce`. The correction changes only the in-flight Xvfb test's XShm arena from the shared 262,144-pixel cap to the complete synthetic 1280x720 surface required by production `consumeR4Frame()`; no production R5 behavior changed.
+
+Exact-SHA hosted evidence is now **PASS** for the Linux R5 gates. Actions `41388322871`, Ubuntu protocol job `125094048119`, passed the tests-disabled production desktop-target proof, normal same-root Debug reconfiguration/build, full Debug **1124/1124**, same-root Release reconfiguration/build and full Release **1124/1124**. The graceful held-input aggregate case and corrected in-flight held-input callback-revocation case passed in both configurations. Actions sanitizer job `125094048186` passed the unchanged native X11 **45/45** selection, implicit-destructor **2/2** selection and explicit authority-loss **1/1** held-input selection. R5 Linux GUI ZIP qualification also passed.
+
+Source/ownership/dependency review on current main **PASS**. Required aggregate children remain XCB/RandR, XShm, XFixes, XDamage and XTEST with XInput2 optional. No new production fix, dependency, executable or sanitizer inventory is warranted. Connector-local owner-checkout commands and benchmark remain **NOT RUN**. Physical Windows App Type 3, fresh R2 native proof, unlocked Linux `seat0`, first frame, real FRAME_ACK, input/RandR, Stop and reconnect remain **NOT RUN / BLOCKED upstream** pending separately authorized physical-client evidence; no live desktop or Clipboard operation was performed.
+
 ## R7 CLI Username preference-length parity (2026-11-01)
 
 Reviewed current-main parent `7361e131ba55740256d1b72b1c68c13ce7ee0214`, R2's fixed non-secret preference

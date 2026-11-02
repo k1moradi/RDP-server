@@ -1,3 +1,13 @@
+## R5 P1 — corrective X11 fixture exact-SHA Linux qualification (2026-11-01)
+
+**Qualified R5 SHA:** `d6c5d90cd3981a0f5931319ef4c4fcec84eeb6ce`. The preceding Ubuntu failure was a test-fixture precondition only: the in-flight full-frame borrow used a 262,144-pixel XShm arena for a 1280x720 surface. The corrective commit sizes only that case to the complete synthetic surface; production R5 capture/input/retirement behavior is unchanged.
+
+Exact-SHA Actions `41388322871` now closes the automated Linux R5 blocker. Ubuntu protocol job `125094048119` successfully built `rdp-server-linux-x11-desktop` with both test switches OFF, restored both switches in the same `build/` root, and passed full Debug **1124/1124** plus full Release **1124/1124** CTest. Both `x11.desktop-resource-graceful-disconnect-held-key-button-release-once` and `x11.desktop-resource-inflight-held-input-borrow-revocation` passed in Debug and Release. Sanitizer job `125094048186` passed the unchanged fixed native X11 **45/45** selector, the independent implicit-destructor **2/2** selector (including held key + button), and the explicit authority-loss held-input **1/1** follow-up. The R5 Linux GUI ZIP job also passed.
+
+Current-main R5 source/dependency/registry review remains **PASS**: the desktop aggregate still requires XCB/RandR, XShm, XFixes, XDamage and XTEST; XInput2 remains optional; terminal/destructor retirement suppresses native releases, explicitly still-authorized graceful disconnect releases held input once, and RandR retains the admitted input owner while replacing geometry-bound capture resources. No further production change or sanitizer-selector expansion is justified by the reviewed evidence.
+
+**Remaining blocker:** automated Linux R5 qualification is **CLOSED**. The first-real-desktop matrix remains **NOT RUN**: the prior physical Microsoft client attempt still ends before NTLM Type 3, so fresh R2 View/Input authorization, owner-approved unlocked X11 `seat0`, first XShm frame, complete R1 receipts, genuine client FRAME_ACK, input/RandR, Stop and reconnect cannot yet be qualified. Those gates require separate owner authorization and upstream R1/R6 authenticated-client evidence. No physical desktop/input/Clipboard operation or benchmark was run in this review.
+
 ## R7 P0 rapid CLI Username preference-length parity (2026-11-01)
 
 **Authoring parent:** `7361e131ba55740256d1b72b1c68c13ce7ee0214`. Dependency review confirms the shared

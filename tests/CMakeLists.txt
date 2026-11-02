@@ -894,6 +894,18 @@ if(TARGET rdp-server-linux-host-control)
             LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;lifecycle;linux;native-environment"
             SKIP_RETURN_CODE 77)
 
+    # A fresh credential and generated TLS certificate after Stop must not
+    # reuse the previous peer's Type 2, certificate, identifier or diagnostics.
+    # The client reads both full challenges through the original R1 owners.
+    add_test(NAME runtime.linux-direct-ntlm-type2-credential-tls-generation-isolation
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-type2-credential-tls-generation-isolation)
+    set_tests_properties(
+        runtime.linux-direct-ntlm-type2-credential-tls-generation-isolation
+        PROPERTIES
+            LABELS "runtime;security;transport;tls;credssp;authentication;identity;lifecycle;linux;native-environment"
+            SKIP_RETURN_CODE 77)
+
     # One Start-scoped endpoint/service identity must survive a rejected peer
     # and an immediate second attempt without changing the current fixed Type-2
     # server name or widening retirement to the listener/credential/owner grant.

@@ -970,6 +970,8 @@ struct PeerResult final
     std::size_t expectedPostTypeTwoCredSspPlaintextBytes{};
     std::size_t trailingApplicationBytes{};
     NtlmServerChallenge serverChallenge{};
+    // The peer-observed leaf binds this real TLS client to its own attempt.
+    RuntimeTlsCertificateFingerprint peerCertificateSha256{};
 };
 
 [[nodiscard]] Bytes loadMicrosoftMcsConnectInitialFixture()
@@ -1279,6 +1281,16 @@ struct PeerResult final
     const auto challenge =
         parseDirectTypeTwo(parsedChallengeFrame.value.tokens[0]);
     if (!challenge)
+        return false;
+
+    CertificatePointer peerCertificate{
+        ::SSL_get1_peer_certificate(client.tls()), X509_free};
+    unsigned int digestLength = 0U;
+    if (!peerCertificate ||
+        ::X509_digest(
+            peerCertificate.get(), ::EVP_sha256(),
+            result.peerCertificateSha256.data(), &digestLength) != 1 ||
+        digestLength != result.peerCertificateSha256.size())
         return false;
 
     result.directTypeTwoReceived = true;
@@ -2010,6 +2022,8 @@ int main(int argc, char** argv)
         testCase == "direct-ntlm-post-type2-immediate-retry";
     const bool postTypeTwoFinBoundaryReconnectOnly =
         testCase == "direct-ntlm-post-type2-fin-tls-boundaries-reconnect";
+    const bool typeTwoGenerationReplacementOnly =
+        testCase == "direct-ntlm-type2-credential-tls-generation-isolation";
     const bool postTypeTwoObservationOnly =
         postTypeTwoSilenceOnly || postTypeTwoPartialTlsRecordOnly ||
         postTypeTwoPartialTsRequestFinOnly ||
@@ -2043,7 +2057,9 @@ int main(int argc, char** argv)
         !stopQueuedAuthInfoRetirementOnly &&
         !authInfoDiagnosticReplacementOnly &&
         !postTypeTwoTimelineDiagnosticsOnly && !postTypeTwoObservationOnly &&
-        !postTypeTwoFinBoundaryReconnectOnly && !typeTwoTimeoutOnly && !peerCloseClassificationOnly &&
+        !postTypeTwoFinBoundaryReconnectOnly &&
+        !typeTwoGenerationReplacementOnly &&
+        !typeTwoTimeoutOnly && !peerCloseClassificationOnly &&
         !invalidCredentialDiagnosticOnly &&
         !preauthOwnerIsolationOnly && !targetIdentityRetryOnly)
     {
@@ -2132,6 +2148,125 @@ int main(int argc, char** argv)
         firstListener, recommendation.address, selectedPort,
         firstListenerGeneration);
 
+
+
+    if (typeTwoGenerationReplacementOnly)
+    {
+        // This is the one missing cross-generation boundary: two original
+        // R1 SSL/BIO/socket owners and genuine client-decrypted Type-2 frames,
+        // separated by Stop, credential replacement and a fresh TLS identity.
+        assert(firstListener.tlsIdentity.fingerprintAvailable);
+        const auto firstCertificate = firstListener.tlsIdentity.certificateSha256;
+        std::atomic<bool> firstTypeTwoReceived{false};
+        std::atomic<bool> releaseFirstPeer{false};
+        std::atomic<bool> firstPeerFinished{false};
+        PeerResult firstPeerResult;
+        std::thread firstPeer([&] {
+            firstPeerResult = runDirectTypeTwoThenClosePeer(
+                recommendation.address, selectedPort,
+                firstTypeTwoReceived, releaseFirstPeer);
+            firstPeerFinished.store(true, std::memory_order_release);
+        });
+
+        assert(pumpUntilPeerSignal(
+            control, firstTypeTwoReceived, firstPeerFinished));
+        const RuntimeHostStatus firstWaiting = control.status();
+        assert(firstWaiting.activeClients.size() == 1U);
+        const std::uint64_t firstClientId =
+            firstWaiting.activeClients.front().opaqueId;
+        assert(firstClientId != 0U);
+        assert(firstWaiting.acceptedClientPreauthDiagnostics
+                   .standaloneCredentialGeneration == credential.generation);
+        assertPostTypeTwoSilence(firstWaiting);
+        assert(firstPeerResult.peerCertificateSha256 == firstCertificate);
+
+        // Stop while the first peer is still connected. Its original
+        // TLS/Type-2 writer and every pending receipt are terminal before
+        // the next credential or certificate can be published.
+        assert(control.stopSharing().succeeded());
+        const RuntimeHostStatus stopped = control.status();
+        assert(!stopped.listenerAvailable && stopped.activeClients.empty());
+        assert(!stopped.acceptedClientPreauthDiagnostics.available);
+        assert(!stopped.tlsIdentity.fingerprintAvailable);
+        releaseFirstPeer.store(true, std::memory_order_release);
+        firstPeer.join();
+        assert(firstPeerResult.passed && firstPeerResult.directTypeTwoReceived);
+
+        std::array<char16_t, kMaximumStandalonePasswordCodeUnits>
+            replacementPasswordStorage{};
+        auto replacementPassword = copyCredentialPassword(
+            kDefaultCredentialFixture, replacementPasswordStorage);
+        assert(control.configureStandaloneApplicationPassword(
+            kDefaultCredentialFixture.username, replacementPassword));
+        assert(std::ranges::all_of(
+            replacementPasswordStorage,
+            [](char16_t value) { return value == u'\0'; }));
+        const auto replacementCredential =
+            control.standaloneApplicationPasswordObservation();
+        assert(replacementCredential.configured);
+        assert(replacementCredential.generation != credential.generation);
+        assert(control.requestHostPermissionSetup(permission).succeeded());
+        assert(startSharingOnPort(control, recommendation, selectedPort));
+
+        const RuntimeHostStatus restarted = control.status();
+        assert(restarted.listenerAvailable && restarted.activeClients.empty());
+        assert(restarted.listenerGeneration != firstListenerGeneration);
+        assert(restarted.tlsIdentity.fingerprintAvailable);
+        const auto secondCertificate =
+            restarted.tlsIdentity.certificateSha256;
+        assert(secondCertificate != firstCertificate);
+        assert(!restarted.acceptedClientPreauthDiagnostics.available);
+        assert(control.disconnectClient(firstClientId).error ==
+               RuntimeHostError::ClientNotFound);
+        assert(control.status().activeClients.empty());
+
+        std::atomic<bool> secondTypeTwoReceived{false};
+        std::atomic<bool> releaseSecondPeer{false};
+        std::atomic<bool> secondPeerFinished{false};
+        PeerResult secondPeerResult;
+        std::thread secondPeer([&] {
+            secondPeerResult = runDirectTypeTwoThenClosePeer(
+                recommendation.address, selectedPort,
+                secondTypeTwoReceived, releaseSecondPeer);
+            secondPeerFinished.store(true, std::memory_order_release);
+        });
+        assert(pumpUntilPeerSignal(
+            control, secondTypeTwoReceived, secondPeerFinished));
+        const RuntimeHostStatus secondWaiting = control.status();
+        assert(secondWaiting.activeClients.size() == 1U);
+        const auto& secondDiagnostics =
+            secondWaiting.acceptedClientPreauthDiagnostics;
+        assert(secondDiagnostics.acceptedClientId != firstClientId);
+        assert(secondDiagnostics.standaloneCredentialGeneration ==
+               replacementCredential.generation);
+        assert(secondDiagnostics.tlsConnection.certificateEndpointGeneration ==
+               restarted.listenerGeneration);
+        assert(secondDiagnostics.directNtlmTypeTwoDelivered);
+        assert(secondPeerResult.peerCertificateSha256 == secondCertificate);
+        assert(challengesDiffer(
+            firstPeerResult.serverChallenge, secondPeerResult.serverChallenge));
+        assertPostTypeTwoSilence(secondWaiting);
+        assert(!secondDiagnostics.standaloneCredentialsRejected);
+        assert(!secondDiagnostics.mcsSessionAdvanced);
+        assert(!secondDiagnostics.shareActivated);
+        assertClipboardDormant(secondWaiting);
+        assertGraphicsDormant(secondWaiting);
+
+        releaseSecondPeer.store(true, std::memory_order_release);
+        assert(pumpUntilClientRetired(control));
+        secondPeer.join();
+        assert(secondPeerResult.passed && secondPeerResult.directTypeTwoReceived);
+        const RuntimeHostStatus terminal = control.status();
+        assert(terminal.acceptedClientPreauthDiagnostics.acceptedClientId ==
+               secondDiagnostics.acceptedClientId);
+        assert(terminal.acceptedClientPreauthDiagnostics.preType3Termination ==
+               RuntimeAcceptedClientPreType3Termination::PeerEof);
+        assert(terminal.lastError ==
+               RuntimeHostError::AuthenticationIncompletePeerClosed);
+        assert(control.stopSharing().succeeded());
+        assert(control.revokeSharing().succeeded());
+        return 0;
+    }
 
     if (authInfoDiagnosticReplacementOnly)
     {

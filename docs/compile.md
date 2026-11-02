@@ -1,3 +1,7 @@
+## R1 challenge/TLS-generation real-loopback qualification (2026-11-01)
+
+On the canonical owner `~/rdp-server/build/` or the hosted job's sole `build/`, run `ctest --test-dir build -C Debug -R '^runtime[.]linux-direct-ntlm-(type2-credential-tls-generation-isolation|post-type2-fin-tls-boundaries-reconnect|invalid-credentials-diagnostic)$' --output-on-failure`; then complete Debug and Release ordinary CTest, the existing exact R1 TLS/transport and R9 security sanitizer lanes, and confirm unchanged Windows SSPI conformance on the same SHA. The new CTest is Linux/native-environment only and may legitimately SKIP 77. No owner-local build, physical-client diagnostics, real native desktop, or benchmark run was performed in the connector environment. Hosted exact-publication CI PENDING.
+
 ## R8 malformed late-Capabilities partial-response qualification (2026-11-02)
 
 No new target, dependency or build root is introduced. After the canonical Debug build, run the distinct ordinary case with:

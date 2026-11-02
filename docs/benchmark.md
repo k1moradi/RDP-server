@@ -1,3 +1,7 @@
+## R1 cross-generation challenge identity regression is correctness-only (2026-11-01)
+
+The production Type-2 encoder, SSL reader/writer, generated certificate, per-peer challenge, poll schedule and timeouts are unchanged. Only an offline real-loopback regression adds client-side leaf-fingerprint comparison across Stop/recredential/reconfigure/reconnect. The 9,166-microsecond owner Type-2-to-FIN observation is diagnostic ordering, not a throughput benchmark or timeout-tuning target. Benchmark NOT RUN.
+
 ## R8 malformed late-Capabilities retirement is test-only (2026-11-02)
 
 This increment adds one ordinary production-backed protocol regression and documentation only. It changes no production parser branch, allocation, queue, TLS writer, R2 permission check, R10 scheduler, X11 callback or file path, so no throughput or latency benchmark is warranted. Clipboard latency, native paste and INCR performance remain unmeasured until separately authorized live activation; no such access is performed here.

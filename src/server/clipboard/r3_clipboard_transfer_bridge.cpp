@@ -358,6 +358,17 @@ bool R3ClipboardTransferBridge::stageFormatListResponse(
     }
 }
 
+bool R3ClipboardTransferBridge::clientInitializationPduAllowed() const noexcept
+{
+    // MS-RDPECLIP client initialization traffic starts only after the server's
+    // Monitor Ready has been fully delivered through the original R3/R1 writer.
+    // Ready also accepts later clipboard updates and the first late capability
+    // or Temporary Directory PDU allowed by the protocol.
+    return serverInitializationStage_ ==
+               ServerInitializationStage::AwaitClientInitialization ||
+           serverInitializationStage_ == ServerInitializationStage::Ready;
+}
+
 void R3ClipboardTransferBridge::maybeCompleteServerInitialization() noexcept
 {
     if (serverInitializationStage_ ==
@@ -424,13 +435,8 @@ bool R3ClipboardTransferBridge::consumeCompletePdu(
         return failCurrentRoute();
 
     case kClipCaps:
-        if (serverInitializationStage_ != ServerInitializationStage::Dormant &&
-            serverInitializationStage_ !=
-                ServerInitializationStage::AwaitClientInitialization &&
-            serverInitializationStage_ != ServerInitializationStage::Ready)
-        {
+        if (!clientInitializationPduAllowed())
             return failCurrentRoute();
-        }
         if (!transfer_.receiveCapabilitiesPdu(
                 completePdu, localAdvertisedGeneralFlags_))
         {
@@ -440,26 +446,16 @@ bool R3ClipboardTransferBridge::consumeCompletePdu(
         return true;
 
     case kTempDirectory:
-        if (serverInitializationStage_ != ServerInitializationStage::Dormant &&
-            serverInitializationStage_ !=
-                ServerInitializationStage::AwaitClientInitialization &&
-            serverInitializationStage_ != ServerInitializationStage::Ready)
-        {
+        if (!clientInitializationPduAllowed())
             return failCurrentRoute();
-        }
         if (!transfer_.receiveTemporaryDirectoryPdu(completePdu))
             return failCurrentRoute();
         return true;
 
     case kFormatList:
     {
-        if (serverInitializationStage_ != ServerInitializationStage::Dormant &&
-            serverInitializationStage_ !=
-                ServerInitializationStage::AwaitClientInitialization &&
-            serverInitializationStage_ != ServerInitializationStage::Ready)
-        {
+        if (!clientInitializationPduAllowed())
             return failCurrentRoute();
-        }
 
         // Do not supersede a source while a server-to-client clipboard PDU is
         // only partially accepted by R1. R3 retirement owns ambiguous writes.

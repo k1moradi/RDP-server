@@ -1,3 +1,7 @@
+## R8 pre-Monitor client initialization denial is correctness, not throughput (2026-11-01)
+
+Rejecting client Capabilities, Temporary Directory and Format List until the original server Monitor Ready is fully delivered changes only protocol sequencing and fail-closed state ownership. It adds no allocation, copy, packet loop, TLS writer, native Clipboard access or benchmarkable data path. No performance result is claimed and no benchmark is required for this correction. Future Clipboard latency measurement still begins from valid client Format List arrival after protocol initialization and genuine native authorization.
+
 ## R5 in-flight held-input revocation is not a benchmark (2026-11-01)
 
 The new Xvfb correctness test adds no native production hot-path work or

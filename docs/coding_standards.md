@@ -1,3 +1,7 @@
+## R8 client initialization stage ownership after Monitor Ready (2026-11-01)
+
+Treat client `CB_CLIP_CAPS`, `CB_TEMP_DIRECTORY` and `CB_FORMAT_LIST` as initialization/data traffic that is valid only after the server's original Monitor Ready has been fully delivered. Centralize this in one allocation-free bridge predicate instead of duplicating stage expressions. The allowed states are `AwaitClientInitialization` and `Ready`; `Dormant`, server-Capabilities pending, `AwaitMonitorReady` and Monitor-Ready pending fail closed and retire the route. A queued or partially accepted Monitor Ready is not delivery. Preserve R10 as the sole scheduler, R3 as the static-channel/receipt owner, R1 as the sole TLS writer and a separate fresh R2 Clipboard grant for native publication. Never convert offline route observations into native authority.
+
 ## R2 POSIX unsafe home ancestry reports Invalid on load (2026-11-01)
 
 Refreshed shared-main parent `60b02ba7ae6a9c0233fa6124fa7c05a1987ac9d7` after the config/application-data ancestry classifier landed. Review found one remaining typed-status gap in the same production resolver: an existing home path rejected by `O_NOFOLLOW` or owner/mode validation still returned `Unavailable` on load, while the canonical rule requires existing rejected POSIX ancestry to be `Invalid`. This does not restore authority—every non-`Loaded` result still resets preferences to safe defaults.

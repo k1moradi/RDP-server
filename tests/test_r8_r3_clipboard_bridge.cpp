@@ -203,15 +203,13 @@ void deliverPendingSinglePacketWithFraming(
     assert(bridge.pendingApplicationPdu().empty());
 }
 
-void completeServerInitialization(
+void deliverServerInitializationPrelude(
     R3ClipboardTransferBridge &bridge,
     RdpClipboardStaticChannelRoute &route,
-    const RdpClipboardStaticChannelView view,
-    const std::uint32_t peerGeneralFlags)
+    const RdpClipboardStaticChannelView view)
 {
     using Stage = R3ClipboardTransferBridge::ServerInitializationStage;
     auto visitor = bridge.channelVisitor();
-    auto sink = bridge.completePduSink();
 
     assert(visitor.visit(visitor.context, view));
     assert(bridge.beginServerCapabilities());
@@ -230,6 +228,19 @@ void completeServerInitialization(
     deliverPendingSinglePacketWithFraming(bridge, route);
     assert(bridge.serverInitializationStage() ==
            Stage::AwaitClientInitialization);
+}
+
+void completeServerInitialization(
+    R3ClipboardTransferBridge &bridge,
+    RdpClipboardStaticChannelRoute &route,
+    const RdpClipboardStaticChannelView view,
+    const std::uint32_t peerGeneralFlags)
+{
+    using Stage = R3ClipboardTransferBridge::ServerInitializationStage;
+    auto visitor = bridge.channelVisitor();
+    auto sink = bridge.completePduSink();
+
+    deliverServerInitializationPrelude(bridge, route, view);
 
     // MS-RDPECLIP requires the server to accept a client Format List after
     // Monitor Ready even when client capabilities/temp-directory follow it.
@@ -916,6 +927,90 @@ void serverInitializationPendingWriteRetirement()
         offeredBytes, 1U, partial));
 }
 
+void clientInitializationRequiresDeliveredMonitorReady()
+{
+    using Stage = R3ClipboardTransferBridge::ServerInitializationStage;
+
+    // Client capabilities cannot race the server's first initialization PDU.
+    {
+        constexpr RdpClipboardStaticChannelView view{1008U, 405U};
+        RdpClipboardStaticChannelRoute route;
+        assert(route.start(1005U, view.channelId, view.generation, 1600U));
+        R3ClipboardTransferBridge bridge(0U, true);
+        auto visitor = bridge.channelVisitor();
+        auto sink = bridge.completePduSink();
+        assert(visitor.visit(visitor.context, view));
+        assert(!sink.consume(sink.context, capabilitiesPdu(0U)));
+        assert(!bridge.active());
+        route.close();
+    }
+
+    // Temporary Directory is also client initialization traffic and cannot
+    // arrive merely because server Capabilities were fully delivered.
+    {
+        constexpr RdpClipboardStaticChannelView view{1008U, 406U};
+        RdpClipboardStaticChannelRoute route;
+        assert(route.start(1005U, view.channelId, view.generation, 1600U));
+        R3ClipboardTransferBridge bridge(0U, true);
+        auto visitor = bridge.channelVisitor();
+        auto sink = bridge.completePduSink();
+        assert(visitor.visit(visitor.context, view));
+        assert(bridge.beginServerCapabilities());
+        deliverPendingSinglePacketWithFraming(bridge, route);
+        assert(bridge.serverInitializationStage() == Stage::AwaitMonitorReady);
+        assert(visitor.visit(visitor.context, view));
+        assert(!sink.consume(sink.context, temporaryDirectoryPdu()));
+        assert(!bridge.active());
+        route.close();
+    }
+
+    // A queued or partially accepted Monitor Ready is still not delivery.
+    {
+        constexpr RdpClipboardStaticChannelView view{1008U, 407U};
+        RdpClipboardStaticChannelRoute route;
+        assert(route.start(1005U, view.channelId, view.generation, 1600U));
+        R3ClipboardTransferBridge bridge(0U, true);
+        auto visitor = bridge.channelVisitor();
+        auto sink = bridge.completePduSink();
+        assert(visitor.visit(visitor.context, view));
+        assert(bridge.beginServerCapabilities());
+        deliverPendingSinglePacketWithFraming(bridge, route);
+        assert(visitor.visit(visitor.context, view));
+        assert(bridge.beginServerMonitorReady());
+        assert(route.queue(bridge.pendingApplicationPdu()));
+        const auto write = route.pending();
+        assert(write && bridge.bindQueuedWrite(write));
+        const auto outcome = route.onAcceptedBytes(
+            write.routeGeneration, write.replySequence,
+            write.writeSliceSequence, 1U);
+        assert(outcome == RdpClipboardWriteOutcome::Pending);
+        assert(bridge.recordAcceptedWrite(write, 1U, outcome));
+        assert(bridge.serverInitializationStage() ==
+               Stage::MonitorReadyWritePending);
+        assert(visitor.visit(visitor.context, view));
+        assert(!sink.consume(sink.context, shortUnicodeFormatListPdu()));
+        assert(!bridge.active());
+        route.close();
+    }
+
+    // Only the original fully delivered Monitor Ready opens client
+    // initialization. The initial response receipt still owns Ready.
+    {
+        constexpr RdpClipboardStaticChannelView view{1008U, 408U};
+        RdpClipboardStaticChannelRoute route;
+        assert(route.start(1005U, view.channelId, view.generation, 1600U));
+        R3ClipboardTransferBridge bridge(0U, true);
+        auto visitor = bridge.channelVisitor();
+        auto sink = bridge.completePduSink();
+        deliverServerInitializationPrelude(bridge, route, view);
+        assert(visitor.visit(visitor.context, view));
+        assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+        assert(!bridge.serverInitializationReady());
+        deliverPendingSinglePacketWithFraming(bridge, route);
+        assert(bridge.serverInitializationReady());
+    }
+}
+
 void sourceRequestReceipt()
 {
     constexpr RdpClipboardStaticChannelView view{1008U, 7U};
@@ -926,6 +1021,7 @@ void sourceRequestReceipt()
     auto visitor = bridge.channelVisitor();
     auto sink = bridge.completePduSink();
 
+    deliverServerInitializationPrelude(bridge, route, view);
     assert(visitor.visit(visitor.context, view));
     assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
     assert(bridge.transfer().generation() == 1U);
@@ -989,8 +1085,13 @@ void oldRouteGenerationRetirement()
     auto sink = bridge.completePduSink();
 
     constexpr RdpClipboardStaticChannelView first{1008U, 20U};
+    RdpClipboardStaticChannelRoute firstRoute;
+    assert(firstRoute.start(
+        1005U, first.channelId, first.generation, 1600U));
+    deliverServerInitializationPrelude(bridge, firstRoute, first);
     assert(visitor.visit(visitor.context, first));
     assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    deliverPendingApplicationPdu(bridge, firstRoute);
     const std::uint64_t firstSourceEpoch = bridge.transfer().sourceEpoch();
 
     // Same generation with another channel cannot be the exact cliprdr role.
@@ -998,10 +1099,16 @@ void oldRouteGenerationRetirement()
         visitor.context, RdpClipboardStaticChannelView{1009U, 20U}));
     assert(!bridge.active());
     assert(bridge.transfer().generation() == 0U);
+    firstRoute.close();
 
     constexpr RdpClipboardStaticChannelView replacement{1008U, 21U};
+    RdpClipboardStaticChannelRoute replacementRoute;
+    assert(replacementRoute.start(
+        1005U, replacement.channelId, replacement.generation, 1600U));
+    deliverServerInitializationPrelude(bridge, replacementRoute, replacement);
     assert(visitor.visit(visitor.context, replacement));
     assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    deliverPendingApplicationPdu(bridge, replacementRoute);
     assert(bridge.transfer().generation() == 1U);
     assert(bridge.transfer().sourceEpoch() > firstSourceEpoch);
 
@@ -1010,10 +1117,16 @@ void oldRouteGenerationRetirement()
     assert(!visitor.visit(visitor.context, first));
     assert(!bridge.active());
     assert(bridge.transfer().generation() == 0U);
+    replacementRoute.close();
 
     constexpr RdpClipboardStaticChannelView reconnect{1008U, 22U};
+    RdpClipboardStaticChannelRoute reconnectRoute;
+    assert(reconnectRoute.start(
+        1005U, reconnect.channelId, reconnect.generation, 1600U));
+    deliverServerInitializationPrelude(bridge, reconnectRoute, reconnect);
     assert(visitor.visit(visitor.context, reconnect));
     assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    deliverPendingApplicationPdu(bridge, reconnectRoute);
     assert(bridge.transfer().generation() == 1U);
 }
 
@@ -1027,6 +1140,7 @@ void partialPositiveReceiptRetirement()
     auto visitor = bridge.channelVisitor();
     auto sink = bridge.completePduSink();
 
+    deliverServerInitializationPrelude(bridge, route, view);
     assert(visitor.visit(visitor.context, view));
     assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
     deliverPendingApplicationPdu(bridge, route);
@@ -1054,6 +1168,10 @@ void partialPositiveReceiptRetirement()
         first, 1U, RdpClipboardWriteOutcome::Rejected));
 
     constexpr RdpClipboardStaticChannelView reconnect{1008U, 31U};
+    RdpClipboardStaticChannelRoute reconnectRoute;
+    assert(reconnectRoute.start(
+        1005U, reconnect.channelId, reconnect.generation, 1600U));
+    deliverServerInitializationPrelude(bridge, reconnectRoute, reconnect);
     assert(visitor.visit(visitor.context, reconnect));
     assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
     assert(bridge.transfer().generation() == 1U);
@@ -1069,6 +1187,7 @@ void stableScalarReceiptAfterR3Mutation()
     R3ClipboardTransferBridge bridge(0U, true);
     auto visitor = bridge.channelVisitor();
     auto sink = bridge.completePduSink();
+    deliverServerInitializationPrelude(bridge, route, view);
     assert(visitor.visit(visitor.context, view));
     assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
     deliverPendingApplicationPdu(bridge, route);
@@ -1117,6 +1236,10 @@ void stableScalarReceiptAfterR3Mutation()
     bridge.retireR3ChannelState();
     route.close();
     constexpr RdpClipboardStaticChannelView reconnect{1008U, 54U};
+    RdpClipboardStaticChannelRoute fresh;
+    assert(fresh.start(1005U, reconnect.channelId,
+                       reconnect.generation, 1600U));
+    deliverServerInitializationPrelude(bridge, fresh, reconnect);
     assert(visitor.visit(visitor.context, reconnect));
     assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
     // A late rejected receipt cannot retire an unrelated new R3 route.
@@ -1126,9 +1249,6 @@ void stableScalarReceiptAfterR3Mutation()
     assert(bridge.active() && bridge.routeGeneration() == reconnect.generation);
 
     // Zero accepted bytes can never masquerade as an R2-committed receipt.
-    RdpClipboardStaticChannelRoute fresh;
-    assert(fresh.start(1005U, reconnect.channelId,
-                       reconnect.generation, 1600U));
     assert(fresh.queue(bridge.pendingApplicationPdu()));
     const auto zero = fresh.pending();
     assert(zero && bridge.bindQueuedWrite(zero));
@@ -1152,6 +1272,7 @@ void retiredRoutePositiveReceiptIsolation()
     R3ClipboardTransferBridge bridge(0U, true);
     auto visitor = bridge.channelVisitor();
     auto sink = bridge.completePduSink();
+    deliverServerInitializationPrelude(bridge, oldRoute, original);
     assert(visitor.visit(visitor.context, original));
     assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
     deliverPendingApplicationPdu(bridge, oldRoute);
@@ -1191,11 +1312,12 @@ void retiredRoutePositiveReceiptIsolation()
 
     // A replacement has its own outstanding FORMAT_LIST acknowledgment.
     constexpr RdpClipboardStaticChannelView replacement{1008U, 71U};
-    assert(visitor.visit(visitor.context, replacement));
-    assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
     RdpClipboardStaticChannelRoute currentRoute;
     assert(currentRoute.start(1005U, replacement.channelId,
                               replacement.generation, 1600U));
+    deliverServerInitializationPrelude(bridge, currentRoute, replacement);
+    assert(visitor.visit(visitor.context, replacement));
+    assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
     assert(currentRoute.queue(bridge.pendingApplicationPdu()));
     const auto current = currentRoute.pending();
     assert(current && bridge.bindQueuedWrite(current));
@@ -1282,6 +1404,7 @@ void repeatedRestartReceiptIsolation()
     RdpClipboardStaticChannelRoute firstRoute;
     assert(firstRoute.start(
         1005U, firstView.channelId, firstView.generation, 1600U));
+    deliverServerInitializationPrelude(bridge, firstRoute, firstView);
     assert(visitor.visit(visitor.context, firstView));
     assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
     assert(firstRoute.queue(bridge.pendingApplicationPdu()));
@@ -1297,6 +1420,7 @@ void repeatedRestartReceiptIsolation()
     RdpClipboardStaticChannelRoute secondRoute;
     assert(secondRoute.start(
         1005U, secondView.channelId, secondView.generation, 1600U));
+    deliverServerInitializationPrelude(bridge, secondRoute, secondView);
     assert(visitor.visit(visitor.context, secondView));
     assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
     const std::uint64_t secondSourceEpoch = bridge.transfer().sourceEpoch();
@@ -1327,6 +1451,7 @@ void repeatedRestartReceiptIsolation()
     RdpClipboardStaticChannelRoute thirdRoute;
     assert(thirdRoute.start(
         1005U, thirdView.channelId, thirdView.generation, 1600U));
+    deliverServerInitializationPrelude(bridge, thirdRoute, thirdView);
     assert(visitor.visit(visitor.context, thirdView));
     assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
     const std::uint64_t thirdSourceEpoch = bridge.transfer().sourceEpoch();
@@ -1390,6 +1515,7 @@ void fileContentsRequestReceipt()
     auto visitor = bridge.channelVisitor();
     auto sink = bridge.completePduSink();
 
+    deliverServerInitializationPrelude(bridge, route, view);
     assert(visitor.visit(visitor.context, view));
     assert(sink.consume(sink.context, capabilitiesPdu(flags)));
 
@@ -1462,6 +1588,8 @@ int main(int argc, char **argv)
         permissionOnlyRouteObservationConsumption();
     else if (behavior == "client-originated-monitor-ready-route-retirement")
         clientOriginatedMonitorReadyRouteRetirement();
+    else if (behavior == "client-initialization-requires-monitor-delivery")
+        clientInitializationRequiresDeliveredMonitorReady();
     else if (behavior == "server-initialization-generation-replacement")
         serverInitializationGenerationReplacement();
     else if (behavior == "server-initialization-pending-write-retirement")

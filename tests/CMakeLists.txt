@@ -3042,6 +3042,15 @@ add_test(NAME runtime.clipboard-client-monitor-ready-route-retirement
 set_tests_properties(runtime.clipboard-client-monitor-ready-route-retirement
     PROPERTIES LABELS "runtime;security;offline")
 
+# Client Capabilities/Temp Directory/Format List cannot race an undelivered
+# server Monitor Ready. Kept outside the fixed 107-case sanitizer selector.
+add_test(NAME runtime.clipboard-client-initialization-requires-monitor-delivery
+    COMMAND test_r8_r3_clipboard_bridge
+        client-initialization-requires-monitor-delivery)
+set_tests_properties(
+    runtime.clipboard-client-initialization-requires-monitor-delivery
+    PROPERTIES LABELS "runtime;security;offline")
+
 # R8 initial CAPS/Monitor/initial Format List exact R3 receipt and restart.
 # Deliberately outside the fixed 107-case Clipboard sanitizer selector.
 add_test(NAME runtime.clipboard-initial-handshake-exact-receipt-denials

@@ -1,3 +1,7 @@
+## R8 client-initialization/Monitor-receipt focused qualification (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build, run `ctest --test-dir build -C Debug -R '^(runtime[.]clipboard-(client-initialization-requires-monitor-delivery|client-monitor-ready-route-retirement|initial-handshake-exact-receipt-denials|permission-only-route-observation-consumption)|runtime[.]linux-clipboard-native-publication-receipt-scope-denial|security[.]macos-(post-join-clipboard-view-input-denial|share-activated-clipboard-permission-denial|share-activated-clipboard-scope-classifier-denial|graphics-ready-clipboard-view-input-denial))$' --output-on-failure`, then full Debug/Release CTest and the unchanged fixed 107-case Clipboard ASan/UBSan lane on the exact publication SHA. The change adds no target, dependency, build root, native operation or benchmark workload. Connector-local execution is **NOT RUN**; hosted exact-SHA qualification is required.
+
 ## R2 unsafe-home ancestry focused qualification (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. After the normal Debug configure/build, run `ctest --test-dir build -C Debug -R '^runtime[.]user-preferences-unsafe-(config|home)-ancestor-reports-invalid$' --output-on-failure`, then full Debug/Release CTest and applicable hosted sanitizer/security gates at the same publication SHA. No new executable, dependency or build root is introduced.

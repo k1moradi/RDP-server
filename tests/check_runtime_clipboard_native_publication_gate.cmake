@@ -33,6 +33,50 @@ if(monitor_retire LESS 0 OR monitor_accept GREATER_EQUAL 0)
         "client-originated Monitor Ready must always retire the R8 route")
 endif()
 
+string(FIND "${bridge_source}"
+    "bool R3ClipboardTransferBridge::clientInitializationPduAllowed() const noexcept"
+    client_initialization_guard_begin)
+string(FIND "${bridge_source}"
+    "void R3ClipboardTransferBridge::maybeCompleteServerInitialization() noexcept"
+    client_initialization_guard_end)
+if(client_initialization_guard_begin LESS 0 OR
+   client_initialization_guard_end LESS_EQUAL client_initialization_guard_begin)
+    message(FATAL_ERROR "R8 client initialization stage guard missing")
+endif()
+math(EXPR client_initialization_guard_length
+    "${client_initialization_guard_end} - ${client_initialization_guard_begin}")
+string(SUBSTRING "${bridge_source}" ${client_initialization_guard_begin}
+    ${client_initialization_guard_length} client_initialization_guard_source)
+foreach(required_stage IN ITEMS
+        "ServerInitializationStage::AwaitClientInitialization"
+        "ServerInitializationStage::Ready")
+    string(FIND "${client_initialization_guard_source}"
+        "${required_stage}" required_stage_position)
+    if(required_stage_position LESS 0)
+        message(FATAL_ERROR
+            "R8 client initialization guard missing allowed stage: ${required_stage}")
+    endif()
+endforeach()
+string(FIND "${client_initialization_guard_source}"
+    "ServerInitializationStage::Dormant" dormant_client_stage)
+if(dormant_client_stage GREATER_EQUAL 0)
+    message(FATAL_ERROR
+        "Dormant R8 route must not accept client initialization PDUs")
+endif()
+foreach(client_case IN ITEMS "case kClipCaps:" "case kTempDirectory:" "case kFormatList:")
+    string(FIND "${bridge_source}" "${client_case}" client_case_position)
+    if(client_case_position LESS 0)
+        message(FATAL_ERROR "R8 client initialization case missing: ${client_case}")
+    endif()
+endforeach()
+string(REGEX MATCHALL "if \\(!clientInitializationPduAllowed\\(\\)\\)"
+    initialization_guard_uses "${bridge_source}")
+list(LENGTH initialization_guard_uses initialization_guard_use_count)
+if(NOT initialization_guard_use_count EQUAL 3)
+    message(FATAL_ERROR
+        "expected Capabilities/Temp Directory/Format List to share one R8 initialization guard")
+endif()
+
 string(FIND "${owner_source}" "bool serviceAfterNetworkDispatch(" dispatch_begin)
 string(FIND "${owner_source}" "bool serviceNative(" dispatch_end)
 if(dispatch_begin LESS 0 OR dispatch_end LESS_EQUAL dispatch_begin)

@@ -229,6 +229,7 @@ private:
         OutboundKind kind, std::vector<std::uint8_t> pdu) noexcept;
     [[nodiscard]] bool stageFormatListResponse(
         const std::array<std::uint8_t, 8> &response) noexcept;
+    [[nodiscard]] bool clientInitializationPduAllowed() const noexcept;
     void maybeCompleteServerInitialization() noexcept;
     void resetServerInitializationForRoute() noexcept;
     void clearOutbound() noexcept;

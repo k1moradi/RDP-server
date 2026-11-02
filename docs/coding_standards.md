@@ -1,3 +1,11 @@
+## R2 POSIX unsafe home ancestry reports Invalid on load (2026-11-01)
+
+Refreshed shared-main parent `60b02ba7ae6a9c0233fa6124fa7c05a1987ac9d7` after the config/application-data ancestry classifier landed. Review found one remaining typed-status gap in the same production resolver: an existing home path rejected by `O_NOFOLLOW` or owner/mode validation still returned `Unavailable` on load, while the canonical rule requires existing rejected POSIX ancestry to be `Invalid`. This does not restore authority—every non-`Loaded` result still resets preferences to safe defaults.
+
+Split only the home boundary: a genuinely missing account home remains `Unavailable`; an existing home that cannot satisfy no-follow/private-ancestry validation is `Invalid` on load and remains `Unavailable` during secure creation. New ordinary POSIX CTest `runtime.user-preferences-unsafe-home-ancestor-reports-invalid` reuses the production resolver seam and covers a missing selected home, symlink substitution, group/world-writable home, and a secure home with an absent config subtree. No Session Password, credential, listener, permission, Sharing, native lease or fallback store is introduced.
+
+Source/ownership/registry review **PASS**. Canonical local configure/build/focused/full Debug+Release CTest, sanitizers and benchmark **NOT RUN** in this connector environment. Exact publication-SHA hosted CI **PENDING**. Physical Windows App Type-2 receipt/decryption, Type-3 submission and native admission remain independently **BLOCKED / NOT RUN** without owner authorization.
+
 ## R5 native XShm callback and held-input authority (2026-11-01)
 
 The original R5 aggregate alone owns its XCB/XShm/XDamage and XTEST input

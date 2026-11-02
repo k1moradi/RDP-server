@@ -218,8 +218,18 @@ directoryOpenFailureStatus(const bool create) noexcept
 
     FileDescriptor home{
         ::open(homeDirectory, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)};
-    if (!home || !privateObject(home.get(), true, false))
-        return RuntimeUserPreferencesStorageStatus::Unavailable;
+    if (!home)
+    {
+        // A missing account home is not an ordinary first-run preferences
+        // miss. Existing ancestry rejected by no-follow/open policy is typed
+        // Invalid on load so capability diagnostics do not hide unsafe state.
+        if (create || errno == ENOENT)
+            return RuntimeUserPreferencesStorageStatus::Unavailable;
+        return RuntimeUserPreferencesStorageStatus::Invalid;
+    }
+    if (!privateObject(home.get(), true, false))
+        return create ? RuntimeUserPreferencesStorageStatus::Unavailable
+                      : RuntimeUserPreferencesStorageStatus::Invalid;
 
 #if defined(__APPLE__)
     auto first = openDirectoryChild(home.get(), "Library", create, false);

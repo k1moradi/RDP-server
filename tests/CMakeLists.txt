@@ -467,8 +467,11 @@ set_tests_properties(runtime.user-preferences-owner-private-versioned-roundtrip-
 if(NOT WIN32)
     add_test(NAME runtime.user-preferences-unsafe-config-ancestor-reports-invalid
         COMMAND test_runtime_user_preferences unsafe-config-ancestor-status)
+    add_test(NAME runtime.user-preferences-unsafe-home-ancestor-reports-invalid
+        COMMAND test_runtime_user_preferences unsafe-home-ancestor-status)
     set_tests_properties(
         runtime.user-preferences-unsafe-config-ancestor-reports-invalid
+        runtime.user-preferences-unsafe-home-ancestor-reports-invalid
         PROPERTIES LABELS "runtime;preferences;security;offline;posix")
 endif()
 

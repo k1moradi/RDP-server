@@ -1,3 +1,7 @@
+## R2 unsafe-home ancestry focused qualification (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. After the normal Debug configure/build, run `ctest --test-dir build -C Debug -R '^runtime[.]user-preferences-unsafe-(config|home)-ancestor-reports-invalid$' --output-on-failure`, then full Debug/Release CTest and applicable hosted sanitizer/security gates at the same publication SHA. No new executable, dependency or build root is introduced.
+
 ## R5 in-flight borrow and held-input focused build (2026-11-01)
 
 Reuse only `~/rdp-server/build/` after fresh `git switch main && git pull --ff-only origin main`.

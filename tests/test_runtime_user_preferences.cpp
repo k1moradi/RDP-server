@@ -146,6 +146,58 @@ int runUnsafeConfigAncestorStatusTest()
 #endif
 }
 
+int runUnsafeHomeAncestorStatusTest()
+{
+#if defined(_WIN32)
+    return 77;
+#else
+    const unsigned long processId = static_cast<unsigned long>(::getpid());
+    const auto baseName =
+        "runtime-user-preferences-unsafe-home-" + std::to_string(processId);
+    const auto homeDirectory = std::filesystem::current_path() / baseName;
+    const auto symlinkHome = std::filesystem::current_path() /
+        (baseName + "-link");
+    const RuntimeUserPreferences defaults{};
+
+    const auto requireStatus =
+        [&](const std::filesystem::path& selectedHome,
+            const RuntimeUserPreferencesStorageStatus expected) {
+            RuntimeUserPreferences loaded;
+            loaded.lastExplicitUsername = "must-reset";
+            loaded.port = 3399U;
+            assert(detail::loadRuntimeUserPreferencesFromHomeDirectoryForTesting(
+                       selectedHome, loaded) == expected);
+            assert(loaded.lastExplicitUsername.empty());
+            assert(loaded.port == defaults.port);
+            assert(loaded.preferRemoteInput == defaults.preferRemoteInput);
+        };
+
+    // A missing account home means storage is unavailable, not that the
+    // preferences subtree is an ordinary first-run miss.
+    requireStatus(
+        homeDirectory, RuntimeUserPreferencesStorageStatus::Unavailable);
+
+    assert(createPrivateDirectory(homeDirectory));
+    assert(::symlink(homeDirectory.c_str(), symlinkHome.c_str()) == 0);
+    requireStatus(
+        symlinkHome, RuntimeUserPreferencesStorageStatus::Invalid);
+    assert(::unlink(symlinkHome.c_str()) == 0);
+
+    assert(::chmod(homeDirectory.c_str(), 0777) == 0);
+    requireStatus(
+        homeDirectory, RuntimeUserPreferencesStorageStatus::Invalid);
+    assert(::chmod(homeDirectory.c_str(), 0700) == 0);
+
+    // A secure real home with no configuration directory remains a normal
+    // first-run preferences miss.
+    requireStatus(
+        homeDirectory, RuntimeUserPreferencesStorageStatus::Missing);
+
+    assert(std::filesystem::remove(homeDirectory));
+    return 0;
+#endif
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -153,6 +205,9 @@ int main(int argc, char** argv)
     if (argc == 2 &&
         std::string_view{argv[1]} == "unsafe-config-ancestor-status")
         return runUnsafeConfigAncestorStatusTest();
+    if (argc == 2 &&
+        std::string_view{argv[1]} == "unsafe-home-ancestor-status")
+        return runUnsafeHomeAncestorStatusTest();
     assert(argc == 1);
     static_assert(!runtimeBootstrapMayPersist(
         RuntimeBootstrapMaterial::SessionPassword));

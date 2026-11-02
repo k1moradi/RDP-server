@@ -306,31 +306,36 @@ int runWindowsFirstPublicationRaceDenialTest()
 
     // No-replace publication must preserve the raced pathname byte-for-byte,
     // and failure cleanup must leave no private temporary file behind.
-    const WindowsHandle racedReader = openSharedPreferenceReader(file);
-    assert(racedReader);
-    LARGE_INTEGER racedSize{};
-    assert(::GetFileSizeEx(racedReader.get(), &racedSize) != 0);
-    assert(racedSize.QuadPart ==
-           static_cast<LONGLONG>(kRacedFirstPublicationBytes.size()));
-    std::array<char, 64U> racedBytes{};
-    DWORD received = 0U;
-    assert(::ReadFile(
-               racedReader.get(), racedBytes.data(),
-               static_cast<DWORD>(kRacedFirstPublicationBytes.size()),
-               &received, nullptr) != 0);
-    assert(received ==
-           static_cast<DWORD>(kRacedFirstPublicationBytes.size()));
-    const std::string_view racedContents{
-        racedBytes.data(), static_cast<std::size_t>(received)};
-    assert(racedContents == kRacedFirstPublicationBytes);
-
-    std::size_t entryCount = 0U;
-    for (const auto& entry : std::filesystem::directory_iterator(directory))
+    // Close the DELETE-sharing reader before removing the pathname/directory:
+    // a delete-pending file may retain the directory entry until its last
+    // handle closes, and filesystem runtimes differ in unlink implementation.
     {
-        ++entryCount;
-        assert(entry.path() == file);
+        const WindowsHandle racedReader = openSharedPreferenceReader(file);
+        assert(racedReader);
+        LARGE_INTEGER racedSize{};
+        assert(::GetFileSizeEx(racedReader.get(), &racedSize) != 0);
+        assert(racedSize.QuadPart ==
+               static_cast<LONGLONG>(kRacedFirstPublicationBytes.size()));
+        std::array<char, 64U> racedBytes{};
+        DWORD received = 0U;
+        assert(::ReadFile(
+                   racedReader.get(), racedBytes.data(),
+                   static_cast<DWORD>(kRacedFirstPublicationBytes.size()),
+                   &received, nullptr) != 0);
+        assert(received ==
+               static_cast<DWORD>(kRacedFirstPublicationBytes.size()));
+        const std::string_view racedContents{
+            racedBytes.data(), static_cast<std::size_t>(received)};
+        assert(racedContents == kRacedFirstPublicationBytes);
+
+        std::size_t entryCount = 0U;
+        for (const auto& entry : std::filesystem::directory_iterator(directory))
+        {
+            ++entryCount;
+            assert(entry.path() == file);
+        }
+        assert(entryCount == 1U);
     }
-    assert(entryCount == 1U);
 
     assert(std::filesystem::remove(file));
     assert(std::filesystem::remove(directory));

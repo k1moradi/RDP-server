@@ -483,10 +483,17 @@ else()
     add_test(NAME runtime.user-preferences-windows-localappdata-ancestor-denial
         COMMAND test_runtime_user_preferences
             windows-localappdata-ancestry-denial)
+    add_test(NAME runtime.user-preferences-windows-hard-link-substitution-denial
+        COMMAND test_runtime_user_preferences
+            windows-file-hard-link-denial)
     set_tests_properties(
         runtime.user-preferences-windows-inaccessible-directory-not-missing
         runtime.user-preferences-windows-localappdata-ancestor-denial
+        runtime.user-preferences-windows-hard-link-substitution-denial
         PROPERTIES LABELS "runtime;preferences;security;offline;windows")
+    set_tests_properties(
+        runtime.user-preferences-windows-hard-link-substitution-denial
+        PROPERTIES SKIP_RETURN_CODE 77)
 endif()
 
 # R6 portable automatic-bootstrap storage/lifetime policy. This pure

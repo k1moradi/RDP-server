@@ -1,3 +1,7 @@
+## Windows non-secret preference files have unique object identity (2026-11-01)
+
+A private current-user DACL is necessary but not sufficient for the final Windows preferences file. Accept only a regular non-reparse file owned by the current SID, with the existing protected owner-only explicit DACL and exactly one hard link. A second NTFS link makes the pathname an alias and must fail closed on load/save. This file-identity rule does not persist or restore credentials, permission, listener/native proof, Sharing, GraphicsReady or Clipboard authority.
+
 ## Windows preference location must not traverse redirected ancestry (2026-11-01)
 
 Resolve the current user's LocalAppData through a local absolute OS-known-folder path; refuse an intermediate Windows junction/reparse component before private application-directory access. An unavailable or redirected secure location must fail closed, never fall back to UNC, ZIP, cwd or a shared directory. Final private SID/DACL checks and atomic replacement remain mandatory. Non-secret preferences never restore a native R2 grant, credential or Sharing.

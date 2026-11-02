@@ -1,3 +1,7 @@
+## Windows preference files require single-link identity (2026-11-01)
+
+For the R2 per-user non-secret store, keep Windows file validation symmetric with the POSIX single-link contract: after opening the final file with reparse traversal disabled and validating its current-user owner/protected DACL, require `GetFileInformationByHandle(...).nNumberOfLinks == 1`. Reject a multi-link alias before decode or replacement. Do not weaken the LocalAppData ancestry walk, app-directory DACL, same-directory atomic replacement, fixed v1 schema or independent R2/native/Sharing gates.
+
 ## R4 original framebuffer / partial-DATA resize ordering (2026-11-01)
 
 R7's original-authority latest BGRA framebuffer borrow must be synchronous, geometry/generation scoped, stride/length checked, and ended by the time R3 sends the contiguous R4 ClearCodec staging through the sole R1 TLS writer. R3's preflight uses R4's one authoritative 64-outstanding-frame ACK window before native borrowing, encoding, reservation or TLS writing. Reject stale mapped-surface geometry and stale admitted generations; neither queued bytes, zero/partial original R1 accepted-byte receipts nor client input merely classified by R3 is publication or an ACK. Only exact final segmented DATA receipt creates outstanding membership. R3 may transition DELETE/CREATE/MAP after the separately consumed matching client ACK. No new queue, encoder, writer or ACK owner is warranted by this audit.

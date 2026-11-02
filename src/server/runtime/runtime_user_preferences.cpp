@@ -574,6 +574,17 @@ struct LocalMemoryCloser final
         ((attributes.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0U) != directory)
         return false;
 
+    // Match the POSIX single-link file contract. A second NTFS hard link
+    // makes the pathname an alias for an object reachable elsewhere, so it is
+    // not a unique per-user preferences object even when its DACL is private.
+    if (!directory)
+    {
+        BY_HANDLE_FILE_INFORMATION fileInformation{};
+        if (!::GetFileInformationByHandle(handle, &fileInformation) ||
+            fileInformation.nNumberOfLinks != 1U)
+            return false;
+    }
+
     PSID owner = nullptr;
     PACL acl = nullptr;
     PSECURITY_DESCRIPTOR descriptor = nullptr;

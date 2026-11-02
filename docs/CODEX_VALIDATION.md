@@ -1,3 +1,9 @@
+## R2 Windows preference hard-link identity hardening (2026-11-01)
+
+Reviewed current-main parent `8d4c87d2454d9ceb1f7680da36159bcc426816e4`, required policy/docs, the fixed v1 R2 preference store, Windows LocalAppData SID/DACL/reparse path, POSIX single-link behavior, Linux/macOS memory-only standalone credential owners, R7 GUI restore/save/permission/Start ordering and CTest registry. Found one platform-equivalence gap: Windows did not reject a same-owner hard-linked preferences file. Production now requires exactly one Windows file link before decoding or replacing it; new ordinary `runtime.user-preferences-windows-hard-link-substitution-denial` exercises load/save denial and recovery in an isolated protected directory.
+
+No API/schema/credential/listener/consent/Graphics/Clipboard behavior changes. `runtimeBootstrapMayPersist(SessionPassword)` remains false; stored input/lifetime settings remain request preferences only and every launch starts without R2 authority or Sharing. Source/dependency/registry review **PASS**. Local compile/focused/full Debug+Release CTest, sanitizers and benchmark **NOT RUN** in the connector-only environment; exact-publication hosted Windows/full CI **PENDING**. Future OS credential vault remains design-only pending explicit persistence-policy and opt-in consent/revoke/delete UX changes.
+
 ## R6 corrective — invalid typed-error records cannot preserve a stage-2 FAIL (2026-11-01)
 
 **Authoring parent:** `c4bacd427f37cffbe639106da0f8fe2fe2c4a38b`. Immediate review of the new same-event

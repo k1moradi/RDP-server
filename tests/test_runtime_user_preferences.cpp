@@ -116,6 +116,52 @@ int runWindowsApplicationDirectoryAccessDenialTest()
     assert(classify(true, ERROR_ACCESS_DENIED) == Status::Unavailable);
     return 0;
 }
+
+int runWindowsPreferenceHardLinkDenialTest()
+{
+    using Status = RuntimeUserPreferencesStorageStatus;
+    const auto directory = std::filesystem::current_path() /
+        ("runtime-user-preferences-windows-hard-link-" +
+         std::to_string(::GetCurrentProcessId()));
+    assert(createPrivateDirectory(directory));
+
+    RuntimeUserPreferences original;
+    original.lastExplicitUsername = "hard-link-owner";
+    original.preferredStableLanInterfaceId = "{ABC-123}_Ethernet";
+    original.port = 3394U;
+    original.preferRemoteInput = false;
+    original.permissionLifetimeMinutes = 9U;
+    assert(detail::saveRuntimeUserPreferencesToDirectory(
+               directory, original) == Status::Stored);
+
+    const auto file = directory / L"preferences.bin";
+    const auto alias = directory / L"preferences-alias.bin";
+    if (!::CreateHardLinkW(alias.c_str(), file.c_str(), nullptr))
+    {
+        const DWORD error = ::GetLastError();
+        assert(std::filesystem::remove(file));
+        assert(std::filesystem::remove(directory));
+        return error == ERROR_NOT_SUPPORTED || error == ERROR_INVALID_FUNCTION
+            ? 77 : 1;
+    }
+
+    // The alias has the same owner and protected DACL as the original file.
+    // File identity, not access metadata alone, must reject the substitution.
+    RuntimeUserPreferences loaded = original;
+    assert(detail::loadRuntimeUserPreferencesFromDirectory(
+               directory, loaded) == Status::Invalid);
+    assert(loaded.lastExplicitUsername.empty());
+    assert(detail::saveRuntimeUserPreferencesToDirectory(
+               directory, original) == Status::Invalid);
+
+    assert(::DeleteFileW(alias.c_str()) != 0);
+    assert(detail::loadRuntimeUserPreferencesFromDirectory(
+               directory, loaded) == Status::Loaded);
+    assert(loaded.lastExplicitUsername == original.lastExplicitUsername);
+    assert(std::filesystem::remove(file));
+    assert(std::filesystem::remove(directory));
+    return 0;
+}
 #endif
 
 int runUnsafeConfigAncestorStatusTest()
@@ -286,6 +332,9 @@ int main(int argc, char** argv)
     if (argc == 2 &&
         std::string_view{argv[1]} == "windows-localappdata-ancestry-denial")
         return runWindowsApplicationDirectoryAncestryDenialTest();
+    if (argc == 2 &&
+        std::string_view{argv[1]} == "windows-file-hard-link-denial")
+        return runWindowsPreferenceHardLinkDenialTest();
 #endif
     if (argc == 2 &&
         std::string_view{argv[1]} == "unsafe-config-ancestor-status")

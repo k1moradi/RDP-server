@@ -1,3 +1,7 @@
+## Windows preference file-identity focused qualification (2026-11-01)
+
+Reuse only the canonical `~/rdp-server/build/`. After the normal Windows Debug configure/build, run `ctest --test-dir build -C Debug -R '^runtime[.]user-preferences-(windows-hard-link-substitution-denial|windows-localappdata-ancestor-denial|windows-inaccessible-directory-not-missing|owner-private-versioned-roundtrip-denials)$' --output-on-failure`, then full Debug CTest; repeat focused/full in Release and the existing applicable security/sanitizer lanes on the exact publication SHA. No new executable, dependency or build root is introduced. Connector-local execution is **NOT RUN**.
+
 ## R4 partial DATA / ACK / resize focused qualification (2026-11-01)
 
 After `git switch main && git pull --ff-only origin main`, reuse only `~/rdp-server/build/`. Configure and build Debug with `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2`; run `ctest --test-dir build -C Debug -R '^graphics[.]frame-(partial-data-resize-after-ack|delivery-session-retirement-before-ack|partial-data-retirement-successor-generation)$' --output-on-failure` and full `ctest --test-dir build -C Debug --output-on-failure`. Then repeat Release and inspect fixed 23-case Graphics DVC sanitizer inventory and two separately selected retirement cases on the exact publication SHA. No new executable, dependency or build root. Connector-local build, CTest, sanitizer and physical-client execution: NOT RUN; hosted/owner qualification remains the next gate.

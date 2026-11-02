@@ -1,3 +1,7 @@
+## Windows preference hard-link substitution denial (2026-11-01)
+
+Register ordinary Windows-only `runtime.user-preferences-windows-hard-link-substitution-denial` in the existing `test_runtime_user_preferences` executable. In an isolated protected current-user test directory, save a valid production record, create a same-volume hard link to `preferences.bin`, require production load and save to return `Invalid` while the alias exists, then remove it and require the original record to load unchanged. Skip only when the filesystem explicitly reports hard links unsupported. The test must not touch the real LocalAppData store, request permission, configure credentials, open R1, set GraphicsReady or grant Clipboard.
+
 ## R6 corrective — invalid typed-error records cannot preserve a stage-2 FAIL (2026-11-01)
 
 **Authoring parent:** `c4bacd427f37cffbe639106da0f8fe2fe2c4a38b`. Immediate review of the new same-event

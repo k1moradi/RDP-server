@@ -1,3 +1,7 @@
+## R3 partial Share-write interleave is correctness-only (2026-11-02)
+
+The new regression changes no production implementation, queue, allocation, parser, TLS I/O loop, licensing state machine or graphics scheduler. It drives an existing setup/Share interleave through original R1/R2/R3 owners only. No throughput benchmark is applicable or claimed; benchmark **NOT RUN** and hosted Debug/Release CTest is the executable gate.
+
 ## R1 cross-generation challenge identity regression is correctness-only (2026-11-01)
 
 The production Type-2 encoder, SSL reader/writer, generated certificate, per-peer challenge, poll schedule and timeouts are unchanged. Only an offline real-loopback regression adds client-side leaf-fingerprint comparison across Stop/recredential/reconfigure/reconnect. The 9,166-microsecond owner Type-2-to-FIN observation is diagnostic ordering, not a throughput benchmark or timeout-tuning target. Benchmark NOT RUN.

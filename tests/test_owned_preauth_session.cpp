@@ -10655,9 +10655,12 @@ void testMacProtectedPersonalDesktopLicensingDenials()
 
 void runMacProtectedPersonalDesktopShareActivationReceipts(
     bool continueThroughGraphics, bool batchClientFinalization,
-    bool coalesceConfirmActiveWithFinalization)
+    bool coalesceConfirmActiveWithFinalization,
+    bool interleaveFinalizationDuringPartialServerSynchronize)
 {
     assert(!coalesceConfirmActiveWithFinalization || batchClientFinalization);
+    assert(!interleaveFinalizationDuringPartialServerSynchronize ||
+           (batchClientFinalization && !coalesceConfirmActiveWithFinalization));
     using rdp_server::server::runtime::RuntimeDeploymentPolicy;
     using rdp_server::server::runtime::RuntimeLicensingContext;
     using RequestReceipt = RdpServerLicenseRequestWriteOutcome;
@@ -10929,50 +10932,169 @@ void runMacProtectedPersonalDesktopShareActivationReceipts(
         appendPacket(fontListPacket);
         assert(clientFinalizationBatch.size() == batchBytes);
 
-        if (coalesceConfirmActiveWithFinalization)
+        if (interleaveFinalizationDuringPartialServerSynchronize)
         {
+            // Mirror Linux R10's serialized Share action: after valid Confirm
+            // Active the server owns Synchronize until its exact R1 receipt is
+            // complete. Legal later client finalization may already be on the
+            // TLS stream, but it cannot advance R3 while the server suffix is
+            // still pending.
+            const auto preparedSynchronize =
+                fixture->broker.authorizeR3PersonalDesktopShareActivationWrite(
+                    *fixture->session, policy);
+            assert(preparedSynchronize && *preparedSynchronize &&
+                   preparedSynchronize->kind ==
+                       RdpShareServerWriteKind::Synchronize &&
+                   preparedSynchronize->bytes.size() > 1U);
+            const std::uint64_t synchronizeReplySequence =
+                preparedSynchronize->replySequence;
+            const std::uint64_t synchronizeSliceSequence =
+                preparedSynchronize->writeSliceSequence;
+            const std::size_t synchronizeBytes =
+                preparedSynchronize->bytes.size();
+
+            assert(fixture->broker.completeR3PersonalDesktopShareActivationWrite(
+                       *fixture->session, policy,
+                       synchronizeReplySequence, synchronizeSliceSequence, 0U) ==
+                   ShareReceipt::Pending);
+            const auto zeroSynchronizeRetry =
+                fixture->broker.authorizeR3PersonalDesktopShareActivationWrite(
+                    *fixture->session, policy);
+            assert(zeroSynchronizeRetry && *zeroSynchronizeRetry &&
+                   zeroSynchronizeRetry->replySequence ==
+                       synchronizeReplySequence &&
+                   zeroSynchronizeRetry->writeSliceSequence ==
+                       synchronizeSliceSequence &&
+                   zeroSynchronizeRetry->bytes.data() ==
+                       preparedSynchronize->bytes.data() &&
+                   zeroSynchronizeRetry->bytes.size() == synchronizeBytes);
+
+            const std::size_t acceptedSynchronizeByte =
+                writeOneMacProtectedPlaintextByte(
+                    *fixture, zeroSynchronizeRetry->bytes);
+            assert(acceptedSynchronizeByte == 1U);
+            assert(fixture->broker.completeR3PersonalDesktopShareActivationWrite(
+                       *fixture->session, policy,
+                       zeroSynchronizeRetry->replySequence,
+                       zeroSynchronizeRetry->writeSliceSequence,
+                       acceptedSynchronizeByte) == ShareReceipt::Pending);
+            const auto synchronizeSuffix =
+                fixture->broker.authorizeR3PersonalDesktopShareActivationWrite(
+                    *fixture->session, policy);
+            assert(synchronizeSuffix && *synchronizeSuffix &&
+                   synchronizeSuffix->kind ==
+                       RdpShareServerWriteKind::Synchronize &&
+                   synchronizeSuffix->replySequence ==
+                       synchronizeReplySequence &&
+                   synchronizeSuffix->writeSliceSequence !=
+                       synchronizeSliceSequence &&
+                   synchronizeSuffix->bytes.size() +
+                           acceptedSynchronizeByte ==
+                       synchronizeBytes);
+
+            // The client legally pipelines the remaining finalization while
+            // the original server reply still owns an unaccepted suffix.
+            // R10 must leave these bytes with the sole R1 reader until its
+            // current server-write action has fully committed.
             writeNativeTlsClientSingleApplicationWrite(
                 fixture->tls.client.get(), clientFinalizationBatch);
+            const auto stillSynchronizeSuffix =
+                fixture->broker.authorizeR3PersonalDesktopShareActivationWrite(
+                    *fixture->session, policy);
+            assert(stillSynchronizeSuffix && *stillSynchronizeSuffix &&
+                   stillSynchronizeSuffix->replySequence ==
+                       synchronizeSuffix->replySequence &&
+                   stillSynchronizeSuffix->writeSliceSequence ==
+                       synchronizeSuffix->writeSliceSequence &&
+                   stillSynchronizeSuffix->bytes.data() ==
+                       synchronizeSuffix->bytes.data() &&
+                   stillSynchronizeSuffix->bytes.size() ==
+                       synchronizeSuffix->bytes.size());
+            assert(fixture->session->phase() ==
+                   McsSessionPhase::ShareActivation);
+            assert(!fixture->session->firstClientAcceptanceObservability()
+                        .shareActivated);
+
+            flushShare(
+                RdpShareServerWriteKind::Synchronize,
+                ShareReceipt::Delivered);
+            flushShare(
+                RdpShareServerWriteKind::Cooperate,
+                ShareReceipt::Delivered);
+
+            receiveSharePacket(
+                synchronizePacket, ShareIntake::SynchronizeAccepted);
+            receiveSharePacket(
+                cooperatePacket, ShareIntake::CooperateAccepted);
+            receiveSharePacket(
+                requestControlPacket, ShareIntake::RequestControlAccepted);
+
+            const auto pendingGrantedControl =
+                fixture->broker.authorizeR3PersonalDesktopShareActivationWrite(
+                    *fixture->session, policy);
+            assert(pendingGrantedControl && *pendingGrantedControl &&
+                   pendingGrantedControl->kind ==
+                       RdpShareServerWriteKind::GrantedControl);
+            flushShare(
+                RdpShareServerWriteKind::GrantedControl,
+                ShareReceipt::Delivered);
+
+            receiveSharePacket(
+                fontListPacket, ShareIntake::FontListAccepted);
+            flushShare(
+                RdpShareServerWriteKind::FontMap,
+                ShareReceipt::Activated);
         }
         else
         {
-            writeNativeTlsClientAll(
-                fixture->tls.client.get(), clientFinalizationBatch);
-        }
-        if (coalesceConfirmActiveWithFinalization)
-        {
-            assert(fixture->session->phase() == McsSessionPhase::ShareActivation);
-            assert(!fixture->session->firstClientAcceptanceObservability()
-                        .shareActivated);
+            if (coalesceConfirmActiveWithFinalization)
+            {
+                writeNativeTlsClientSingleApplicationWrite(
+                    fixture->tls.client.get(), clientFinalizationBatch);
+            }
+            else
+            {
+                writeNativeTlsClientAll(
+                    fixture->tls.client.get(), clientFinalizationBatch);
+            }
+            if (coalesceConfirmActiveWithFinalization)
+            {
+                assert(fixture->session->phase() ==
+                       McsSessionPhase::ShareActivation);
+                assert(!fixture->session->firstClientAcceptanceObservability()
+                            .shareActivated);
+                receiveSharePacket(
+                    confirmPacket, ShareIntake::ConfirmActiveAccepted);
+            }
             receiveSharePacket(
-                confirmPacket, ShareIntake::ConfirmActiveAccepted);
+                synchronizePacket, ShareIntake::SynchronizeAccepted);
+            receiveSharePacket(
+                cooperatePacket, ShareIntake::CooperateAccepted);
+            receiveSharePacket(
+                requestControlPacket, ShareIntake::RequestControlAccepted);
+            receiveSharePacket(
+                fontListPacket, ShareIntake::FontListAccepted);
+
+            const auto pendingSynchronize =
+                fixture->broker.authorizeR3PersonalDesktopShareActivationWrite(
+                    *fixture->session, policy);
+            assert(pendingSynchronize && *pendingSynchronize &&
+                   pendingSynchronize->kind ==
+                       RdpShareServerWriteKind::Synchronize);
+
+            flushShare(
+                RdpShareServerWriteKind::Synchronize,
+                ShareReceipt::Delivered);
+            flushShare(
+                RdpShareServerWriteKind::Cooperate,
+                ShareReceipt::Delivered);
+            flushShare(
+                RdpShareServerWriteKind::GrantedControl,
+                ShareReceipt::Delivered);
+            flushShare(
+                RdpShareServerWriteKind::FontMap,
+                ShareReceipt::Activated);
         }
-        receiveSharePacket(
-            synchronizePacket, ShareIntake::SynchronizeAccepted);
-        receiveSharePacket(
-            cooperatePacket, ShareIntake::CooperateAccepted);
-        receiveSharePacket(
-            requestControlPacket, ShareIntake::RequestControlAccepted);
-        receiveSharePacket(
-            fontListPacket, ShareIntake::FontListAccepted);
-
-        // The queued server side must still begin with Synchronize. Client
-        // batching cannot skip or reorder any receipt-bound server response.
-        const auto pendingSynchronize =
-            fixture->broker.authorizeR3PersonalDesktopShareActivationWrite(
-                *fixture->session, policy);
-        assert(pendingSynchronize && *pendingSynchronize &&
-               pendingSynchronize->kind ==
-                   RdpShareServerWriteKind::Synchronize);
-
-        flushShare(
-            RdpShareServerWriteKind::Synchronize, ShareReceipt::Delivered);
-        flushShare(
-            RdpShareServerWriteKind::Cooperate, ShareReceipt::Delivered);
-        flushShare(
-            RdpShareServerWriteKind::GrantedControl, ShareReceipt::Delivered);
-        flushShare(
-            RdpShareServerWriteKind::FontMap, ShareReceipt::Activated);
     }
     else
     {
@@ -11109,22 +11231,32 @@ void runMacProtectedPersonalDesktopShareActivationReceipts(
 
 void testMacProtectedPersonalDesktopShareActivationReceipts()
 {
-    runMacProtectedPersonalDesktopShareActivationReceipts(false, false, false);
+    runMacProtectedPersonalDesktopShareActivationReceipts(
+        false, false, false, false);
 }
 
 void testMacProtectedShareFinalizationClientBatchTlsReceipts()
 {
-    runMacProtectedPersonalDesktopShareActivationReceipts(false, true, false);
+    runMacProtectedPersonalDesktopShareActivationReceipts(
+        false, true, false, false);
+}
+
+void testMacProtectedPartialServerSynchronizeBufferedClientFinalization()
+{
+    runMacProtectedPersonalDesktopShareActivationReceipts(
+        false, true, false, true);
 }
 
 void testMacProtectedPersonalDesktopGraphicsControlReceipts()
 {
-    runMacProtectedPersonalDesktopShareActivationReceipts(true, false, false);
+    runMacProtectedPersonalDesktopShareActivationReceipts(
+        true, false, false, false);
 }
 
 void testMacProtectedConfirmActiveAndFinalizationSingleTlsWrite()
 {
-    runMacProtectedPersonalDesktopShareActivationReceipts(false, true, true);
+    runMacProtectedPersonalDesktopShareActivationReceipts(
+        false, true, true, false);
 }
 
 
@@ -16518,6 +16650,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedPersonalDesktopShareActivationReceipts},
     {"macos-protected-share-finalization-client-batch-tls-receipts",
      &testMacProtectedShareFinalizationClientBatchTlsReceipts},
+    {"macos-protected-share-partial-synchronize-buffered-client-finalization",
+     &testMacProtectedPartialServerSynchronizeBufferedClientFinalization},
     {"macos-protected-share-confirm-active-finalization-single-tls-write",
      &testMacProtectedConfirmActiveAndFinalizationSingleTlsWrite},
     {"macos-protected-personal-desktop-graphics-control-receipts",

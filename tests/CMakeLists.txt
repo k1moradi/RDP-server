@@ -2516,6 +2516,20 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "protocol;security;transport;tls;mcs;licensing;share;admission;offline"
                 TIMEOUT 30)
 
+        # Linux R10 keeps its server Synchronize write authoritative after
+        # Confirm Active. A legal client finalization batch may arrive while
+        # that reply has a positively accepted R1 byte and pending suffix, but
+        # R3 must not consume it until the server write sequence is committed.
+        add_test(
+            NAME security.macos-protected-share-partial-synchronize-buffered-client-finalization
+            COMMAND "${test_target}"
+                "macos-protected-share-partial-synchronize-buffered-client-finalization")
+        set_tests_properties(
+            security.macos-protected-share-partial-synchronize-buffered-client-finalization
+            PROPERTIES
+                LABELS "protocol;security;transport;tls;mcs;licensing;share;admission;offline"
+                TIMEOUT 60)
+
         # One original R1 TLS application write carries Confirm Active and
         # the entire ordered finalization batch after real licensed Demand Active.
         # R2/R3 still consume only R1-complete TPKTs and exact server receipts.

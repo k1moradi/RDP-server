@@ -1,3 +1,29 @@
+## R7 P0 — Round 2 explicit network selection test fixture follows activated() (2026-11-01)
+
+**Authoring parent:** `7163e2b4711c7234f3199edfc54b555e864576de`. Exact source SHA
+`6f12e72a201b34ef26909ee24edfa260f5186e09` Actions
+`41388752573`, Linux GUI ZIP job `125095438246`, failed the existing
+`gui.offscreen-round2-endpoint-refresh-fail-closed` CTest: the test changed
+`QComboBox::currentIndex` programmatically and asserted that this was a
+persistent manual interface selection. R7's newer manual-intent contract
+correctly requires a separate `activated` owner action, while the distinct
+`gui.offscreen-preference-interface-requires-explicit-activation` CTest
+requires programmatic changes not to persist.
+
+Correct only the existing Round 2 fixture: follow the selected VPN index
+with Qt's direct `activated` signal to represent an actual manual selection;
+retain the assertions that stale R10 auto-recommendation never overrides it,
+and that copy remains disabled without Sharing. Do not reconnect
+`currentIndexChanged` as owner consent or change R2/R7/R10 production
+code. Existing GUI fake-R10 and R2 private preference tests remain intact.
+The upstream R1/R6 physical Windows App Type-2/Type-3 evidence remains
+separately **BLOCKED / NOT RUN**.
+
+Failure-log/root-cause/source review **PASS**. Canonical local
+configure/compile/focused/full Debug+Release CTest/sanitizers/benchmark
+**NOT RUN** (no mounted owner checkout). Exact corrective-SHA Linux GUI ZIP
+and full GUI CTest **PENDING**.
+
 ## R7 P0 — restore compilable Username ceiling and R9 testing standard (2026-11-01)
 
 **Authoring parent:** `80e846b422840642da16dd2f0816263c740831e2`. Source review identified a C++ header

@@ -725,7 +725,12 @@ void checkRound2RecommendationRefreshFailClosed()
     assert(interfaceOverride->currentData().toString() ==
            QStringLiteral("192.168.1.5"));
 
+    // A genuine owner selection emits activated() after the index changes.
+    // setCurrentIndex() alone is programmatic presentation, not manual intent.
     interfaceOverride->setCurrentIndex(2);
+    assert(QMetaObject::invokeMethod(
+        interfaceOverride, "activated", Qt::DirectConnection,
+        Q_ARG(int, interfaceOverride->currentIndex())));
     assert(interfaceOverride->currentData().toString() ==
            QStringLiteral("10.180.105.86"));
     assert(address->text() ==

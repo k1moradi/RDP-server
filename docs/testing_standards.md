@@ -1,3 +1,13 @@
+## Round 2 manual network override must use Qt owner activation (2026-11-01)
+
+In `gui.offscreen-round2-endpoint-refresh-fail-closed`, selecting the VPN
+as a **manual** interface needs both the chosen combobox index and a direct
+`activated` signal, matching the production R7 owner-intent boundary.
+`setCurrentIndex()` alone is a programmatic notification and must not
+be treated as permission to persist or hold a manual override. Preserve
+the separate `gui.offscreen-preference-interface-requires-explicit-activation`
+negative regression; do not weaken its programmatic-no-save case.
+
 ## Rapid CLI Username preference-length parity (2026-11-01)
 
 Register `gui.offscreen-rapid-cli-username-preference-length-parity` in the

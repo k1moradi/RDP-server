@@ -1,3 +1,22 @@
+## R7 Round 2 GUI fixture explicit activation correction (2026-11-01)
+
+Parent `7163e2b4711c7234f3199edfc54b555e864576de`. Exact-ancestor Actions `41388752573`
+Linux GUI ZIP job `125095438246` failed only the Round 2
+`gui.offscreen-round2-endpoint-refresh-fail-closed` case in its
+7-case focused slice. The test previously used only
+`QComboBox::setCurrentIndex(2)` to simulate a human manual VPN
+selection; the production R7 contract no longer interprets such a
+programmatic change as owner intent. Keep the new policy and emit
+`activated` after the index change in that existing test.
+Do not alter the distinct negative programmatic-preference test or
+any R2/R7/R10 ownership/Sharing behavior.
+
+Exact log and source diagnosis **PASS**. Local canonical Debug/Release
+compile/CTest/Xvfb/sanitizers/benchmark **NOT RUN**. Exact corrective-SHA
+Linux GUI ZIP and full CTest **PENDING**. Physical first client
+Type-2/Type-3 and real native acceptance remain independently
+**BLOCKED / NOT RUN**.
+
 ## R7 repair swallowed CLI Username constant and preserve R9 policy (2026-11-01)
 
 At authoring parent `80e846b422840642da16dd2f0816263c740831e2`, a literal `\\n` in the new

@@ -1,3 +1,11 @@
+## R5 tests-disabled XShm production dependency correction (2026-11-01)
+
+Reviewed current dependency graph at authoring parent `c22da1f00871cbfc8dbebecfc362494484dd1f03`: `rdp-server-linux-x11-desktop` requires the XCB connection, XShm capture, XFixes cursor, XDamage and XTEST children, with XInput2 optional. Every required child except XShm was production-available whenever its Linux package was found. XShm alone additionally required `BUILD_TESTING && RDP_SERVER_BUILD_TESTING`, so a tests-disabled production configure could silently omit the aggregate and the R10 `RDP_SERVER_HAVE_LINUX_X11_DESKTOP` edge. **Source diagnosis: PASS.**
+
+Correction: remove only the test-option gate from the optional/noninstalled XShm target. Add an Ubuntu workflow proof that configures the sole `build/` root with both test switches OFF and explicitly builds `rdp-server-linux-x11-desktop`, then the existing workflow reconfigures that same root for normal tests. The primary workflow source validator pins the step, target and success marker. No production runtime logic, R2 authority, XTEST state, frame/capture path, Clipboard activation, external dependency or performance policy changes.
+
+Local configure/build/full CTest/sanitizers/benchmarks: **NOT RUN** (connector-only environment). Exact publication-SHA structure/build proof: **PENDING**. The held-key+button behavioral case already passed ordinary Ubuntu Debug/Release at `3e010379`; its new separate ASan/UBSan follow-up at `43ea6fbb` is still waiting on the sanitizer job at this review point. Physical Windows App remains blocked after server NTLM Type 2 and before client Type 3; all R2/seat0/native first-frame/real ACK/input/Stop/reconnect stages remain **NOT RUN**.
+
 ## R10 idle authenticated macOS owner retryable-result correction (2026-11-01)
 
 Source audit established that the previous shared Qt bounded-burst loop could busy-spin because `MacRuntimeHostControl::serviceOnce()` returned unconditional `{None,false}` instead of its original `preAdmission` result when no mapped GraphicsReady native frame work ran. The minimal production fix preserves the real R1/R2 peer wait, without changing R4's concurrent tight-BGRA native validation. New ordinary existing-binary test checks real TLS/CredSSP synthetic peer completion and a single retryable shared-burst call. No second socket/reader/framer/ACK owner.

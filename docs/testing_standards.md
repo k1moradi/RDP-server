@@ -1,3 +1,9 @@
+## R5 tests-disabled native desktop build-graph regression (2026-11-01)
+
+A production adapter required by the R5 aggregate must not disappear merely because CTest is disabled. `rdp-server-linux-xshm` is a required child of `rdp-server-linux-x11-desktop`, so its CMake declaration must be Linux/dependency-gated rather than `BUILD_TESTING`-gated. Validate the dependency itself by configuring the canonical `build/` with `BUILD_TESTING=OFF` and `RDP_SERVER_BUILD_TESTING=OFF`, then building the real `rdp-server-linux-x11-desktop` target with the ordinary XCB development packages present. Reconfigure the same root for the normal Debug/Release CTests afterward; do not create a second build root.
+
+This is build-graph coverage, not a synthetic substitute for R2/seat0 acceptance. The tests-disabled proof must neither start a listener nor access a real desktop, and it does not alter the fixed 45-case R5 native sanitizer selector, the separate two-case implicit-destructor lane or the separately selected one-case explicit authority-loss sanitizer follow-up. Authoring parent `c22da1f00871cbfc8dbebecfc362494484dd1f03`; local canonical configure/build/CTest/sanitizers remain **NOT RUN** in the connector environment and publication-SHA hosted proof is **PENDING**.
+
 ## R10 completed CredSSP idle owner yield (2026-11-01)
 
 Keep ordinary `runtime.macos-host-control-completed-credssp-idle-owner-yields` in the existing macOS HostControl executable. Reuse production TLS/CredSSP and queued Microsoft MCS with no native R2 issuer. Require exactly one successful retryable production owner call in the shared burst, no immediate reschedule, unchanged dormant/unauthorized state and subsequent Stop. Environment unavailable SKIP 77, never physical client acceptance.

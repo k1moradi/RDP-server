@@ -304,10 +304,11 @@ if(WIN32)
     target_link_libraries(rdp-server-protocol PUBLIC ws2_32 iphlpapi)
 endif()
 
-# First native XShm translation-unit target. Optional Linux XCB developer
-# packages keep the portable protocol library and owner one-liner working.
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND BUILD_TESTING AND
-   RDP_SERVER_BUILD_TESTING)
+# R5 native XShm capture is a production Linux adapter, not a test-only
+# dependency. Keep it optional/noninstalled so protocol-only consumers do not
+# acquire XCB, while a tests-disabled runtime can still compose the one R5
+# desktop aggregate whenever the XCB/XShm development package is available.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_package(PkgConfig QUIET)
     if(PkgConfig_FOUND)
         pkg_check_modules(RDP_SERVER_XCB_SHM QUIET IMPORTED_TARGET

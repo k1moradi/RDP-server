@@ -170,6 +170,22 @@ jobs:
           sudo apt-get install -y --no-install-recommends libkrb5-dev libpam0g-dev libxcb1-dev libxcb-randr0-dev \
             pkg-config libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev libxcb-damage0-dev libxcb-xtest0-dev \
             libxcb-xinput-dev xvfb xauth
+      - name: Prove R5 native desktop target with tests disabled
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=OFF \
+            -DRDP_SERVER_BUILD_TESTING=OFF \
+            -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF \
+            -DRDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY=OFF
+          grep -Fx 'BUILD_TESTING:BOOL=OFF' build/CMakeCache.txt
+          grep -Fx 'RDP_SERVER_BUILD_TESTING:BOOL=OFF' build/CMakeCache.txt
+          cmake --build build --config Release \
+            --target rdp-server-linux-x11-desktop --parallel 2
+          printf 'R5 TESTS-OFF NATIVE DESKTOP TARGET PASS\n'
+
       - name: Configure Debug protocol and tests
         shell: bash
         run: |

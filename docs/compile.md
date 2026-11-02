@@ -1,3 +1,19 @@
+## R5 production native desktop target with tests disabled (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. To prove that native Linux composition no longer depends on CTest, with the normal XCB/RandR/XShm/XFixes/Damage/XTEST development packages installed:
+
+```bash
+cd ~/rdp-server
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_TESTING=OFF -DRDP_SERVER_BUILD_TESTING=OFF \
+  -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF \
+  -DRDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY=OFF
+cmake --build build --config Release \
+  --target rdp-server-linux-x11-desktop --parallel 2
+```
+
+Then reconfigure the **same** `build/` root with the normal owner Debug command and run full CTest. This proves only dependency composition; it never starts R10, acquires R2 authority or touches seat0. Authoring parent `c22da1f00871cbfc8dbebecfc362494484dd1f03`; connector-local execution **NOT RUN**, hosted publication-SHA proof **PENDING**.
+
 ## R10 authenticated idle-owner scheduler test (2026-11-01)
 
 Use only `~/rdp-server/build/`; run `ctest --test-dir build -C Debug -R 'runtime[.]macos-host-control-(completed-credssp-idle-owner-yields|first-mcs-without-native-issuer-dormancy|completed-credssp-without-native-admission-denials)' --output-on-failure`, existing graphics receipt/ACK and retirement selections, full Debug/Release CTest and applicable exact-SHA sanitizers. No new target, dependency or build root.

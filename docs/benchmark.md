@@ -1,3 +1,7 @@
+## R4 Linux dual-scheduler ACK pre-borrow source regression is test-only (2026-11-02)
+
+The existing offline source-contract CTest adds a second read-only check for Linux `LinuxRuntimeHostControl` preflight/deferred-return ordering and negative mutations. It changes no native X11 capture, ClearCodec or x264 hot loop, reservation, 64-frame ACK window, R3 segmented DATA accounting, R1 TLS writer, memory layout or traffic. No physical frame, latency, throughput or FPS benchmark was run or is implied. Exact-SHA hosted correctness CTest and sanitizer checks, not synthetic performance claims, are the qualification gate.
+
 ## R3 buffered late Font List / partial Granted Control is correctness-only (2026-11-02)
 
 This is a single new ordinary offline R1/R2/R3 production-linked regression. It changes no production protocol algorithm, allocation, reader, writer, frame encoder or scheduler. Zero/partial/full TLS receipt order, bounded client TPKT intake and Graphics surface mapping are correctness/ownership checks, not measured throughput or client-visible pixels. Benchmark NOT RUN; physical first-pixel latency and accepted client ACK remain separate authorization/evidence gates.

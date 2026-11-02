@@ -3778,6 +3778,7 @@ if(TARGET rdp-server-linux-runtime-security)
             "-DRDP_RUNTIME_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
             "-DRDP_RUNTIME_CONNECTION_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_connection.h"
             "-DRDP_RUNTIME_CONNECTION_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_connection.cpp"
+            "-DRDP_RUNTIME_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_post_share_persistent.cmake")
     set_tests_properties(runtime.linux-serve-persistent-post-share-single-owner
         PROPERTIES LABELS "runtime;security;post-share;offline")

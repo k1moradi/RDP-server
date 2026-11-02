@@ -1,3 +1,7 @@
+## R10 macOS diagnostic-generation correction is lifecycle-only (2026-11-02)
+
+This increment adds constant-size state resets at successful listener Start, accepted-client publication and explicit owner Disconnect. It changes no packet parser, TLS loop, native capture/input path, frame schedule, allocation strategy or hot loop, so a performance benchmark is not applicable. Benchmark NOT RUN; exact-SHA correctness CTest/CI is the qualification gate.
+
 ## R4 near-capacity partial-frame retirement is correctness-only (2026-11-02)
 
 The new regression changes no production encoder, contiguous frame storage, XShm borrow, allocation, frame scheduler, 64-credit window, surface algorithm, TLS writer or poll timing. It composes existing receipt/ACK/generation states at the 63->64 credit transition and therefore has no meaningful FPS, latency or throughput claim. Benchmark **NOT RUN**; physical first-pixel timing and genuine client FRAME_ACK remain separately authorized acceptance evidence.

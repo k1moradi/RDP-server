@@ -1223,6 +1223,20 @@ if(TARGET rdp-server-macos-host-control)
     set_tests_properties(runtime.macos-host-control-pre-share-graphics-status-denials
         PROPERTIES LABELS "runtime;macos;security;graphics;gui;offline" TIMEOUT 20)
 
+    # A prior peer-side authentication termination must not leak its aggregate
+    # error or client identity into a fresh accepted generation, explicit owner
+    # Disconnect, or a later listener generation.
+    add_test(
+        NAME runtime.macos-host-control-peer-failure-new-client-owner-cancellation-isolation
+        COMMAND test_macos_runtime_host_control
+            macos-host-control-peer-failure-new-client-owner-cancellation-isolation)
+    set_tests_properties(
+        runtime.macos-host-control-peer-failure-new-client-owner-cancellation-isolation
+        PROPERTIES
+            LABELS "runtime;security;transport;authentication;owner-lifecycle;macos;native-environment;offline"
+            SKIP_RETURN_CODE 77
+            TIMEOUT 45)
+
     # R10 production macOS pre-admission path with a synthetic local TCP peer.
     # No real RDP client, R2 native admission, TCC, capture or input is used.
     # Network/interface unavailable is an explicit skip, not an offline pass.

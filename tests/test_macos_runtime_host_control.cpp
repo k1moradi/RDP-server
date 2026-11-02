@@ -1666,6 +1666,240 @@ void testStopRevokeRetirement()
                34460U, 0x71U);
 }
 
+
+[[nodiscard]] bool testMacPeerFailureNewClientOwnerCancellationIsolation()
+{
+    PortableBootstrapEvidence evidence(501U);
+    MacRuntimeHostControl control(evidence);
+    auto password = standalonePassword();
+    assert(control.configureStandaloneApplicationPassword(u"rdp", password));
+
+    const auto endpoint = control.status().product.recommendedEndpoint;
+    if (!endpoint.valid() || endpoint.address.find(':') != std::string::npos)
+        return false;
+
+    RuntimeHostPermissionRequest permission;
+    permission.allowClipboard = false;
+    permission.allowInput = false;
+    assert(control.requestHostPermissionSetup(permission).succeeded());
+
+    std::uint16_t chosenPort = 0U;
+    RuntimeHostOptions selection;
+    for (std::uint16_t port = 34680U; port < 34710U; ++port)
+    {
+        selection = RuntimeHostOptions{
+            endpoint.interfaceId, endpoint.address, port, true, false};
+        assert(control.configure(selection).succeeded());
+        const auto start = control.startSharing();
+        if (start.succeeded())
+        {
+            chosenPort = port;
+            break;
+        }
+        assert(start.error == RuntimeHostError::PortUnavailable);
+    }
+    if (chosenPort == 0U)
+        return false;
+
+    std::atomic<bool> firstTcpConnected{};
+    std::atomic<bool> firstTlsEstablished{};
+    std::atomic<bool> releaseFirstPeer{};
+    std::atomic<bool> firstPeerFinished{};
+    std::thread firstPeer([&]() noexcept {
+        NetworkTlsClient client;
+        if (client.connectHybrid(
+                endpoint.address, chosenPort, firstTcpConnected))
+        {
+            firstTlsEstablished.store(true, std::memory_order_release);
+            (void)waitForRelease(releaseFirstPeer);
+        }
+        firstPeerFinished.store(true, std::memory_order_release);
+    });
+
+    const auto releaseAndJoinFirstPeer = [&]() noexcept {
+        releaseFirstPeer.store(true, std::memory_order_release);
+        if (firstPeer.joinable())
+            firstPeer.join();
+    };
+
+    RuntimeHostStatus firstAccepted = control.status();
+    const auto tlsDeadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds{8};
+    bool reachedTls = false;
+    while (std::chrono::steady_clock::now() < tlsDeadline)
+    {
+        const RuntimeHostResult step = control.serviceOnce();
+        if (!step.succeeded())
+            break;
+        firstAccepted = control.status();
+        if (firstTlsEstablished.load(std::memory_order_acquire) &&
+            firstAccepted.stage == RuntimeHostStage::ClientAuthenticating &&
+            firstAccepted.activeClients.size() == 1U)
+        {
+            reachedTls = true;
+            break;
+        }
+        if (firstPeerFinished.load(std::memory_order_acquire))
+            break;
+        std::this_thread::sleep_for(std::chrono::milliseconds{1});
+    }
+
+    if (!reachedTls)
+    {
+        const bool tcpConnected =
+            firstTcpConnected.load(std::memory_order_acquire);
+        releaseAndJoinFirstPeer();
+        (void)control.stopSharing();
+        if (!tcpConnected)
+            return false;
+        assert(false &&
+               "production macOS HostControl did not establish first TLS peer");
+        return false;
+    }
+
+    const std::uint64_t firstClientId =
+        firstAccepted.activeClients.front().opaqueId;
+    assert(firstClientId != 0U);
+    assert(firstAccepted.lastError == RuntimeHostError::None);
+    assert(firstAccepted.acceptedClientPreauthDiagnostics.available);
+    assert(firstAccepted.acceptedClientPreauthDiagnostics.acceptedClientId ==
+           firstClientId);
+    assert(firstAccepted.acceptedClientPreauthDiagnostics.termination ==
+           RuntimeAcceptedClientTermination::Open);
+
+    // A TLS-established peer FIN before any CredSSP token is a remote
+    // incomplete-authentication result for generation one.
+    releaseAndJoinFirstPeer();
+    RuntimeHostStatus firstRetired = control.status();
+    bool observedPeerClose = false;
+    for (std::size_t ownerStep = 0U; ownerStep < 64U; ++ownerStep)
+    {
+        const RuntimeHostResult step = control.serviceOnce();
+        firstRetired = control.status();
+        if (!step.succeeded())
+        {
+            assert(step.error ==
+                   RuntimeHostError::AuthenticationIncompletePeerClosed);
+            observedPeerClose =
+                firstRetired.stage == RuntimeHostStage::ListenerAvailable &&
+                firstRetired.activeClients.empty();
+            break;
+        }
+        std::this_thread::yield();
+    }
+    assert(observedPeerClose);
+    assert(firstRetired.lastError ==
+           RuntimeHostError::AuthenticationIncompletePeerClosed);
+    assert(firstRetired.acceptedClientPreauthDiagnostics.acceptedClientId ==
+           firstClientId);
+    assert(firstRetired.acceptedClientPreauthDiagnostics.termination ==
+           RuntimeAcceptedClientTermination::PeerEof);
+
+    struct ScopedSocket final
+    {
+        explicit ScopedSocket(int value = -1) noexcept : descriptor(value) {}
+        ~ScopedSocket() { reset(); }
+        ScopedSocket(const ScopedSocket&) = delete;
+        ScopedSocket& operator=(const ScopedSocket&) = delete;
+
+        void reset(int replacement = -1) noexcept
+        {
+            if (descriptor >= 0)
+                (void)::close(descriptor);
+            descriptor = replacement;
+        }
+
+        int descriptor{-1};
+    };
+
+    const auto connectPeer = [&]() noexcept -> int {
+        const int descriptor = ::socket(AF_INET, SOCK_STREAM, 0);
+        if (descriptor < 0)
+            return -1;
+
+        sockaddr_in destination{};
+        destination.sin_family = AF_INET;
+        destination.sin_port = htons(chosenPort);
+        if (::inet_pton(AF_INET, endpoint.address.c_str(),
+                        &destination.sin_addr) != 1 ||
+            ::connect(descriptor,
+                      reinterpret_cast<const sockaddr*>(&destination),
+                      static_cast<socklen_t>(sizeof(destination))) != 0)
+        {
+            (void)::close(descriptor);
+            return -1;
+        }
+        return descriptor;
+    };
+
+    ScopedSocket secondPeer{connectPeer()};
+    if (secondPeer.descriptor < 0)
+        return false;
+
+    RuntimeHostStatus secondAccepted = control.status();
+    bool acceptedSecond = false;
+    for (std::size_t ownerStep = 0U; ownerStep < 64U; ++ownerStep)
+    {
+        const RuntimeHostResult step = control.serviceOnce();
+        assert(step.succeeded());
+        secondAccepted = control.status();
+        if (secondAccepted.stage == RuntimeHostStage::ClientAuthenticating &&
+            secondAccepted.activeClients.size() == 1U &&
+            secondAccepted.activeClients.front().opaqueId != firstClientId)
+        {
+            acceptedSecond = true;
+            break;
+        }
+        std::this_thread::yield();
+    }
+    assert(acceptedSecond);
+
+    const std::uint64_t secondClientId =
+        secondAccepted.activeClients.front().opaqueId;
+    assert(secondClientId != 0U && secondClientId != firstClientId);
+    assert(secondAccepted.lastError == RuntimeHostError::None);
+    assert(!secondAccepted.clientDisconnected);
+    assert(secondAccepted.acceptedClientPreauthDiagnostics.available);
+    assert(secondAccepted.acceptedClientPreauthDiagnostics.acceptedClientId ==
+           secondClientId);
+    assert(secondAccepted.acceptedClientPreauthDiagnostics.termination ==
+           RuntimeAcceptedClientTermination::Open);
+
+    // Explicit owner retirement remains local cancellation and cannot inherit
+    // generation one's remote authentication failure.
+    assert(control.disconnectClient(secondClientId).succeeded());
+    const RuntimeHostStatus ownerCancelled = control.status();
+    assert(ownerCancelled.stage == RuntimeHostStage::ListenerAvailable);
+    assert(ownerCancelled.lastError == RuntimeHostError::None);
+    assert(ownerCancelled.activeClients.empty());
+    assert(ownerCancelled.acceptedClientPreauthDiagnostics.available);
+    assert(ownerCancelled.acceptedClientPreauthDiagnostics.acceptedClientId ==
+           secondClientId);
+    assert(ownerCancelled.acceptedClientPreauthDiagnostics.termination ==
+           RuntimeAcceptedClientTermination::OwnerCancellation);
+    assert(ownerCancelled.acceptedClientPreauthDiagnostics.acceptedClientId !=
+           firstClientId);
+    secondPeer.reset();
+
+    // A fresh listener generation is also a diagnostic boundary. Ordinary Stop
+    // retains only the memory credential, never a prior accepted-client record.
+    assert(control.stopSharing().succeeded());
+    assert(control.configure(selection).succeeded());
+    assert(control.requestHostPermissionSetup(permission).succeeded());
+    assert(control.startSharing().succeeded());
+    const RuntimeHostStatus restarted = control.status();
+    assert(restarted.stage == RuntimeHostStage::ListenerAvailable);
+    assert(restarted.listenerAvailable);
+    assert(restarted.lastError == RuntimeHostError::None);
+    assert(!restarted.clientDisconnected);
+    assert(!restarted.acceptedClientPreauthDiagnostics.available);
+    assert(restarted.activeClients.empty());
+
+    assert(control.stopSharing().succeeded());
+    return true;
+}
+
+
 // Only a synthetic local TCP peer is used. This narrower regression stops at
 // an incomplete TPKT; the distinct completed-CredSSP case above covers the
 // authenticated proof plus queued first-MCS boundary.
@@ -1967,6 +2201,12 @@ int main(int argc, char** argv)
     else if (selected == "macos-host-control-stop-start-retains-standalone-credential")
     {
         if (!testStopStartRetainsStandaloneCredential())
+            return 77;
+    }
+    else if (selected ==
+             "macos-host-control-peer-failure-new-client-owner-cancellation-isolation")
+    {
+        if (!testMacPeerFailureNewClientOwnerCancellationIsolation())
             return 77;
     }
     else if (selected == "macos-host-control-accepted-pre-admission-dormancy")

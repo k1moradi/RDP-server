@@ -1,3 +1,7 @@
+## R10 macOS diagnostic-generation isolation qualification (2026-11-02)
+
+Reuse only `~/rdp-server/build/`. On macOS Debug run the canonical configure/build, then `ctest --test-dir build -C Debug -R '^runtime[.]macos-host-control-peer-failure-new-client-owner-cancellation-isolation$' --output-on-failure` and ordinary full CTest; repeat in Release in the same root. Hosted exact-publication macOS and cross-platform jobs must complete before claiming qualification. Connector-local compile/CTest is NOT RUN without the owner checkout; the test uses only local TCP/TLS and injected owner evidence and must not request TCC or native desktop access.
+
 ## R4 near-capacity retirement focused qualification (2026-11-02)
 
 Use only the canonical `~/rdp-server/build/` root. After Debug configure/build, run `ctest --test-dir build -C Debug -R '^graphics[.]frame-(near-capacity-partial-data-retirement-successor-generation|partial-data-retirement-successor-generation|partial-data-resize-after-ack|delivery-session-retirement-before-ack)$' --output-on-failure`, then full Debug CTest; repeat focused/full Release in the same root. The new case is ordinary full CTest and intentionally does not alter the fixed Graphics DVC **23** or x264/BGRA **29** sanitizer selectors. Existing ASan/UBSan R4/R3 selections remain the applicable instrumented regression baseline. No benchmark or physical desktop/client action is required for this test-only lifecycle increment.

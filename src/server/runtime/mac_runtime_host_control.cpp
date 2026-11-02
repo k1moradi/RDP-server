@@ -2894,8 +2894,14 @@ RuntimeHostResult MacRuntimeHostControl::startSharing()
     }
 
     listener_ = std::move(candidate);
+    // A successful Start begins a new listener/session lifetime. Retained
+    // diagnostics describe the previous accepted client and must not cross
+    // this generation boundary.
+    acceptedClientDiagnostics_ = {};
+    clientDisconnected_ = false;
     stage_ = RuntimeHostStage::ListenerAvailable;
     lastError_ = RuntimeHostError::None;
+    customErrorMessage_.clear();
     return {RuntimeHostError::None, false};
 }
 
@@ -3050,6 +3056,12 @@ RuntimeHostResult MacRuntimeHostControl::serviceOnce() noexcept try
         acceptedClientDiagnostics_.standaloneCredentialGeneration =
             standaloneCredentialGeneration_;
         acceptedClientDiagnostics_.acceptedClientId = activeClientId_;
+        // The aggregate error belongs to the same accepted-client generation
+        // as this diagnostic snapshot. A prior peer failure must not classify
+        // a fresh connection before it has produced its own terminal result.
+        clientDisconnected_ = false;
+        lastError_ = RuntimeHostError::None;
+        customErrorMessage_.clear();
         stage_ = RuntimeHostStage::ClientAuthenticating;
     }
 
@@ -3129,6 +3141,9 @@ RuntimeHostResult MacRuntimeHostControl::disconnectClient(
     {
         retireAcceptedClient();
         stage_ = RuntimeHostStage::ListenerAvailable;
+        // Explicit owner cancellation is not a remote authentication failure.
+        lastError_ = RuntimeHostError::None;
+        customErrorMessage_.clear();
         return {RuntimeHostError::None, false};
     }
     return deny(RuntimeHostError::ClientNotFound);

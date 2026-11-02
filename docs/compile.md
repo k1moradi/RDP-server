@@ -1,3 +1,7 @@
+## R10 original-owner change between Configure and Start (2026-11-01)
+
+Reuse the **single** canonical `~/rdp-server/build/` root: `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug -R '^runtime[.]linux-host-control-original-owner-changed-after-configure-denial$' --output-on-failure && ctest --test-dir build -C Debug --output-on-failure`. Repeat focused/full Release in the same root and the applicable hosted sanitizer/CI matrix on the exact publication SHA. The native-environment test may skip 77 on a headless/no-LAN host; that is not native acceptance. No separate checkout/build tree, listener, desktop capture or client authorization is needed. In the connector-only authoring environment local build/CTest/sanitizers are NOT RUN.
+
 ## Windows preference file-identity focused qualification (2026-11-01)
 
 Reuse only the canonical `~/rdp-server/build/`. After the normal Windows Debug configure/build, run `ctest --test-dir build -C Debug -R '^runtime[.]user-preferences-(windows-hard-link-substitution-denial|windows-localappdata-ancestor-denial|windows-inaccessible-directory-not-missing|owner-private-versioned-roundtrip-denials)$' --output-on-failure`, then full Debug CTest; repeat focused/full in Release and the existing applicable security/sanitizer lanes on the exact publication SHA. No new executable, dependency or build root is introduced. Connector-local execution is **NOT RUN**.

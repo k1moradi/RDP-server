@@ -990,6 +990,7 @@ if(TARGET rdp-server-linux-host-control)
             linux-host-control-revalidated-interface-denials
             linux-host-control-automatic-tls-identity-lifecycle
             linux-host-control-rejected-selection-retires-previous
+            linux-host-control-original-owner-changed-after-configure-denial
             linux-host-control-native-interface-id-verification
             linux-host-control-standalone-password-lifecycle
             linux-host-control-stop-start-retains-standalone-credential

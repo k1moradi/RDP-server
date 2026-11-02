@@ -1,3 +1,7 @@
+## R10 owner-change endpoint regression is not a throughput result (2026-11-01)
+
+The new first-Start denial test changes no runtime code, hot-path work, buffer, scheduler, TLS writer, codec or permission behavior. No benchmark was run or is warranted by this test-only increment; physical frame latency and throughput remain separately unverified.
+
 ## Windows preference hard-link denial is correctness, not throughput (2026-11-01)
 
 The added `GetFileInformationByHandle` link-count check runs only on cold preference file validation and introduces no protocol, frame, input, Clipboard, listener or credential hot-path work. No benchmark is required for this security-correctness hardening and none was run.

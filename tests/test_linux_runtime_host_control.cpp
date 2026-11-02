@@ -1884,6 +1884,71 @@ int main(int argc, char** argv)
 
 
     if (testCase ==
+        "linux-host-control-original-owner-changed-after-configure-denial")
+    {
+#if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+        return 77;
+#else
+        const auto processUid = static_cast<std::uint32_t>(::getuid());
+        if (processUid == 0U ||
+            processUid == (std::numeric_limits<std::uint32_t>::max)())
+            return 77;
+
+        PortableBootstrapEvidence evidence(processUid);
+        LinuxRuntimeHostControl control(evidence);
+        const auto interfaces = control.enumerateLocalInterfaces();
+        if (interfaces.empty() || interfaces.front().localAddresses.empty())
+            return 77; // No eligible real interface; never invent one.
+
+        auto password = standalonePassword();
+        assert(control.configureStandaloneApplicationPassword(u"rdp", password));
+        assert(std::ranges::all_of(
+            password, [](char16_t value) { return value == u'\0'; }));
+
+        RuntimeHostPermissionRequest permission;
+        permission.allowInput = true;
+        permission.allowClipboard = false;
+        permission.requestedLifetimeMilliseconds = 15U * 60U * 1000U;
+        assert(control.requestHostPermissionSetup(permission).succeeded());
+
+        const RuntimeHostOptions selection{
+            interfaces.front().stableId,
+            interfaces.front().localAddresses.front(), 3389U, true, false};
+        assert(control.configure(selection).succeeded());
+        const RuntimeHostStatus prepared = control.status();
+        assert(prepared.hostOwnerAuthorized);
+        assert(prepared.tlsIdentityReady);
+        assert(!prepared.selectedEndpoint.empty());
+        assert(!prepared.listenerAvailable);
+        assert(prepared.listenerGeneration == 0U);
+        assert(prepared.boundEndpoint.empty());
+
+        // The original, injected R2 owner disappears after TLS/endpoint
+        // preparation but before explicit Start. Reusing the selected
+        // interface and cached consent cannot create a real R1 listener.
+        evidence.switchToDifferentUser();
+        const RuntimeHostResult denied = control.startSharing();
+        assert(denied.error == RuntimeHostError::NativeAuthorizationDenied);
+        const RuntimeHostStatus afterOwnerChange = control.status();
+        assert(!afterOwnerChange.listenerAvailable);
+        assert(afterOwnerChange.listenerGeneration == 0U);
+        assert(afterOwnerChange.boundEndpoint.empty());
+        assert(afterOwnerChange.activeClients.empty());
+        assert(!afterOwnerChange.nativeDesktopReady);
+        assert(!afterOwnerChange.firstLiveGraphicsTrace.firstFramebufferAvailable);
+        assert(!afterOwnerChange.firstLiveGraphicsTrace.firstExactTlsWriteCommitted);
+        assert(!afterOwnerChange.firstLiveGraphicsTrace.firstGenuineMatchingFrameAcknowledge);
+
+        assert(control.stopSharing().succeeded());
+        const RuntimeHostStatus stopped = control.status();
+        assert(!stopped.hostOwnerAuthorized);
+        assert(!stopped.listenerAvailable);
+        assert(stopped.boundEndpoint.empty());
+        return 0;
+#endif
+    }
+
+    if (testCase ==
         "linux-host-control-fresh-native-authorization-every-start")
     {
 #if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)

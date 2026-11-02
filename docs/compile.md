@@ -1,3 +1,7 @@
+## R2 Windows first-publication race focused qualification (2026-11-02)
+
+Reuse only the canonical `~/rdp-server/build/` or hosted checkout `build/`. On Windows run Debug and Release `ctest --test-dir build -C <config> -R '^runtime[.]user-preferences-windows-(first-publication-race-denial|active-reader-(atomic-replacement|replacement-identity)|hard-link-substitution-denial|localappdata-ancestor-denial|inaccessible-directory-not-missing)$' --output-on-failure`, then full CTest in each configuration. Require exact-publication-SHA MSVC and CLANG64 evidence. Connector-local build/CTest is NOT RUN; no extra build root or real user settings path is permitted.
+
 ## R3 partial Share-write / buffered finalization qualification (2026-11-02)
 
 Reuse only `~/rdp-server/build/` (hosted CI: the checkout's single `build/`). After canonical Debug configure/build, run `ctest --test-dir build -C Debug -R '^security[.]macos-protected-(share-partial-synchronize-buffered-client-finalization|share-finalization-client-batch-tls-receipts|share-confirm-active-finalization-single-tls-write|personal-desktop-share-activation-receipts|batched-channel-joins-client-info-tls-receipts|mixed-joins-client-info-partial-license-stop)$' --output-on-failure`, then full Debug CTest. Reconfigure the same root for Release and repeat focused/full CTest plus unchanged applicable security/protocol sanitizer selections. Connector-local execution is **NOT RUN**; exact publication-SHA hosted Debug/Release is required.

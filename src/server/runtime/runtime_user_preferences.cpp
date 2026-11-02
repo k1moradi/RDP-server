@@ -656,7 +656,9 @@ struct LocalMemoryCloser final
 [[nodiscard]] RuntimeUserPreferencesStorageStatus saveToWindowsDirectory(
     const std::filesystem::path& directory, PSID sid,
     const RuntimeUserPreferences& preferences,
-    bool failBeforeAtomicReplace)
+    bool failBeforeAtomicReplace,
+    detail::WindowsPreferenceFirstPublicationHookForTesting
+        firstPublicationHook = nullptr)
 {
     const auto target = directory / L"preferences.bin";
     NativeHandle existing{::CreateFileW(
@@ -714,6 +716,11 @@ struct LocalMemoryCloser final
         bool published = false;
         if (complete && !failBeforeAtomicReplace)
         {
+            // Test-only deterministic interleaving: production always passes
+            // null. Run only after first-save absence preflight and a fully
+            // flushed private temporary file, immediately before publication.
+            if (!targetExists && firstPublicationHook != nullptr)
+                firstPublicationHook(target);
             published = targetExists
                 ? ::ReplaceFileW(
                       target.c_str(), temporaryPath.c_str(), nullptr,
@@ -961,7 +968,12 @@ namespace
 saveRuntimeUserPreferencesToExistingDirectory(
     const std::filesystem::path& directory,
     const RuntimeUserPreferences& preferences,
-    const bool failBeforeAtomicReplace) noexcept
+    const bool failBeforeAtomicReplace
+#if defined(_WIN32)
+    , const WindowsPreferenceFirstPublicationHookForTesting
+          firstPublicationHook = nullptr
+#endif
+    ) noexcept
 {
     try
     {
@@ -980,7 +992,8 @@ saveRuntimeUserPreferencesToExistingDirectory(
         if (!opened || !isPrivateWindowsObject(opened.get(), sid, true))
             return RuntimeUserPreferencesStorageStatus::Invalid;
         return saveToWindowsDirectory(
-            directory, sid, preferences, failBeforeAtomicReplace);
+            directory, sid, preferences, failBeforeAtomicReplace,
+            firstPublicationHook);
 #else
         FileDescriptor opened{::open(
             directory.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)};
@@ -1014,6 +1027,18 @@ saveRuntimeUserPreferencesToDirectoryWithAtomicReplaceFailureForTesting(
     return saveRuntimeUserPreferencesToExistingDirectory(
         directory, preferences, true);
 }
+
+#if defined(_WIN32)
+RuntimeUserPreferencesStorageStatus
+saveRuntimeUserPreferencesToDirectoryWithFirstPublicationHookForTesting(
+    const std::filesystem::path& directory,
+    const RuntimeUserPreferences& preferences,
+    const WindowsPreferenceFirstPublicationHookForTesting hook) noexcept
+{
+    return saveRuntimeUserPreferencesToExistingDirectory(
+        directory, preferences, false, hook);
+}
+#endif
 
 } // namespace detail
 

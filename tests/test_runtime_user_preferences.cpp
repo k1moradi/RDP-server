@@ -65,6 +65,27 @@ using WindowsHandle = std::unique_ptr<void, WindowsHandleCloser>;
            firstInformation.nFileIndexLow == secondInformation.nFileIndexLow;
 }
 
+constexpr std::string_view kRacedFirstPublicationBytes{
+    "raced-first-publication"};
+
+void createRacedFirstPublicationTarget(
+    const std::filesystem::path& target) noexcept
+{
+    const HANDLE file = ::CreateFileW(
+        target.c_str(), GENERIC_WRITE, 0U, nullptr, CREATE_NEW,
+        FILE_ATTRIBUTE_NORMAL, nullptr);
+    assert(file != INVALID_HANDLE_VALUE);
+    const DWORD expectedBytes =
+        static_cast<DWORD>(kRacedFirstPublicationBytes.size());
+    DWORD written = 0U;
+    assert(::WriteFile(
+               file, kRacedFirstPublicationBytes.data(), expectedBytes,
+               &written, nullptr) != 0);
+    assert(written == expectedBytes);
+    assert(::FlushFileBuffers(file) != 0);
+    assert(::CloseHandle(file) != 0);
+}
+
 [[nodiscard]] bool createPrivateDirectory(const std::filesystem::path& path)
 {
     HANDLE token = nullptr;
@@ -256,6 +277,60 @@ int runWindowsActiveReaderAtomicReplacementTest()
         assert(loaded.preferredStableLanInterfaceId ==
                replacement.preferredStableLanInterfaceId);
     }
+    assert(std::filesystem::remove(file));
+    assert(std::filesystem::remove(directory));
+    return 0;
+}
+
+int runWindowsFirstPublicationRaceDenialTest()
+{
+    using Status = RuntimeUserPreferencesStorageStatus;
+    const auto directory = std::filesystem::current_path() /
+        ("runtime-user-preferences-windows-first-publication-race-" +
+         std::to_string(::GetCurrentProcessId()));
+    assert(createPrivateDirectory(directory));
+    const auto file = directory / L"preferences.bin";
+    assert(!std::filesystem::exists(file));
+
+    RuntimeUserPreferences preferences;
+    preferences.lastExplicitUsername = "first-publication-owner";
+    preferences.preferredStableLanInterfaceId = "{ABC-123}_Ethernet";
+    preferences.port = 3398U;
+    preferences.preferRemoteInput = false;
+    preferences.permissionLifetimeMinutes = 9U;
+
+    assert(detail::
+               saveRuntimeUserPreferencesToDirectoryWithFirstPublicationHookForTesting(
+                   directory, preferences, &createRacedFirstPublicationTarget) ==
+           Status::Unavailable);
+
+    // No-replace publication must preserve the raced pathname byte-for-byte,
+    // and failure cleanup must leave no private temporary file behind.
+    const WindowsHandle racedReader = openSharedPreferenceReader(file);
+    assert(racedReader);
+    LARGE_INTEGER racedSize{};
+    assert(::GetFileSizeEx(racedReader.get(), &racedSize) != 0);
+    assert(racedSize.QuadPart ==
+           static_cast<LONGLONG>(kRacedFirstPublicationBytes.size()));
+    std::array<char, 64U> racedBytes{};
+    DWORD received = 0U;
+    assert(::ReadFile(
+               racedReader.get(), racedBytes.data(),
+               static_cast<DWORD>(kRacedFirstPublicationBytes.size()),
+               &received, nullptr) != 0);
+    assert(received ==
+           static_cast<DWORD>(kRacedFirstPublicationBytes.size()));
+    assert(std::string_view{racedBytes.data(), received} ==
+           kRacedFirstPublicationBytes);
+
+    std::size_t entryCount = 0U;
+    for (const auto& entry : std::filesystem::directory_iterator(directory))
+    {
+        ++entryCount;
+        assert(entry.path() == file);
+    }
+    assert(entryCount == 1U);
+
     assert(std::filesystem::remove(file));
     assert(std::filesystem::remove(directory));
     return 0;
@@ -603,6 +678,9 @@ int main(int argc, char** argv)
     if (argc == 2 &&
         std::string_view{argv[1]} == "windows-active-reader-replacement-identity")
         return runWindowsActiveReaderReplacementIdentityTest();
+    if (argc == 2 &&
+        std::string_view{argv[1]} == "windows-first-publication-race-denial")
+        return runWindowsFirstPublicationRaceDenialTest();
 #endif
 #if !defined(_WIN32)
     if (argc == 2 &&

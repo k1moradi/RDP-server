@@ -21,6 +21,16 @@ classifyWindowsApplicationDirectoryOpenFailure(
 // isolated offline Windows test. The public API still accepts no paths.
 [[nodiscard]] bool windowsDirectoryHasNoReparseAncestorsForTesting(
     const std::filesystem::path& directory) noexcept;
+
+// Deterministic Windows-only race hook for the offline first-publication
+// regression. Production callers never supply this hook.
+using WindowsPreferenceFirstPublicationHookForTesting =
+    void (*)(const std::filesystem::path& target) noexcept;
+[[nodiscard]] RuntimeUserPreferencesStorageStatus
+saveRuntimeUserPreferencesToDirectoryWithFirstPublicationHookForTesting(
+    const std::filesystem::path& directory,
+    const RuntimeUserPreferences& preferences,
+    WindowsPreferenceFirstPublicationHookForTesting hook) noexcept;
 #else
 // POSIX-only resolver seam for the focused unsafe-ancestor CTest. It uses the
 // same no-follow ownership/mode checks as production but starts from an

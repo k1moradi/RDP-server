@@ -1,3 +1,7 @@
+## R2 first-publication race regression is correctness-only (2026-11-02)
+
+The new Windows fixture adds only a null-by-default internal test hook around the existing cold preference publication boundary and one offline CTest. Production still executes the same non-replacing `MoveFileExW(MOVEFILE_WRITE_THROUGH)` operation with no additional allocation, retry, protocol/frame/input/Clipboard work or scheduler state. No throughput benchmark is applicable or claimed; benchmark NOT RUN.
+
 ## R3 partial Share-write interleave is correctness-only (2026-11-02)
 
 The new regression changes no production implementation, queue, allocation, parser, TLS I/O loop, licensing state machine or graphics scheduler. It drives an existing setup/Share interleave through original R1/R2/R3 owners only. No throughput benchmark is applicable or claimed; benchmark **NOT RUN** and hosted Debug/Release CTest is the executable gate.

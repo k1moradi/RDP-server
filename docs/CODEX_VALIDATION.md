@@ -1,3 +1,11 @@
+## R8 P1 unexpected client Monitor Ready retirement (2026-11-01)
+
+**Main parent:** `f3ce13e594744001bf0ed0db5973e60859ab5446`. Current main already has the Linux R10 single scheduler for server CAPS and Monitor Ready, R3/R1 full accepted-byte write receipts, client initial Format List dispatch and full server Format List Response delivery, plus a separate R2 Clipboard permission visit before R8 native presentation. The remaining invalid-direction case was an inbound client CB_MONITOR_READY accepted while Dormant, despite MS-RDPECLIP defining Monitor Ready as server-originated.
+
+Production bridge now retires a route for inbound Monitor Ready in every stage; a new independent ordinary offline production-backed `runtime.clipboard-client-monitor-ready-route-retirement` asserts pre-CAPS retirement, fresh reconnect CAPS/Monitor/client-response Delivered sequence, and post-Ready retirement. The existing Linux X11 publication source-contract is hardened for that direction while retaining exact native scope, zero/WANT and positive receipt/Delivered requirements. No production Clipboard activation, R10 scheduler, R1 writer, OS permission or native clipboard access changed; no second issuer. Prior partial/Stop/stale tests, the 107 Clipboard sanitizer selection and three macOS View/Input-only denial fixtures remain.
+
+**Verification:** source/registry/ownership/dependency review PASS. Local canonical build, focused/full Debug/Release CTest, ASan/UBSan, benchmark NOT RUN because the developer checkout is not mounted and GitHub DNS cannot resolve for local clone. Exact-publication hosted CI PENDING. Existing hosted `7ac928c8` full cross-platform Debug/Release + 107/107 Clipboard sanitizer PASS is ancestor-only. Physical Windows App Type-3, native R2 Clipboard grant and video/input/Stop/reconnect NOT RUN; R10 retains the original accepted-client handshake qualification boundary.
+
 ## R7 bounded GUI password staging before R10 (2026-11-01)
 
 Reviewed parent `f3ce13e594744001bf0ed0db5973e60859ab5446`, including R2's current preference ancestry

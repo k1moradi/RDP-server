@@ -1,3 +1,7 @@
+## R8 client-only Monitor Ready denial after original R3/R1 receipts (2026-11-01)
+
+Register `runtime.clipboard-client-monitor-ready-route-retirement` as an ordinary dedicated CTest in the existing production-linked R8/R3 test executable, outside the fixed 107 Clipboard sanitizer cases. A client CB_MONITOR_READY is always wrong-direction, including in Dormant. Reject and retire without Ready or a queued response; a new R3 generation must separately receive the original server CAPS, Monitor Ready and initial client Format List Response full Delivered receipts before Ready. A second wrong-direction packet after Ready retires again. The existing offline original receipt/zero/WANT/partial/Stop/stale-generation cases and Linux source gate validate the fresh R2 Clipboard authorization requirement; none of these synthetic tests is evidence of a native grant. Retain all three macOS scope-denial regressions plus the mapped GraphicsReady denial and X11 callback/INCR retirement. No native Clipboard access or new loop. Local CTest/sanitizers NOT RUN; publication-SHA CI PENDING.
+
 ## R7 bounded GUI password-staging regression (2026-11-01)
 
 Register ordinary `gui.offscreen-rapid-password-input-bounds` in the existing

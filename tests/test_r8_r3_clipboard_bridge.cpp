@@ -592,6 +592,69 @@ void initialHandshakeExactReceiptDenials()
     assert(!bridge.active() && !bridge.serverInitializationReady());
 }
 
+
+void clientOriginatedMonitorReadyRouteRetirement()
+{
+    using namespace rdp_server::clipboard;
+    using Stage = R3ClipboardTransferBridge::ServerInitializationStage;
+    constexpr RdpClipboardStaticChannelView firstView{1008U, 403U};
+    constexpr RdpClipboardStaticChannelView reconnectView{1008U, 404U};
+
+    R3ClipboardTransferBridge bridge(0U, true);
+    RdpClipboardStaticChannelRoute firstRoute;
+    assert(firstRoute.start(
+        1005U, firstView.channelId, firstView.generation, 1600U));
+    auto visitor = bridge.channelVisitor();
+    auto sink = bridge.completePduSink();
+    const auto peerMonitorReady = pdu(kMonitorReady, 0U);
+
+    // Even an observed, joined R3 route cannot accept the server-only PDU
+    // from a client before any original server initialization receipts.
+    assert(!bridge.serverInitializationReady());
+    assert(!bridge.prepareNextServerInitializationPdu());
+    assert(visitor.visit(visitor.context, firstView));
+    assert(!sink.consume(sink.context, peerMonitorReady));
+    assert(!bridge.active() && !bridge.serverInitializationReady());
+    assert(bridge.pendingApplicationPdu().empty());
+    assert(!bridge.prepareNextServerInitializationPdu());
+    firstRoute.close();
+
+    // Reconnect cannot inherit this route or fake initial readiness.
+    RdpClipboardStaticChannelRoute reconnectRoute;
+    assert(reconnectRoute.start(
+        1005U, reconnectView.channelId, reconnectView.generation, 1600U));
+    assert(visitor.visit(visitor.context, reconnectView));
+    assert(bridge.prepareNextServerInitializationPdu());
+    assert(bridge.serverInitializationStage() ==
+           Stage::ServerCapabilitiesWritePending);
+    assert(!bridge.serverInitializationReady());
+    deliverPendingSinglePacketWithFraming(bridge, reconnectRoute);
+    assert(bridge.serverInitializationStage() == Stage::AwaitMonitorReady);
+
+    // The only valid Monitor Ready is prepared by R8 and delivered by R3/R1.
+    assert(visitor.visit(visitor.context, reconnectView));
+    assert(bridge.prepareNextServerInitializationPdu());
+    assert(bridge.serverInitializationStage() ==
+           Stage::MonitorReadyWritePending);
+    assert(!bridge.serverInitializationReady());
+    deliverPendingSinglePacketWithFraming(bridge, reconnectRoute);
+    assert(bridge.serverInitializationStage() ==
+           Stage::AwaitClientInitialization);
+
+    assert(visitor.visit(visitor.context, reconnectView));
+    assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    assert(!bridge.serverInitializationReady());
+    deliverPendingSinglePacketWithFraming(bridge, reconnectRoute);
+    assert(bridge.serverInitializationReady());
+
+    // A peer Monitor Ready remains invalid after legitimate initialization;
+    // fail-closed route retirement also revokes the R8 publication predicate.
+    assert(visitor.visit(visitor.context, reconnectView));
+    assert(!sink.consume(sink.context, peerMonitorReady));
+    assert(!bridge.active() && !bridge.serverInitializationReady());
+    reconnectRoute.close();
+}
+
 void permissionOnlyRouteObservationConsumption()
 {
     using namespace rdp_server::clipboard;
@@ -1397,6 +1460,8 @@ int main(int argc, char **argv)
         initialHandshakeExactReceiptDenials();
     else if (behavior == "permission-only-route-observation-consumption")
         permissionOnlyRouteObservationConsumption();
+    else if (behavior == "client-originated-monitor-ready-route-retirement")
+        clientOriginatedMonitorReadyRouteRetirement();
     else if (behavior == "server-initialization-generation-replacement")
         serverInitializationGenerationReplacement();
     else if (behavior == "server-initialization-pending-write-retirement")

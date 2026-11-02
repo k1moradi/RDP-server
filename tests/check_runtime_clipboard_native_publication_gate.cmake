@@ -5,11 +5,33 @@ cmake_minimum_required(VERSION 3.22)
 # protects the authorization and R1 receipt order without touching native X11.
 if(NOT DEFINED RDP_LINUX_PREPARED_CLIPBOARD_HEADER OR
    NOT DEFINED RDP_LINUX_HOST_CONTROL_SOURCE OR
-   NOT DEFINED RDP_LINUX_RUNTIME_CONNECTION_SOURCE)
+   NOT DEFINED RDP_LINUX_RUNTIME_CONNECTION_SOURCE OR
+   NOT DEFINED RDP_R8_R3_CLIPBOARD_BRIDGE_SOURCE)
     message(FATAL_ERROR "missing R8 owner source")
 endif()
 file(READ "${RDP_LINUX_PREPARED_CLIPBOARD_HEADER}" owner_source)
 file(READ "${RDP_LINUX_RUNTIME_CONNECTION_SOURCE}" connection_source)
+file(READ "${RDP_R8_R3_CLIPBOARD_BRIDGE_SOURCE}" bridge_source)
+
+# Monitor Ready is server-originated. An injected client Monitor Ready must
+# retire R8's current route even before server CAPS are prepared, and can
+# never manufacture a CAPS/Monitor/initial-response delivery receipt.
+string(FIND "${bridge_source}" "case kMonitorReady:" monitor_case_begin)
+string(FIND "${bridge_source}" "case kClipCaps:" monitor_case_end)
+if(monitor_case_begin LESS 0 OR
+   monitor_case_end LESS_EQUAL monitor_case_begin)
+    message(FATAL_ERROR "R8 client Monitor Ready case not found")
+endif()
+math(EXPR monitor_case_length
+    "${monitor_case_end} - ${monitor_case_begin}")
+string(SUBSTRING "${bridge_source}" ${monitor_case_begin}
+    ${monitor_case_length} monitor_case_source)
+string(FIND "${monitor_case_source}" "return failCurrentRoute();" monitor_retire)
+string(FIND "${monitor_case_source}" "return true;" monitor_accept)
+if(monitor_retire LESS 0 OR monitor_accept GREATER_EQUAL 0)
+    message(FATAL_ERROR
+        "client-originated Monitor Ready must always retire the R8 route")
+endif()
 
 string(FIND "${owner_source}" "bool serviceAfterNetworkDispatch(" dispatch_begin)
 string(FIND "${owner_source}" "bool serviceNative(" dispatch_end)

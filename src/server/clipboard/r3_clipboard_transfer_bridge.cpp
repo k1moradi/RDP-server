@@ -419,9 +419,9 @@ bool R3ClipboardTransferBridge::consumeCompletePdu(
         // CB_MONITOR_READY is server-to-client. Once this bridge has entered
         // the server initialization sequence, a peer Monitor Ready would make
         // the direction/order ambiguous and retires the route.
-        if (serverInitializationStage_ != ServerInitializationStage::Dormant)
-            return failCurrentRoute();
-        return true;
+        // It is equally invalid while Dormant: no client packet can stand in
+        // for the server's original R3/R1 Monitor Ready delivery receipt.
+        return failCurrentRoute();
 
     case kClipCaps:
         if (serverInitializationStage_ != ServerInitializationStage::Dormant &&

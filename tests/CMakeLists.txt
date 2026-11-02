@@ -2997,6 +2997,15 @@ foreach(case_name IN ITEMS
         LABELS "protocol;clipboard;lifecycle;security;offline")
 endforeach()
 
+# An inbound client Monitor Ready is never the server's original R3/R1
+# delivery receipt, including while Dormant. Offline, no R2/native grant.
+# Separate from the fixed 107-case Clipboard sanitizer selector.
+add_test(NAME runtime.clipboard-client-monitor-ready-route-retirement
+    COMMAND test_r8_r3_clipboard_bridge
+        client-originated-monitor-ready-route-retirement)
+set_tests_properties(runtime.clipboard-client-monitor-ready-route-retirement
+    PROPERTIES LABELS "runtime;security;offline")
+
 # R8 initial CAPS/Monitor/initial Format List exact R3 receipt and restart.
 # Deliberately outside the fixed 107-case Clipboard sanitizer selector.
 add_test(NAME runtime.clipboard-initial-handshake-exact-receipt-denials
@@ -5347,6 +5356,7 @@ add_test(NAME runtime.linux-clipboard-native-publication-receipt-scope-denial
         "-DRDP_LINUX_PREPARED_CLIPBOARD_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_prepared_clipboard_owner.h"
         "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
         "-DRDP_LINUX_RUNTIME_CONNECTION_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_connection.cpp"
+        "-DRDP_R8_R3_CLIPBOARD_BRIDGE_SOURCE=${PROJECT_SOURCE_DIR}/src/server/clipboard/r3_clipboard_transfer_bridge.cpp"
         -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_clipboard_native_publication_gate.cmake")
 set_tests_properties(
     runtime.linux-clipboard-native-publication-receipt-scope-denial PROPERTIES

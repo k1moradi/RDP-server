@@ -1,3 +1,7 @@
+## R8 CLIPRDR initial PDU direction (2026-11-01)
+
+CB_MONITOR_READY is server-to-client throughout the MS-RDPECLIP handshake. An inbound client Monitor Ready must retire the original R8 route even in Dormant; never treat it as server CAPS/Monitor delivery. Native publication requires the original R3/R1 committed initial Format List Response, no pending write and a separate fresh R2 Clipboard authorization. Never let synthetic protocol tests mint native authority. Preserve a single R10 scheduler/R1 TLS writer and the disabled production gate.
+
 ## R7 secret staging must be bounded before adapter copies (2026-11-01)
 
 GUI credential surfaces must apply the production standalone password limit

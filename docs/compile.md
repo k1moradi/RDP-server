@@ -1,3 +1,7 @@
+## R8 wrong-direction Monitor Ready focused qualification (2026-11-01)
+
+Use only `~/rdp-server/build` after fresh `git switch main && git pull --ff-only origin main`. Reuse the canonical Debug configuration/build and run `ctest --test-dir build -C Debug -R '^(runtime[.]clipboard-(client-monitor-ready-route-retirement|initial-handshake-exact-receipt-denials|permission-only-route-observation-consumption)|runtime[.]linux-clipboard-native-publication-receipt-scope-denial|security[.]macos-(post-join-clipboard-view-input-denial|share-activated-clipboard-permission-denial|share-activated-clipboard-scope-classifier-denial|graphics-ready-clipboard-view-input-denial))$' --output-on-failure`. Then full Debug/Release CTest and unchanged fixed 107 Clipboard ASan/UBSan cases on the exact publishing SHA. No new test executable, dependencies, build root, OS clipboard access or performance benchmark is required. Connector-local execution NOT RUN; hosted publication-SHA CI PENDING.
+
 ## R7 bounded password-input focused qualification (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. After canonical Debug configure/build run:

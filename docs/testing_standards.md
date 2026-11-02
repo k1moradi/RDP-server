@@ -139,6 +139,9 @@ BLOCKED / INCONCLUSIVE.
 
 ## In-progress exact-SHA workflows retain pending evidence state (2026-11-01)
 
+**R9 complete REST snapshot rule:** A provided GitHub total_count must be an integer equal to the supplied jobs/artifacts record count. Partial pages, invalid boolean and negative counts fail before lane classification. The existing project.exact-sha-qualification-job-status-denials self-test has complete positive and incomplete negative cases. Count-absent synthetic fixtures remain supported; this is not owner acceptance.
+
+
 The R9 qualification verifier must not collapse dependency-gated jobs that
 have not yet been created to `NOT_RUN` merely because the overall workflow
 advanced from `queued` to `in_progress`. Use `RUN_IN_PROGRESS` for

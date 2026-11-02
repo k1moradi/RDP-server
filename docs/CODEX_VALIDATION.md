@@ -317,6 +317,9 @@ Canonical local configure/build, focused/full Debug+Release CTest, ASan/UBSan an
 
 ## R9 run-scheduling matrix classification correction (2026-11-01)
 
+**R9 P0 full-page evidence correction (2026-11-01; parent cb9d258d1e67e9a70beb600349609c1d3ecf2526):** Source review identified a partial GitHub REST jobs/artifacts page improperly treated as a complete exact-run snapshot. The existing standalone R9 Python classifier now checks present total_count and adds positive/negative regression cases to its existing ordinary CTest. Earlier b6328fef structure CI 41390952693 PASS; protocol 41390952630 NOT GREEN. SHA-less owner report 1,203 total/five failures is not assigned to main. R6 owns the repeated macOS CredSSP stage FAIL positive assertion; R7 owns the interface activation and selected ID aborts. Source review PASS; local Python/full Debug/Release/sanitizers/benchmark NOT RUN; publication CI PENDING and no physical Windows App, M1 or M2 PASS.
+
+
 Reviewed shared `main`, mandatory AGENTS/VISION/ROADMAP and coding/testing/
 compile/benchmark standards, the shipped GUI CLI, R2 secure preferences
 and their ordinary full CTests, exact-run matrix verifier, and hosted

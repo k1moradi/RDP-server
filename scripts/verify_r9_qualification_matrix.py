@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Classify exact-SHA hosted jobs without promoting artifacts to client acceptance.
 
-The input files are GitHub REST run, paginated jobs and artifacts JSON
+The input files are GitHub REST run, complete paginated jobs and artifacts JSON
 snapshots. This tool never contacts GitHub or reads credential-bearing logs.
 """
 from __future__ import annotations
@@ -128,6 +128,14 @@ def evaluate(expected_sha: str, current_sha: str,
     artifacts = artifacts_payload["artifacts"]
     if len(jobs) > 100 or len(artifacts) > 100:
         raise ValueError("TOO_MANY_RECORDS")
+
+    # A partial REST page cannot establish complete exact-run evidence.
+    for payload, records in ((jobs_payload, jobs), (artifacts_payload, artifacts)):
+        total_count = payload.get("total_count")
+        if total_count is not None and (
+            type(total_count) is not int or total_count != len(records)
+        ):
+            raise ValueError("INCOMPLETE_SNAPSHOT")
 
     lanes: dict[str, str] = {}
     for lane, name, required_step in REQUIRED_JOBS:
@@ -322,6 +330,29 @@ def self_test() -> None:
     if not (classify_job({"status": "in_progress", "conclusion": None}) == "IN_PROGRESS"):
         raise AssertionError("R9 self-test denial failed")
     self_test_unscheduled_run_state()
+    # Complete GitHub REST pages pass; truncated or invalid totals fail.
+    complete_jobs = {**jobs, "total_count": len(jobs["jobs"])}
+    complete_artifacts = {**artifacts, "total_count": len(artifacts["artifacts"])}
+    complete = evaluate(sha, sha, run, complete_jobs, complete_artifacts)
+    if (complete["lanes"]["linux_debug"] != "JOB_PASS"
+            or complete["sspi_artifact"] != "PRESENT_UNINSPECTED"):
+        raise AssertionError("complete REST snapshot rejected")
+    for collection_name, records in (("jobs", jobs["jobs"]),
+                                     ("artifacts", artifacts["artifacts"])):
+        for invalid_count in (len(records) + 1, -1, True):
+            candidate_jobs = dict(complete_jobs)
+            candidate_artifacts = dict(complete_artifacts)
+            if collection_name == "jobs":
+                candidate_jobs["total_count"] = invalid_count
+            else:
+                candidate_artifacts["total_count"] = invalid_count
+            try:
+                evaluate(sha, sha, run, candidate_jobs, candidate_artifacts)
+            except ValueError as error:
+                if str(error) != "INCOMPLETE_SNAPSHOT":
+                    raise
+            else:
+                raise AssertionError("incomplete REST snapshot accepted")
     for bad in ({"jobs": "invalid"}, [], None):
         try:
             evaluate(sha, sha, run, bad, artifacts)

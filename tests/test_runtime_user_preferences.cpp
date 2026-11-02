@@ -77,6 +77,25 @@ void writeEncoded(const std::filesystem::path& path,
     assert(stream.good());
 }
 
+#if defined(_WIN32)
+int runWindowsApplicationDirectoryAccessDenialTest()
+{
+    using Status = RuntimeUserPreferencesStorageStatus;
+    const auto classify =
+        &detail::classifyWindowsApplicationDirectoryOpenFailure;
+    assert(classify(false, ERROR_FILE_NOT_FOUND) == Status::Missing);
+    assert(classify(false, ERROR_PATH_NOT_FOUND) == Status::Missing);
+    // Security/capability errors cannot masquerade as first-run defaults.
+    assert(classify(false, ERROR_ACCESS_DENIED) == Status::Invalid);
+    assert(classify(false, ERROR_SHARING_VIOLATION) == Status::Invalid);
+    assert(classify(false, ERROR_INVALID_NAME) == Status::Invalid);
+    assert(classify(false, ERROR_CANT_ACCESS_FILE) == Status::Invalid);
+    assert(classify(true, ERROR_FILE_NOT_FOUND) == Status::Unavailable);
+    assert(classify(true, ERROR_ACCESS_DENIED) == Status::Unavailable);
+    return 0;
+}
+#endif
+
 int runUnsafeConfigAncestorStatusTest()
 {
 #if defined(_WIN32)
@@ -202,6 +221,11 @@ int runUnsafeHomeAncestorStatusTest()
 
 int main(int argc, char** argv)
 {
+#if defined(_WIN32)
+    if (argc == 2 &&
+        std::string_view{argv[1]} == "windows-directory-access-denial-status")
+        return runWindowsApplicationDirectoryAccessDenialTest();
+#endif
     if (argc == 2 &&
         std::string_view{argv[1]} == "unsafe-config-ancestor-status")
         return runUnsafeConfigAncestorStatusTest();

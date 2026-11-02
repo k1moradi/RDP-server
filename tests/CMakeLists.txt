@@ -473,6 +473,13 @@ if(NOT WIN32)
         runtime.user-preferences-unsafe-config-ancestor-reports-invalid
         runtime.user-preferences-unsafe-home-ancestor-reports-invalid
         PROPERTIES LABELS "runtime;preferences;security;offline;posix")
+else()
+    add_test(NAME runtime.user-preferences-windows-inaccessible-directory-not-missing
+        COMMAND test_runtime_user_preferences
+            windows-directory-access-denial-status)
+    set_tests_properties(
+        runtime.user-preferences-windows-inaccessible-directory-not-missing
+        PROPERTIES LABELS "runtime;preferences;security;offline;windows")
 endif()
 
 # R6 portable automatic-bootstrap storage/lifetime policy. This pure

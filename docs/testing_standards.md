@@ -1,3 +1,16 @@
+## Windows R2 private preferences error-status denial (2026-11-01)
+
+Register exactly one ordinary Windows-only
+`runtime.user-preferences-windows-inaccessible-directory-not-missing`
+CTest in the existing strict `test_runtime_user_preferences` executable.
+It calls the **same classifier as production** with native missing,
+access-denied, sharing, invalid-name and reparse failure codes, plus secure
+create denial; no OS profile access or privilege mutation is used. This
+synthetic error-code test does not replace the existing Windows SID/DACL/
+reparse enforcement, or the actual filesystem-backed POSIX unsafe-ancestor
+case and owner-private round-trip/atomic-failure/restart denials. It is
+classification evidence, never proof of native R2 authority.
+
 ## R6 original-record timestamp anti-splice invariant (2026-11-01)
 
 Review parent `9c71295082b1a7369056109a1d872fddaccb62a9` found one private provenance inconsistency:

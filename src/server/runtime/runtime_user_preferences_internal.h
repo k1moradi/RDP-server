@@ -3,13 +3,20 @@
 
 #include "server/runtime/runtime_user_preferences.h"
 
+#include <cstdint>
 #include <filesystem>
 
 namespace rdp_server::server::runtime
 {
 namespace detail
 {
-#if !defined(_WIN32)
+#if defined(_WIN32)
+// Production status classifier reused by the Windows error-code CTest;
+// no caller-supplied path reaches the public preferences entry points.
+[[nodiscard]] RuntimeUserPreferencesStorageStatus
+classifyWindowsApplicationDirectoryOpenFailure(
+    bool create, std::uint32_t errorCode) noexcept;
+#else
 // POSIX-only resolver seam for the focused unsafe-ancestor CTest. It uses the
 // same no-follow ownership/mode checks as production but starts from an
 // isolated owner-private fake home. Production never accepts a caller path.

@@ -1,3 +1,30 @@
+## R2 Windows native preferences denied-open status (2026-11-01)
+
+Reviewed refreshed shared-main parent `0a53ff3251346759cd38084560a7bbe422eb999c`, mandatory policies,
+bootstrap and preferences APIs, Windows SID/protected DACL/reparse checks,
+POSIX no-follow/0700-0600 path checks, atomic failure tests, R7 explicit
+GUI save/load, expert configuration isolation and CTest/CI graph. Existing
+Windows `openNativeDirectory` mapped all failed `CreateFileW` calls to
+`Missing` on load, including inaccessible or unsafe paths. The targeted
+correction uses one production status classifier: only native file/path not
+found is `Missing`; all other failed opens are `Invalid`; secure create
+failure remains `Unavailable`. The new Windows-only ordinary
+`runtime.user-preferences-windows-inaccessible-directory-not-missing`
+uses synthetic Win32 error codes, not a changed user ACL. It adds no grants,
+secret persistence, native desktop/Clipboard, R1 listener or auto Sharing.
+
+Source ownership/registry inspection **PASS**. Previous R2
+`f3ce13e594744001bf0ed0db5973e60859ab5446` structure
+[41379785563](https://github.com/k1moradi/RDP-server/actions/runs/41379785563)
+**PASS**, full [41379785552](https://github.com/k1moradi/RDP-server/actions/runs/41379785552)
+**QUEUED** at inspection, not a CTest receipt. Local canonical Debug/Release
+build/focused/full CTest, sanitizers and benchmark **NOT RUN** (checkout
+and GitHub DNS unavailable). Exact-publication CI **PENDING**.
+R2/R7/R10 preference source handoff is **UNBLOCKED**; physical Windows
+App Type-2/Type-3 and native R2 OS admission remain independent gates.
+Any future native credential vault remains design-only and needs explicit
+Session Password persistence-policy and owner-consent UX revisions.
+
 ## R6 original-record timestamp anti-splice invariant (2026-11-01)
 
 Review parent `9c71295082b1a7369056109a1d872fddaccb62a9` found one private provenance inconsistency:

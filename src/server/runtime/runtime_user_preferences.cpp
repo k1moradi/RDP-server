@@ -619,8 +619,8 @@ struct LocalMemoryCloser final
         nullptr, OPEN_EXISTING,
         FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr)};
     if (!opened)
-        return create ? RuntimeUserPreferencesStorageStatus::Unavailable
-                      : RuntimeUserPreferencesStorageStatus::Missing;
+        return detail::classifyWindowsApplicationDirectoryOpenFailure(
+            create, ::GetLastError());
     return isPrivateWindowsObject(opened.get(), userSid, true)
         ? RuntimeUserPreferencesStorageStatus::Loaded
         : RuntimeUserPreferencesStorageStatus::Invalid;
@@ -719,7 +719,21 @@ bool decodeRuntimeUserPreferences(
 namespace detail
 {
 
-#if !defined(_WIN32)
+#if defined(_WIN32)
+RuntimeUserPreferencesStorageStatus
+classifyWindowsApplicationDirectoryOpenFailure(
+    const bool create, const std::uint32_t errorCode) noexcept
+{
+    // Distinguish a genuinely absent store from an inaccessible or replaced
+    // LocalAppData path. A failed secure creation remains unavailable.
+    if (create)
+        return RuntimeUserPreferencesStorageStatus::Unavailable;
+    return errorCode == ERROR_FILE_NOT_FOUND ||
+                   errorCode == ERROR_PATH_NOT_FOUND
+        ? RuntimeUserPreferencesStorageStatus::Missing
+        : RuntimeUserPreferencesStorageStatus::Invalid;
+}
+#else
 RuntimeUserPreferencesStorageStatus
 loadRuntimeUserPreferencesFromHomeDirectoryForTesting(
     const std::filesystem::path& homeDirectory,

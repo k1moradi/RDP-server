@@ -1,3 +1,40 @@
+## R2 P0 — Windows inaccessible preference store is not a first-run miss (2026-11-01)
+
+Reviewed parent `0a53ff3251346759cd38084560a7bbe422eb999c` after R7, R8, R3, R10 and R9
+concurrent integration. The typed fixed v1 per-user preferences storage,
+private POSIX owner/mode/no-follow ancestry, Windows protected current-user
+DACL/reparse rules, exact atomic replacement, R7 public no-path consumer and
+offline deny-only tests already exist. The Windows LocalAppData
+`openNativeDirectory()` still treated **all** failed app-directory
+`CreateFileW` opens as `Missing`, masking access-denied, sharing, invalid
+name and reparse failures as ordinary first-run absence.
+
+The production Windows classifier now returns `Missing` for
+`ERROR_FILE_NOT_FOUND` or `ERROR_PATH_NOT_FOUND` only, `Invalid`
+for other failed opens, and `Unavailable` for secure creation failure.
+The Windows-only dedicated ordinary
+`runtime.user-preferences-windows-inaccessible-directory-not-missing`
+CTest reuses `test_runtime_user_preferences` to exercise the **production
+classifier** with Win32 failure codes; it does not change the owner's real
+profile or DACL. Existing filesystem-backed POSIX ancestor/symlink,
+Windows SID/ACL/reparse, fixed v1 record, post-flush atomic retention and
+deny-only restart contracts are preserved.
+
+**R7 immutable handoff:** Only
+`RuntimeUserPreferences { lastExplicitUsername, preferredStableLanInterfaceId,
+port, preferRemoteInput, permissionLifetimeMinutes }`, public
+`loadRuntimeUserPreferences`/`saveRuntimeUserPreferences` and typed
+status; loaded LAN IDs require fresh R10 enumeration. No secret, OS credential,
+consent epoch, native proof, listener token, Sharing ON, GraphicsReady,
+View/Input or independently authorized Clipboard state persists.
+`runtimeBootstrapMayPersist(SessionPassword)` remains false. R2/R7/R10
+source composition is **UNBLOCKED**. Connector-local focused/full Debug/
+Release CTest, sanitizers and benchmark **NOT RUN**, exact-publication
+hosted CI **PENDING**. Physical Windows App Type-2 receipt/Type-3 and native
+owner evidence remain separately blocked, not by this storage boundary.
+Native OS credential-vault support is design-only until explicit product
+policy, opt-in consent, revoke/delete UX and platform security review.
+
 ## R6 original-record timestamp anti-splice invariant (2026-11-01)
 
 Review parent `9c71295082b1a7369056109a1d872fddaccb62a9` found one private provenance inconsistency:

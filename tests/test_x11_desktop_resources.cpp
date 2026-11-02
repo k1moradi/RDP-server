@@ -1733,6 +1733,7 @@ syntheticPointerMask(xcb_connection_t &connection,
 enum class AggregateHeldInputRetirement : std::uint8_t
 {
     ImplicitDestruction,
+    GracefulDisconnect,
     AuthorizationLoss,
     InFlightFrameBorrowAuthorizationLoss,
 };
@@ -1779,7 +1780,11 @@ syntheticXvfbHeldKeyboardAndButtonTerminalRetirement(
     AggregateHeldInputRetirement retirement)
 {
     // Dedicated isolated Xvfb: no real seat0, privileged R2 identity, or
-    // networked accepted client. Do not call the graceful disconnect path.
+    // networked accepted client. The enum selects the still-authorized
+    // graceful boundary or an independent terminal retirement boundary.
+    const bool gracefulDisconnect =
+        retirement == AggregateHeldInputRetirement::GracefulDisconnect;
+    const std::size_t expectedReleasePosts = gracefulDisconnect ? 1U : 0U;
     const char *display = syntheticDisplay();
     int screenNumber = -1;
     XcbConnection helper = connectHelper(display, screenNumber);
@@ -1839,12 +1844,16 @@ syntheticXvfbHeldKeyboardAndButtonTerminalRetirement(
         synchronizeXcbConnection(*originalConnection);
         if (retirement != AggregateHeldInputRetirement::ImplicitDestruction)
         {
-            // This is R10's terminal native-owner path after authority loss.
-            // It must clear held bookkeeping before any child or XCB owner
-            // disappears, without posting compensating native releases.
-            // The in-flight variant revokes inside its R4 pixel callback.
-            if (retirement ==
-                AggregateHeldInputRetirement::InFlightFrameBorrowAuthorizationLoss)
+            // Only an explicitly still-authorized graceful disconnect may
+            // release held input. R10 terminal authority loss and callback
+            // revocation must continue to suppress native cleanup posts.
+            if (gracefulDisconnect)
+            {
+                originalOwner.disconnect();
+            }
+            else if (retirement ==
+                     AggregateHeldInputRetirement::
+                         InFlightFrameBorrowAuthorizationLoss)
             {
                 HeldInputFrameBorrowRevocation consumer{
                     originalOwner, retiredGeometry};
@@ -1869,15 +1878,25 @@ syntheticXvfbHeldKeyboardAndButtonTerminalRetirement(
             assert(!X11DesktopResourcesBehaviorTestAccess::handleSyntheticInput(
                 originalOwner, inputGeneration,
                 X11PointerButtonInput{140, 140, 1U, false}));
-            assert(observedXtestRequests.keyReleases == 0U);
-            assert(observedXtestRequests.buttonReleases == 0U);
+            assert(observedXtestRequests.keyReleases == expectedReleasePosts);
+            assert(observedXtestRequests.buttonReleases == expectedReleasePosts);
+            if (gracefulDisconnect)
+            {
+                // Repeated aggregate cancellation after the authorized cleanup
+                // must not duplicate either native release.
+                originalOwner.disconnect();
+                assert(observedXtestRequests.keyReleases ==
+                       expectedReleasePosts);
+                assert(observedXtestRequests.buttonReleases ==
+                       expectedReleasePosts);
+            }
         }
         // Otherwise scope exit exercises the implicit terminal path.
     }
     assert(observedXtestRequests.keyPresses == 1U);
     assert(observedXtestRequests.buttonPresses == 1U);
-    assert(observedXtestRequests.keyReleases == 0U);
-    assert(observedXtestRequests.buttonReleases == 0U);
+    assert(observedXtestRequests.keyReleases == expectedReleasePosts);
+    assert(observedXtestRequests.buttonReleases == expectedReleasePosts);
     observeXtestRequests = false;
 
     // The aggregate must retire all children, including XDamage and XShm,
@@ -1887,9 +1906,16 @@ syntheticXvfbHeldKeyboardAndButtonTerminalRetirement(
     assert(fcntl(retiredDescriptor, F_GETFD) == -1);
     assert(errno == EBADF);
 
-    // Cleanup is explicitly owned by this disposable Xvfb fixture, NOT by
-    // the revoked original aggregate; it is excluded from measured releases.
+    // A graceful disconnect must have restored Xvfb state itself; this
+    // pre-cleanup check prevents the fixture from hiding an aggregate leak.
+    // Terminal variants intentionally leave native state held, so their
+    // synthetic cleanup remains fixture-owned and outside measured releases.
     const auto heldKeys = syntheticHeldKeymap(*helper);
+    if (gracefulDisconnect)
+    {
+        assert(heldKeys == baselineKeys);
+        assert(syntheticPointerMask(*helper, screen->root) == baselineButtons);
+    }
     xcb_keycode_t heldKeycode = XCB_NO_SYMBOL;
     std::size_t changedKeyCount = 0U;
     for (std::size_t byteIndex = 0; byteIndex < heldKeys.size(); ++byteIndex)
@@ -1979,6 +2005,13 @@ syntheticXvfbImplicitHeldKeyboardAndButtonDestruction()
 {
     syntheticXvfbHeldKeyboardAndButtonTerminalRetirement(
         AggregateHeldInputRetirement::ImplicitDestruction);
+}
+
+void
+syntheticXvfbGracefulHeldKeyboardAndButtonDisconnect()
+{
+    syntheticXvfbHeldKeyboardAndButtonTerminalRetirement(
+        AggregateHeldInputRetirement::GracefulDisconnect);
 }
 
 void
@@ -3009,6 +3042,11 @@ main(int argc, char **argv)
     if (behavior == "implicit-held-key-button-destructor-no-xtest")
     {
         syntheticXvfbImplicitHeldKeyboardAndButtonDestruction();
+        return 0;
+    }
+    if (behavior == "graceful-disconnect-held-key-button-release-once")
+    {
+        syntheticXvfbGracefulHeldKeyboardAndButtonDisconnect();
         return 0;
     }
     if (behavior == "authority-loss-held-key-button-no-xtest")

@@ -1,3 +1,20 @@
+## R5 aggregate graceful held-input release boundary (2026-11-01)
+
+Keep `x11.desktop-resource-graceful-disconnect-held-key-button-release-once` as an ordinary production-backed Xvfb regression in the
+existing `test_x11_desktop_resources` executable and shared registry. It must
+hold one keyboard key plus one mouse button through the aggregate, call the
+still-authorized graceful `disconnect()` path, and observe exactly one native
+release for each held class through the production XTEST link wrapper. A
+repeated disconnect and later destructor must add zero releases. Require
+original XCB/XShm/XDamage/capture retirement, stale-generation denial, no
+inherited held state/Damage and successful replacement capture.
+
+Do not merge this with terminal cleanup tests: implicit destruction, R2/native
+authority loss, Stop and callback revocation remain no-XTEST-release boundaries.
+The new ordinary case stays outside both the fixed 45-case R5 native sanitizer
+selector and the separate two-case implicit-destructor sanitizer lane.
+Disposable Xvfb evidence never grants physical seat0/R2 authority.
+
 ## Windows R2 private preferences error-status denial (2026-11-01)
 
 Register exactly one ordinary Windows-only

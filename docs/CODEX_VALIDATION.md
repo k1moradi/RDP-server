@@ -1,3 +1,27 @@
+## R5 authorized graceful aggregate held-input cleanup (2026-11-01)
+
+- Refreshed source parent: `5471eb9b649cf1705b56705d0944d95692b12c0d`.
+- The requested implicit aggregate key+button destruction is already covered by
+  `x11.desktop-resource-implicit-held-key-button-no-xtest`; the fixed native
+  X11 sanitizer inventory remains **45**, with the independent
+  implicit-destructor lane remaining **2**.
+- New independent behavior gate: `x11.desktop-resource-graceful-disconnect-held-key-button-release-once`, using disposable Xvfb and
+  the real aggregate/XTEST call path. It distinguishes authorized one-time
+  cleanup from terminal zero-post retirement and checks fresh-owner
+  XCB/XShm/XDamage/capture isolation.
+- Production R5/R10/R4 behavior: **UNCHANGED**. R10 remains the sole
+  accepted-client/native scheduler; R4 remains frame layout/credit/ACK owner;
+  Clipboard remains disabled.
+- Source, ownership, dependency and shared-registration review: **PASS**.
+- Canonical local one-root configure/build/focused/full Debug+Release CTest,
+  Xvfb execution, ASan/UBSan and benchmark: **NOT RUN** in this connector
+  environment.
+- Exact publication-SHA hosted CI: **PENDING**.
+- Physical Windows App Type 3, R2 native proof, seat0, first frame, complete R1
+  receipts, genuine inbound FRAME_ACK, keyboard/mouse, resize, Stop and fresh
+  reconnect: **NOT RUN**. The observed blocker remains before NTLM Type 3, so
+  no native-behavior diagnosis is claimed.
+
 ## R2 Windows native preferences denied-open status (2026-11-01)
 
 Reviewed refreshed shared-main parent `0a53ff3251346759cd38084560a7bbe422eb999c`, mandatory policies,

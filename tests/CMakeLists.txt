@@ -5208,6 +5208,21 @@ if(TARGET rdp-server-linux-x11-desktop)
             PROPERTIES
                 LABELS "x11;linux-adapter;native;synthetic-display;security;generation"
                 TIMEOUT 20)
+        # Still-authorized graceful aggregate teardown is the deliberate
+        # opposite of terminal retirement: release each held input exactly
+        # once, then close XShm/XDamage/XCB with no destructor duplicate.
+        # Ordinary full CTest; do not change the fixed 45-case native selector
+        # or the separate two-case implicit-destructor sanitizer lane.
+        add_test(NAME x11.desktop-resource-graceful-disconnect-held-key-button-release-once
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_desktop_resources>
+                graceful-disconnect-held-key-button-release-once)
+        set_tests_properties(
+            x11.desktop-resource-graceful-disconnect-held-key-button-release-once
+            PROPERTIES
+                LABELS "x11;linux-adapter;native;synthetic-display;security;generation"
+                TIMEOUT 20)
         # Explicit terminal authority loss is a distinct aggregate boundary
         # from implicit destruction and the constituent XTEST controller test.
         # Keep it in ordinary full CTest, outside the fixed 45-case native

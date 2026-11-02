@@ -732,6 +732,209 @@ class OwnerEvidenceTests(unittest.TestCase):
         self.assertEqual(summary["evidence_status"], "PASS")
         self.assertEqual(summary["comparison"], "WINDOWS_ONLY_TYPE3_RECEIVED")
 
+    def test_paired_provenance_rotated_certificate_generation_denials(self):
+        # Each new synthetic certificate generation needs fresh original-source
+        # identity, regardless of an unchanged server profile or Type-2 flags.
+        for platform in ("macos", "windows"):
+            for stage in ab_evidence.CLIENT_SECURITY_STAGES:
+                with self.subTest(platform=platform, stage=stage):
+                    manifest = evidence.build_manifest(self.options)
+                    manifest["server_certificate_sha256"] = "c" * 64
+                    pair = self._paired_record(manifest)
+                    row = pair[platform]
+                    row["client_security_stages"][stage] = "PASS"
+                    original_event = self._client_event(pair, platform)
+                    original_event["source_record_sha256"] = (
+                        "d" if platform == "macos" else "e") * 64
+                    row["client_stage_evidence"][stage] = original_event
+
+                    positive = ab_evidence.validate_pair(manifest, pair)
+                    self.assertEqual(positive["evidence_status"], "PASS")
+                    self.assertEqual(
+                        positive[platform]["client_security_stages"][stage],
+                        "PASS")
+
+                    row["source_binding"]["server_certificate_sha256"] = "b" * 64
+                    previous_certificate = ab_evidence.validate_pair(manifest, pair)
+                    self.assertEqual(previous_certificate["evidence_status"], "FAIL")
+                    self.assertIn(
+                        f"{platform.upper()}_SOURCE_CERTIFICATE_MISMATCH",
+                        previous_certificate["evidence_failures"])
+                    self.assertTrue(all(
+                        state == "NOT_OBSERVED"
+                        for state in previous_certificate[platform][
+                            "client_security_stages"].values()))
+                    row["source_binding"]["server_certificate_sha256"] = "c" * 64
+
+                    original_event["attempt_id_exact"] = "private-prior-attempt"
+                    original_event["connection_id"] = "private-prior-connection"
+                    previous_attempt = ab_evidence.validate_pair(manifest, pair)
+                    self.assertEqual(previous_attempt["evidence_status"], "FAIL")
+                    for failure in (
+                        f"{platform.upper()}_CLIENT_{stage.upper()}_ATTEMPT_MISMATCH",
+                        f"{platform.upper()}_CLIENT_{stage.upper()}_CONNECTION_MISMATCH",
+                    ):
+                        self.assertIn(failure, previous_attempt["evidence_failures"])
+                    self.assertTrue(all(
+                        state == "NOT_OBSERVED"
+                        for state in previous_attempt[platform][
+                            "client_security_stages"].values()))
+                    self.assertNotIn("private-prior-", json.dumps(previous_attempt))
+
+        manifest = evidence.build_manifest(self.options)
+        manifest["server_certificate_sha256"] = "c" * 64
+        pair = self._paired_record(manifest)
+        private_provider = "private-generation-provider-secret"
+        manifest["first_client_error"].update({
+            "normalized_category": "trust",
+            "source": "core",
+            "provider_category_exact": private_provider,
+            "provider_code_exact": None,
+            "event_time_local": manifest["attempt_time_local"],
+            "event_time_utc": manifest["attempt_time_utc"],
+        })
+        pair["windows"]["first_client_error"].update({
+            "normalized_category": "trust",
+            "source": "owner-approved-diagnostic",
+            "provider_category_exact": private_provider,
+            "provider_code_exact": None,
+            "event_time_utc": pair["windows"]["attempt_time_utc"],
+        })
+        for platform, digest in (("macos", "d"), ("windows", "e")):
+            pair[platform]["client_security_stages"]["type2_received"] = "PASS"
+            client_event = self._client_event(pair, platform)
+            client_event["source_record_sha256"] = digest * 64
+            pair[platform]["client_stage_evidence"]["type2_received"] = client_event
+
+        same_generation = ab_evidence.validate_pair(manifest, pair)
+        self.assertEqual(same_generation["evidence_status"], "PASS")
+        for platform in ("macos", "windows"):
+            self.assertEqual(
+                same_generation[platform]["first_client_error_category"], "trust")
+            self.assertEqual(
+                same_generation[platform]["client_security_stages"]["type2_received"],
+                "PASS")
+        self.assertNotIn(private_provider, json.dumps(same_generation))
+
+        # The pair-level mismatch used to FAIL but still project both rows'
+        # individually valid stages and typed errors as if they were comparable.
+        pair["windows"]["server_certificate_sha256"] = "b" * 64
+        pair["windows"]["source_binding"]["server_certificate_sha256"] = "b" * 64
+        mixed_generation = ab_evidence.validate_pair(manifest, pair)
+        self.assertEqual(mixed_generation["evidence_status"], "FAIL")
+        self.assertIn("AB_CERTIFICATE_FINGERPRINT_MISMATCH",
+                      mixed_generation["evidence_failures"])
+        self.assertFalse(mixed_generation["certificate_fingerprint_match"])
+        self.assertEqual(mixed_generation["comparison"], "INCONCLUSIVE")
+        for platform in ("macos", "windows"):
+            self.assertEqual(
+                mixed_generation[platform]["first_client_error_category"], "unknown")
+            self.assertTrue(all(
+                state == "NOT_OBSERVED"
+                for state in mixed_generation[platform][
+                    "client_security_stages"].values()))
+        self.assertNotIn(private_provider, json.dumps(mixed_generation))
+        self.assertNotIn("rdp-owner", json.dumps(mixed_generation))
+
+        # A neighboring Windows client cannot impersonate Windows App's record.
+        pair = self._paired_record(manifest)
+        pair["windows"]["client_security_stages"]["type3_generated"] = "PASS"
+        pair["windows"]["client_stage_evidence"]["type3_generated"] = (
+            self._client_event(pair, "macos"))
+        neighboring_client = ab_evidence.validate_pair(manifest, pair)
+        self.assertEqual(neighboring_client["evidence_status"], "FAIL")
+        for failure in (
+            "WINDOWS_CLIENT_TYPE3_GENERATED_APPLICATION_MISMATCH",
+            "WINDOWS_CLIENT_TYPE3_GENERATED_ATTEMPT_MISMATCH",
+            "WINDOWS_CLIENT_TYPE3_GENERATED_CONNECTION_MISMATCH",
+        ):
+            self.assertIn(failure, neighboring_client["evidence_failures"])
+        self.assertTrue(all(
+            state == "NOT_OBSERVED"
+            for state in neighboring_client["windows"][
+                "client_security_stages"].values()))
+
+    def test_paired_provenance_rotated_credssp_typed_error_requires_client_source(self):
+        # A first error remains independent from source-bound original client
+        # evidence, even with a valid certificate and plausible provider name.
+        private_provider = "private-rotated-provider-secret"
+        for platform in ("macos", "windows"):
+            with self.subTest(platform=platform):
+                manifest = evidence.build_manifest(self.options)
+                manifest["server_certificate_sha256"] = "c" * 64
+                pair = self._paired_record(manifest)
+                row = pair[platform]
+                row["client_security_stages"]["type2_accepted_by_credssp"] = "FAIL"
+                original_event = self._client_event(pair, platform)
+                original_event["source_record_sha256"] = (
+                    "d" if platform == "macos" else "e") * 64
+                row["client_stage_evidence"]["type2_accepted_by_credssp"] = original_event
+                first_error = self._configure_valid_credssp_failure_first_error(
+                    manifest, pair, platform, original_event, private_provider)
+
+                valid = ab_evidence.validate_pair(manifest, pair)
+                self.assertEqual(valid["evidence_status"], "PASS")
+                self.assertEqual(
+                    valid[platform]["first_client_error_category"], "negotiation")
+                self.assertEqual(
+                    valid[platform]["client_security_stages"][
+                        "type2_accepted_by_credssp"], "FAIL")
+                self.assertNotIn(private_provider, json.dumps(valid))
+
+                original_event["source_record_sha256"] = ""
+                missing_digest = ab_evidence.validate_pair(manifest, pair)
+                self.assertEqual(missing_digest["evidence_status"], "FAIL")
+                self.assertIn(
+                    f"{platform.upper()}_CLIENT_TYPE2_ACCEPTED_BY_CREDSSP_SOURCE_DIGEST_INVALID",
+                    missing_digest["evidence_failures"])
+                self.assertEqual(
+                    missing_digest[platform]["first_client_error_category"], "unknown")
+                self.assertTrue(all(
+                    state == "NOT_OBSERVED"
+                    for state in missing_digest[platform][
+                        "client_security_stages"].values()))
+                self.assertNotIn(private_provider, json.dumps(missing_digest))
+                original_event["source_record_sha256"] = (
+                    "d" if platform == "macos" else "e") * 64
+
+                # A previous error within the allowed attempt window still
+                # cannot qualify a FAIL for a different original event instant.
+                if platform == "macos":
+                    first_error["event_time_local"] = (
+                        "2026-10-27T05:30:01-07:00")
+                    first_error["event_time_utc"] = (
+                        "2026-10-27T12:30:01+00:00")
+                else:
+                    first_error["event_time_utc"] = (
+                        "2026-10-27T12:32:01+00:00")
+                wrong_error = ab_evidence.validate_pair(manifest, pair)
+                self.assertEqual(wrong_error["evidence_status"], "FAIL")
+                self.assertIn(
+                    f"{platform.upper()}_CREDSSP_FAILURE_EVENT_TIME_MISMATCH",
+                    wrong_error["evidence_failures"])
+                self.assertEqual(
+                    wrong_error[platform]["first_client_error_category"], "unknown")
+                self.assertTrue(all(
+                    state == "NOT_OBSERVED"
+                    for state in wrong_error[platform][
+                        "client_security_stages"].values()))
+                self.assertNotIn(private_provider, json.dumps(wrong_error))
+
+    def test_paired_provenance_fin_only_keeps_client_stages_unobserved(self):
+        # Synthetic server Type 2/FIN is not evidence of four client failures.
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        summary = ab_evidence.validate_pair(manifest, pair)
+        self.assertEqual(summary["evidence_status"], "PASS")
+        self.assertEqual(summary["comparison"], "NEITHER_TYPE3_RECEIVED")
+        for platform in ("macos", "windows"):
+            self.assertTrue(pair[platform]["server_transport_observation"][
+                "peer_fin_observed"])
+            self.assertEqual(
+                summary[platform]["client_security_stages"],
+                dict.fromkeys(ab_evidence.CLIENT_SECURITY_STAGES, "NOT_OBSERVED"))
+            self.assertEqual(summary[platform]["type3_received"], "NOT_REACHED")
+
     def test_paired_provenance_original_client_record_reused_across_attempts_denied(self):
         manifest = evidence.build_manifest(self.options)
         pair = self._paired_record(manifest)

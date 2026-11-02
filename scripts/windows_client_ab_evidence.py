@@ -667,12 +667,14 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
     if macos_client_source_digests & windows_client_source_digests:
         failures.append("AB_CLIENT_SOURCE_RECORD_REUSED")
     client_source_digests = macos_client_source_digests | windows_client_source_digests
-    failures.extend(_server_type3_failures(
+    macos_type3_source_failures = _server_type3_failures(
         macos_manifest.get("server_stage_matrix"),
-        macos_row["server_type3_evidence"], macos_row["source_binding"], "MACOS"))
-    failures.extend(_server_type3_failures(
+        macos_row["server_type3_evidence"], macos_row["source_binding"], "MACOS")
+    windows_type3_source_failures = _server_type3_failures(
         windows["server_stage_matrix"],
-        windows["server_type3_evidence"], windows["source_binding"], "WINDOWS"))
+        windows["server_type3_evidence"], windows["source_binding"], "WINDOWS")
+    failures.extend(macos_type3_source_failures)
+    failures.extend(windows_type3_source_failures)
 
     # One server Type-3 source record cannot represent two different attempts.
     # Client-origin and server-origin records are independent evidence owners:
@@ -776,12 +778,48 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
     )
     failures.extend(macos_credssp_failure_first_error_failures)
 
+    # Cross-generation input may fail its pair check while each row remains
+    # internally well formed. Never project those stale original observations.
+    pair_generation_invalid = any(code in failures for code in (
+        "AB_CERTIFICATE_FINGERPRINT_MISMATCH", "AB_SERVER_SHA_MISMATCH",
+        "AB_DESTINATION_MISMATCH", "AB_SERVICE_ENDPOINT_MISMATCH",
+        "AB_SERVER_PROFILE_MISMATCH", "AB_TARGET_IDENTITY_MISMATCH",
+        "AB_ATTEMPT_ID_REUSED", "AB_CONNECTION_ID_REUSED",
+        "AB_CLIENT_SOURCE_RECORD_REUSED", "AB_SERVER_TYPE3_SOURCE_RECORD_REUSED",
+        "AB_CLIENT_SERVER_SOURCE_RECORD_REUSED", "AB_ATTEMPT_ORDER_INVALID",
+    ))
+    macos_credssp_claim = (
+        _private_mapping(macos_row["client_security_stages"]).get(
+            "type2_accepted_by_credssp") == "FAIL")
+    windows_credssp_claim = (
+        _private_mapping(windows["client_security_stages"]).get(
+            "type2_accepted_by_credssp") == "FAIL")
+    macos_client_qualified = not (
+        pair_generation_invalid or macos_source_failures or macos_stage_failures
+        or macos_event_failures or macos_credssp_failure_first_error_failures)
+    windows_client_qualified = not (
+        pair_generation_invalid or windows_source_failures or windows_stage_failures
+        or windows_event_failures or windows_credssp_failure_first_error_failures)
+    macos_error_qualified = not (
+        pair_generation_invalid or macos_source_failures or macos_first_error_failures
+        or macos_credssp_failure_first_error_failures
+        or (macos_credssp_claim and macos_event_failures))
+    windows_error_qualified = not (
+        pair_generation_invalid or windows_source_failures or first_error_failures
+        or windows_credssp_failure_first_error_failures
+        or (windows_credssp_claim and windows_event_failures))
+
     # Treat every input string as private. Only enumerated, redacted facts enter stdout.
     macos_type3 = _redacted_stage(
-        _private_mapping(macos_manifest.get("server_stage_matrix")).get("type3_received"),
+        _private_mapping(macos_manifest.get("server_stage_matrix")).get("type3_received")
+        if not (pair_generation_invalid or macos_source_failures
+                or macos_type3_source_failures) else None,
         STAGE_STATES, "NOT_REACHED")
     windows_type3 = _redacted_stage(
-        windows_stage.get("type3_received") if isinstance(windows_stage, dict) else None,
+        windows_stage.get("type3_received")
+        if (isinstance(windows_stage, dict)
+            and not (pair_generation_invalid or windows_source_failures
+                     or windows_type3_source_failures)) else None,
         STAGE_STATES, "NOT_REACHED")
     comparison = "INCONCLUSIVE"
     if not failures:
@@ -806,23 +844,22 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         "macos": {
             "app": "Windows App", "version": redacted_macos_version,
             "first_client_error_category": _redacted_stage(
-                ("unknown" if macos_first_error_failures else macos_error_category),
+                (macos_error_category if macos_error_qualified else "unknown"),
                 ERROR_CATEGORIES, "unknown"),
             "type3_received": macos_type3,
             "client_security_stages": _redacted_client_stages(
                 macos_row["client_security_stages"],
-                qualified=not (macos_source_failures or macos_stage_failures
-                               or macos_event_failures
-                               or macos_credssp_failure_first_error_failures)),
+                qualified=macos_client_qualified),
             "native_admission": _redacted_stage(
-                macos_row["native_admission"], STAGE_STATES, "NOT_REACHED"),
+                macos_row["native_admission"] if not pair_generation_invalid else None,
+                STAGE_STATES, "NOT_REACHED"),
         },
         "windows": {
             "app": "mstsc.exe",
             "windows_11_build": _redacted_windows_version(windows["windows_11_build"]),
             "mstsc_file_version": _redacted_windows_version(windows["mstsc_file_version"]),
             "first_client_error_category": (
-                "unknown" if first_error_failures else _redacted_stage(
+                "unknown" if not windows_error_qualified else _redacted_stage(
                     first_error_record.get("normalized_category")
                     if isinstance(first_error_record, dict) else None,
                     ERROR_CATEGORIES, "unknown")
@@ -830,11 +867,10 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
             "type3_received": windows_type3,
             "client_security_stages": _redacted_client_stages(
                 windows["client_security_stages"],
-                qualified=not (windows_source_failures or windows_stage_failures
-                               or windows_event_failures
-                               or windows_credssp_failure_first_error_failures)),
+                qualified=windows_client_qualified),
             "native_admission": _redacted_stage(
-                windows["native_admission"], STAGE_STATES, "NOT_REACHED"),
+                windows["native_admission"] if not pair_generation_invalid else None,
+                STAGE_STATES, "NOT_REACHED"),
         },
     }
 

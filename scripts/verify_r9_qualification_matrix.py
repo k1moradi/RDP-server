@@ -123,6 +123,12 @@ def evaluate(expected_sha: str, current_sha: str,
     run_id = run.get("id")
     if not isinstance(run_id, int) or isinstance(run_id, bool) or run_id <= 0:
         raise ValueError("INVALID_RUN")
+    # GitHub reruns keep their run ID/SHA but increment the attempt number.
+    run_attempt = run.get("run_attempt")
+    if "run_attempt" in run and (
+        type(run_attempt) is not int or run_attempt <= 0
+    ):
+        raise ValueError("INVALID_RUN")
     source_matches = run["head_sha"] == expected_sha
     jobs = jobs_payload["jobs"]
     artifacts = artifacts_payload["artifacts"]
@@ -149,6 +155,15 @@ def evaluate(expected_sha: str, current_sha: str,
             lanes[lane] = classify_unscheduled_lane(run)
         elif matching[0].get("run_id") != run_id:
             lanes[lane] = "RUN_MISMATCH"
+        elif ("head_sha" in matching[0] or "run_attempt" in run) and (
+            matching[0].get("head_sha") != expected_sha
+        ):
+            lanes[lane] = "SHA_MISMATCH"
+        elif "run_attempt" in run and (
+            type(matching[0].get("run_attempt")) is not int
+            or matching[0]["run_attempt"] != run_attempt
+        ):
+            lanes[lane] = "RUN_ATTEMPT_MISMATCH"
         else:
             job_status = classify_job(matching[0])
             if job_status != "JOB_PASS" or required_step is None:
@@ -300,6 +315,36 @@ def self_test() -> None:
         raise AssertionError("R9 self-test denial failed")
     if not (wrong["sspi_artifact"] == "SHA_MISMATCH"):
         raise AssertionError("R9 self-test denial failed")
+    # A stale successful job cannot qualify a rerun at the same SHA/run ID.
+    rerun = {**run, "run_attempt": 2}
+    rerun_job = {**jobs["jobs"][0], "head_sha": sha, "run_attempt": 2}
+    if evaluate(sha, sha, rerun, {"jobs": [rerun_job]}, artifacts)["lanes"]["linux_debug"] != "JOB_PASS":
+        raise AssertionError("same-attempt job rejected")
+    for stale_attempt in (1, None, True, "2"):
+        stale_job = {**rerun_job, "run_attempt": stale_attempt}
+        if evaluate(sha, sha, rerun, {"jobs": [stale_job]}, artifacts)["lanes"]["linux_debug"] != "RUN_ATTEMPT_MISMATCH":
+            raise AssertionError("stale or invalid job attempt accepted")
+    missing_attempt = dict(rerun_job)
+    del missing_attempt["run_attempt"]
+    if evaluate(sha, sha, rerun, {"jobs": [missing_attempt]}, artifacts)["lanes"]["linux_debug"] != "RUN_ATTEMPT_MISMATCH":
+        raise AssertionError("unbound job attempt accepted")
+    for bad_sha in (other, None):
+        bad_job = {**rerun_job, "head_sha": bad_sha}
+        if evaluate(sha, sha, rerun, {"jobs": [bad_job]}, artifacts)["lanes"]["linux_debug"] != "SHA_MISMATCH":
+            raise AssertionError("foreign job SHA accepted")
+    missing_sha = dict(rerun_job)
+    del missing_sha["head_sha"]
+    if evaluate(sha, sha, rerun, {"jobs": [missing_sha]}, artifacts)["lanes"]["linux_debug"] != "SHA_MISMATCH":
+        raise AssertionError("unbound job SHA accepted")
+    for invalid_attempt in (None, True, 0, "2"):
+        try:
+            evaluate(sha, sha, {**rerun, "run_attempt": invalid_attempt},
+                     {"jobs": [rerun_job]}, artifacts)
+        except ValueError as error:
+            if str(error) != "INVALID_RUN":
+                raise
+        else:
+            raise AssertionError("invalid run attempt accepted")
     # A different run at the same SHA cannot supply a green job or artifact.
     foreign_job = {"jobs": [{**jobs["jobs"][0], "run_id": run_id + 1}]}
     if evaluate(sha, sha, run, foreign_job, artifacts)["lanes"]["linux_debug"] != "RUN_MISMATCH":

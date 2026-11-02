@@ -1,3 +1,17 @@
+## R7 bounded password-input focused qualification (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. After canonical Debug configure/build run:
+
+```sh
+ctest --test-dir build -C Debug -R '^gui[.]offscreen-rapid-(password-input-bounds|cli-privacy|cli-username-r2-validation|start-explicit-consent)$' --output-on-failure
+ctest --test-dir build -C Debug --output-on-failure
+```
+
+Repeat full Release CTest and applicable GUI/security sanitizer lanes on the
+exact publication SHA. No new binary, dependency, build root, native action or
+benchmark is introduced. Connector-local execution NOT RUN; hosted exact-SHA
+qualification is required.
+
 ## R2 POSIX unsafe-ancestor preference qualification (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build,

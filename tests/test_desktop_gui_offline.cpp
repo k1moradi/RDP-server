@@ -4,6 +4,7 @@
 #include "host_control.h"
 #include "local_username.h"
 #include "server/runtime/runtime_host_control.h"
+#include "server/security/standalone_ntlmv2.h"
 
 #if defined(__linux__)
 #include "server/runtime/linux_runtime_host_control.h"
@@ -925,6 +926,44 @@ int main(int argc, char** argv)
         assert(!validDesktopText("\xc2\x85"));
         assert(runtime.startCalls == 0);
         assert(runtime.permissionSetupCalls == 0);
+        return 0;
+    }
+
+    if (mode == "rapid-password-input-bounds")
+    {
+        FakeRuntimeHost candidate;
+        prepareReadyHost(candidate);
+        HostControl candidateHost(candidate);
+        DesktopWindow window(candidateHost);
+
+        auto* password = window.findChild<QLineEdit*>("sessionPassword");
+        auto* confirmation =
+            window.findChild<QLineEdit*>("sessionPasswordConfirm");
+        assert(password && confirmation);
+
+        constexpr auto maximumPasswordCodeUnits =
+            rdp_server::server::security::
+                kMaximumStandalonePasswordCodeUnits;
+        const int maximumEditorLength =
+            static_cast<int>(maximumPasswordCodeUnits);
+        assert(password->maxLength() == maximumEditorLength);
+        assert(confirmation->maxLength() == maximumEditorLength);
+
+        const QString oversizedPassword(
+            maximumEditorLength + 1, QLatin1Char('x'));
+        password->setText(oversizedPassword);
+        confirmation->setText(oversizedPassword);
+        assert(password->text().size() == maximumEditorLength);
+        assert(confirmation->text().size() == maximumEditorLength);
+
+        // HostControl must also fail before constructing or handing a second
+        // mutable secret buffer to R10 when a non-widget caller exceeds the
+        // exact production limit.
+        assert(!candidateHost.configureStandalonePassword(
+            QStringLiteral("owner"), oversizedPassword));
+        assert(candidate.standaloneCredentialCalls == 0);
+        assert(candidate.permissionSetupCalls == 0);
+        assert(candidate.startCalls == 0);
         return 0;
     }
 

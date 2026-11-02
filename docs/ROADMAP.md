@@ -1,3 +1,29 @@
+## R7 P0 follow-up — bound GUI password staging before R10 (2026-11-01)
+
+Reviewed dependency graph through parent `f3ce13e594744001bf0ed0db5973e60859ab5446`. R2's latest secure
+preference ancestry hardening is now on main, R7 restored settings/CLI
+integration remains intact, and R10 retains the sole credential/Sharing
+transaction. No R2/R7/R10 source dependency blocks this follow-up; hosted
+cross-platform workflows remain an execution gate.
+
+Audit found a privacy/robustness gap: --password-stdin is bounded to 256 bytes
+and the production standalone credential owner accepts at most 256 UTF-16 code
+units, while the Qt password editors kept QLineEdit's much larger default.
+That allowed avoidable secret-sized QString/std::u16string staging before R10
+rejected an oversized value.
+
+Bound both masked editors to the existing production maximum and make
+HostControl reject oversized input before constructing its mutable UTF-16
+handoff. New ordinary `gui.offscreen-rapid-password-input-bounds` verifies
+the editor limit, Qt boundary, adapter preflight and zero fake-R10 credential,
+permission or Start calls. No storage schema, persistence, listener,
+permission or runtime ownership changes.
+
+Source/ownership/registration review PASS. Canonical local Debug/Release
+build, CTest and sanitizers NOT RUN because this connector has no owner
+checkout/Qt6 toolchain. Next gate: exact-publication-SHA hosted Linux/macOS/
+Windows full CI; physical client/native admission remains separately gated.
+
 ## R2 P0 — unsafe POSIX preference ancestry is not a first-run miss (2026-11-01)
 
 Refreshed from shared-main parent

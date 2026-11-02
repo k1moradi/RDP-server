@@ -1,3 +1,14 @@
+## R7 secret staging must be bounded before adapter copies (2026-11-01)
+
+GUI credential surfaces must apply the production standalone password limit
+before creating additional secret-bearing buffers. Keep both QLineEdit password
+fields masked and capped at
+`kMaximumStandalonePasswordCodeUnits`; HostControl must reject an oversized
+QString before `toStdU16String()` and before invoking R10. The existing
+mutable handoff copy is still scrubbed unconditionally after the synchronous
+R10 call. Do not introduce a second credential owner, persistence path or
+background validation layer.
+
 ## R2 POSIX preference ancestry reports unsafe paths distinctly (2026-11-01)
 
 For the no-path per-user preference resolver, `Missing` is reserved for a

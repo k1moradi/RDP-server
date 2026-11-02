@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "host_control.h"
 
+#include "server/security/standalone_ntlmv2.h"
+
 #include <algorithm>
 
 #include <string>
@@ -464,6 +466,15 @@ bool HostControl::requestExistingOsAccount()
 bool HostControl::configureStandalonePassword(
     const QString& username, const QString& password)
 {
+    // Do not allocate another secret-bearing UTF-16 buffer when the GUI or a
+    // future caller exceeds the production standalone credential bound.
+    if (password.size() > static_cast<qsizetype>(
+            rdp_server::server::security::
+                kMaximumStandalonePasswordCodeUnits))
+    {
+        return false;
+    }
+
     const std::u16string usernameUtf16 = username.toStdU16String();
     std::u16string mutablePassword = password.toStdU16String();
     const bool configured = runtime_.configureStandaloneApplicationPassword(

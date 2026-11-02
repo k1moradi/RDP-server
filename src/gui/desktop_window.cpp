@@ -3,6 +3,7 @@
 
 #include "local_username.h"
 #include "server/security/console_identity_policy.h"
+#include "server/security/standalone_ntlmv2.h"
 #include "toggle_switch.h"
 
 #if defined(Q_OS_LINUX)
@@ -843,6 +844,8 @@ DesktopWindow::DesktopWindow(
     sessionPassword_->setPlaceholderText(
         QStringLiteral("Enter Session Password"));
     sessionPassword_->setAccessibleName(QStringLiteral("Session Password"));
+    sessionPassword_->setMaxLength(static_cast<int>(
+        rdp_server::server::security::kMaximumStandalonePasswordCodeUnits));
     configureCredentialEditor(*sessionPassword_);
     sessionPasswordConfirm_->setObjectName("sessionPasswordConfirm");
     sessionPasswordConfirm_->setEchoMode(QLineEdit::Password);
@@ -850,6 +853,8 @@ DesktopWindow::DesktopWindow(
         QStringLiteral("Confirm Session Password"));
     sessionPasswordConfirm_->setAccessibleName(
         QStringLiteral("Confirm Session Password"));
+    sessionPasswordConfirm_->setMaxLength(static_cast<int>(
+        rdp_server::server::security::kMaximumStandalonePasswordCodeUnits));
     configureCredentialEditor(*sessionPasswordConfirm_);
     usernameLabel_->setObjectName("standaloneUsernameLabel");
     sessionPasswordLabel_->setObjectName("sessionPasswordLabel");

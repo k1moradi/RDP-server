@@ -1,3 +1,20 @@
+## R7 bounded GUI password staging before R10 (2026-11-01)
+
+Reviewed parent `f3ce13e594744001bf0ed0db5973e60859ab5446`, including R2's current preference ancestry
+hardening, R7 CLI/GUI integration, R10 credential ownership and
+`kMaximumStandalonePasswordCodeUnits == 256`. The CLI already bounded stdin,
+while QLineEdit retained a larger default and HostControl copied any QString
+before R10 enforced the credential limit. The correction caps both masked
+editors at the production maximum and preflights HostControl before its mutable
+UTF-16 copy.
+
+Added ordinary `gui.offscreen-rapid-password-input-bounds`: editor maxima,
+oversize Qt bounding, adapter denial before fake R10 credential call and zero
+permission/Start activity. Source/ownership/CTest registration review PASS.
+Canonical local compile/focused/full Debug+Release CTest and sanitizers NOT RUN
+here; exact-publication hosted CI PENDING. No password persistence, R2 schema,
+R10 Sharing authority or Release capability change.
+
 ## R2 POSIX unsafe preference-parent status hardening (2026-11-01)
 
 Reviewed refreshed shared `main` parent

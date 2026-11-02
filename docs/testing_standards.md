@@ -1,3 +1,13 @@
+## R7 bounded GUI password-staging regression (2026-11-01)
+
+Register ordinary `gui.offscreen-rapid-password-input-bounds` in the existing
+single-QApplication fake-R10 executable. It must assert both masked editors use
+the exact production standalone password limit, oversized Qt text is bounded,
+and a direct oversized HostControl password is rejected before the fake R10
+credential method, permission request or Start. No OS permission, listener,
+native desktop or real credential is required. Retain the separate stdin bound,
+argv privacy, --enable consent and Stop/restart tests.
+
 ## R2 unsafe POSIX preference ancestry status regression (2026-11-01)
 
 Ordinary behavior-named

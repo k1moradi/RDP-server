@@ -5924,6 +5924,8 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     # Match the R2 Username grammar without restricting password punctuation.
     add_test(NAME gui.offscreen-rapid-cli-username-r2-validation
         COMMAND test_desktop_gui_offline rapid-cli-username-r2-validation)
+    add_test(NAME gui.offscreen-rapid-password-input-bounds
+        COMMAND test_desktop_gui_offline rapid-password-input-bounds)
     add_test(NAME gui.offscreen-rapid-start-explicit-consent
         COMMAND test_desktop_gui_offline rapid-start-consent)
     add_test(NAME gui.offscreen-rapid-preferences-restart-cli-precedence
@@ -5947,6 +5949,7 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(
         gui.offscreen-rapid-cli-privacy
         gui.offscreen-rapid-cli-username-r2-validation
+        gui.offscreen-rapid-password-input-bounds
         gui.offscreen-rapid-start-explicit-consent
         gui.offscreen-rapid-preferences-restart-cli-precedence
         gui.offscreen-rapid-preferences-invalid-replaced-interface

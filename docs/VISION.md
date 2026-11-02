@@ -1,3 +1,12 @@
+## R7 bounded GUI Session Password input (2026-11-01)
+
+The portable GUI bounds both masked Session Password editors to the same
+256 UTF-16 code-unit maximum enforced by the standalone credential owner.
+The Qt HostControl adapter rejects an oversized password before allocating a
+second mutable UTF-16 secret buffer or invoking R10. This is a memory/privacy
+bound only: it grants no credential, permission, listener or Sharing authority,
+does not persist the password, and leaves Release capability gates unchanged.
+
 ## R7 temporary CLI Username and credential copy rules (2026-11-01)
 
 The non-authorizing --username override uses R2-compatible bounded UTF-8:

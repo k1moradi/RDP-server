@@ -130,9 +130,10 @@ def evaluate(expected_sha: str, current_sha: str,
         raise ValueError("TOO_MANY_RECORDS")
 
     # A partial REST page cannot establish complete exact-run evidence.
+    # A present JSON null count is invalid; only an absent key is optional.
     for payload, records in ((jobs_payload, jobs), (artifacts_payload, artifacts)):
         total_count = payload.get("total_count")
-        if total_count is not None and (
+        if "total_count" in payload and (
             type(total_count) is not int or total_count != len(records)
         ):
             raise ValueError("INCOMPLETE_SNAPSHOT")
@@ -331,6 +332,7 @@ def self_test() -> None:
         raise AssertionError("R9 self-test denial failed")
     self_test_unscheduled_run_state()
     # Complete GitHub REST pages pass; truncated or invalid totals fail.
+    # Explicit JSON null must not bypass a present total_count contract.
     complete_jobs = {**jobs, "total_count": len(jobs["jobs"])}
     complete_artifacts = {**artifacts, "total_count": len(artifacts["artifacts"])}
     complete = evaluate(sha, sha, run, complete_jobs, complete_artifacts)
@@ -339,7 +341,7 @@ def self_test() -> None:
         raise AssertionError("complete REST snapshot rejected")
     for collection_name, records in (("jobs", jobs["jobs"]),
                                      ("artifacts", artifacts["artifacts"])):
-        for invalid_count in (len(records) + 1, -1, True):
+        for invalid_count in (len(records) + 1, -1, True, None):
             candidate_jobs = dict(complete_jobs)
             candidate_artifacts = dict(complete_artifacts)
             if collection_name == "jobs":

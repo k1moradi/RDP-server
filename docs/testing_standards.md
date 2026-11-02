@@ -163,6 +163,9 @@ BLOCKED / INCONCLUSIVE.
 
 ## In-progress exact-SHA workflows retain pending evidence state (2026-11-01)
 
+**R9 follow-up: explicit null pagination count (2026-11-01; parent `2a73fd19ad7173d16f4b3ea78262c545d733cece`):** The prior `INCOMPLETE_SNAPSHOT` source guard used `payload.get("total_count") is not None`, so a jobs/artifacts snapshot explicitly declaring JSON `total_count: null` bypassed completeness verification. A present key must have an exact integer equal to supplied records; only an absent key is allowed for the existing synthetic legacy fixtures. Fix only the condition, preserve the real GitHub REST count and all queued/skipped/manual/physical classifications, and extend the existing `project.exact-sha-qualification-job-status-denials` self-test with an explicit-null case for both jobs and artifacts. No CTest registration, dependency edge, sanitizer count, production code or physical acceptance changes. Reviewed current-source R10 Linux HostControl source-order guard failure belongs to R10; Windows Clang23/clean-Windows and owner platform-local same-SHA evidence remain distinct. Connector-local CTest/build NOT RUN; new publication-SHA structure and full CI pending. M1/M2 remain OPEN.
+
+
 **R9 complete REST snapshot rule:** A provided GitHub total_count must be an integer equal to the supplied jobs/artifacts record count. Partial pages, invalid boolean and negative counts fail before lane classification. The existing project.exact-sha-qualification-job-status-denials self-test has complete positive and incomplete negative cases. Count-absent synthetic fixtures remain supported; this is not owner acceptance.
 
 

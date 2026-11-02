@@ -972,6 +972,34 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (mode == "rapid-cli-username-preference-length-parity")
+    {
+        static_assert(kDesktopMaximumUsernameBytes == 256U);
+
+        const std::string maximumUsername(kDesktopMaximumUsernameBytes, 'u');
+        const std::array<std::string_view, 3> maximumArguments{
+            "rdp-server-desktop", "--username", maximumUsername};
+        DesktopLaunchOptions options;
+        assert(parseDesktopLaunchOptions(maximumArguments, options) ==
+               DesktopLaunchError::None);
+        assert(options.usernameProvided);
+        assert(options.username == std::string_view{maximumUsername});
+
+        const std::string oversizedUsername(
+            kDesktopMaximumUsernameBytes + 1U, 'u');
+        const std::array<std::string_view, 3> oversizedArguments{
+            "rdp-server-desktop", "--username", oversizedUsername};
+        assert(parseDesktopLaunchOptions(oversizedArguments, options) ==
+               DesktopLaunchError::InvalidOption);
+
+        // Length validation is non-authorizing and must not reach R10.
+        assert(runtime.standaloneCredentialCalls == 0);
+        assert(runtime.permissionSetupCalls == 0);
+        assert(runtime.configureCalls == 0);
+        assert(runtime.startCalls == 0);
+        return 0;
+    }
+
     if (mode == "rapid-password-input-bounds")
     {
         FakeRuntimeHost candidate;

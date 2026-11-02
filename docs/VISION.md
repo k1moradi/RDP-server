@@ -1,3 +1,12 @@
+## R7 CLI Username preference-bound parity (2026-11-01)
+
+The temporary non-authorizing `--username` override accepts the same maximum
+256 UTF-8 bytes as R2's fixed non-secret Username preference record. The
+existing malformed UTF-8, C0/C1/DEL and path-separator denials remain
+unchanged. A 257-byte value fails before QApplication or R10 construction.
+This parity change stores nothing, grants no credential/permission, and cannot
+turn Sharing on.
+
 ## Preference ancestry and explicit interface intent remain non-authorizing (2026-11-01)
 
 The per-user non-secret preference store must resolve POSIX account-home ancestry component by component with no-follow directory handles; a symlink in any selected home component is a storage failure, never a route to another configuration root. The existing Windows current-user protected-DACL/reparse policy remains the equivalent platform boundary. Storage availability never changes R2, R1, native-consent or GraphicsReady state.

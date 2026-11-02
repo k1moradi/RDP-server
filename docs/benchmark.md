@@ -1,3 +1,11 @@
+## R7 CLI Username byte-bound parity is not a benchmark (2026-11-01)
+
+Changing the cold startup parser's non-secret Username ceiling from 128 to the
+existing R2 256-byte record ceiling adds no runtime hot-path work, allocation,
+network I/O, frame/clipboard processing or authorization operation. No
+performance result is claimed and no benchmark is required for this
+correctness/interoperability fix.
+
 ## R1 pre-TLS byte-accounting nonblocking handshake fairness (2026-11-01)
 
 This change is test-harness scheduling only. The bounded pause occurs only while a nonblocking loopback TLS handshake fixture has not finished; the production R1 transport hot path, handshake deadlines, allocations and accepted-byte accounting are unchanged. No benchmark is required and none was run. The previously observed ~0.06 s spin exhaustion is not a production latency metric.

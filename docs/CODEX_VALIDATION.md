@@ -1,3 +1,22 @@
+## R7 CLI Username preference-length parity (2026-11-01)
+
+Reviewed current-main parent `7361e131ba55740256d1b72b1c68c13ce7ee0214`, R2's fixed non-secret preference
+schema, the R7 allocation-free launch parser, Qt presentation handoff, R10
+credential/Sharing owner, shipped CLI denials and fake-R10 offline suite. R2
+accepts a valid Username through 256 UTF-8 bytes while R7's temporary
+`--username` path stopped at 128, so a valid restored preference could not be
+reproduced as a process-only override.
+
+The R7 ceiling now matches 256 bytes without changing UTF-8/control/path
+validation. New ordinary
+`gui.offscreen-rapid-cli-username-preference-length-parity` covers exact
+acceptance, +1 rejection and zero fake-R10 actions; the shipped executable
+denial also rejects 257 bytes before Qt. Source/ownership/dependency/registry
+review **PASS**. Connector-local configure/build/CTest/sanitizers/benchmark
+**NOT RUN** because no canonical owner checkout/Qt build is mounted.
+Exact-publication hosted qualification is **PENDING**. R2 storage is present
+and the R7 storage dependency is **UNBLOCKED**; no duplicate store was added.
+
 ## R6 P0 — client/server original-record namespaces are disjoint (2026-11-01)
 
 **Authoring parent:** `8c26d4d1fef1b4af995ae38d9ac6ac472e1118c2`. Re-review of the closed

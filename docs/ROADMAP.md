@@ -1,3 +1,28 @@
+## R7 P0 rapid CLI Username preference-length parity (2026-11-01)
+
+**Authoring parent:** `7361e131ba55740256d1b72b1c68c13ce7ee0214`. Dependency review confirms the shared
+R2 `runtime_user_preferences` API is present and linked into
+`rdp-server-desktop-ui`; normal desktop startup consumes that API while the
+platform HostControl remains the sole R10 runtime/Sharing owner. The earlier
+storage dependency is therefore **UNBLOCKED** and no second settings store is
+permitted or needed.
+
+Review found one remaining R7 policy mismatch: R2 accepts the fixed non-secret
+Username through 256 UTF-8 bytes, but the process-only `--username` parser
+capped it at 128. Raise only that R7 limit to 256 while preserving strict
+UTF-8/control/path denials and all non-authorizing semantics. Add dedicated
+`gui.offscreen-rapid-cli-username-preference-length-parity` plus the shipped
+executable +1 denial. Existing bounded stdin, `--enable` consent,
+preferences restart/interface replacement, Stop/restart, `--help` pre-Qt,
+Release credential gates and Linux expert `--config` behavior remain
+unchanged.
+
+Source/ownership/dependency/CTest-registry review **PASS**. Local canonical
+configure/build/focused/full Debug+Release CTest, sanitizers and benchmark are
+**NOT RUN** in this connector-only environment. Exact-publication hosted
+qualification is the next gate; no physical listener/native permission/client
+test is required or authorized for this offline parser correction.
+
 ## R6 P0 — client/server original-record namespaces are disjoint (2026-11-01)
 
 **Authoring parent:** `8c26d4d1fef1b4af995ae38d9ac6ac472e1118c2`. Re-review of the closed

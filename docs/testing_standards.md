@@ -1,16 +1,12 @@
-## Distinguish queued workflow runs from missing executed jobs (2026-11-01)
+## Rapid CLI Username preference-length parity (2026-11-01)
 
-The R9 `project.exact-sha-qualification-unscheduled-run-state-denials`
-CTest reuses the standard-library-only existing verifier. A GitHub
-workflow queued before its job records are available must classify
-missing lanes as `RUN_QUEUED`, not a completed-run `NOT_RUN` case.
-Pending/requested/waiting, run-level canceled and skipped must be
-separately typed; an unsuccessful or successful completed run with no
-matching job remains `NOT_RUN`, not inferred success/failure. Existing
-job entries retain exact run-ID/SHA and per-step success checks.
-The established `--self-test` incorporates all these cases and remains
-part of the automatic workflow-structure guard. Never interpret a
-run-scheduling status as a CTest, packaging, SSPI or physical-client PASS.
+Register `gui.offscreen-rapid-cli-username-preference-length-parity` in the
+existing single-QApplication fake-R10 executable. Exercise the production
+parser at exactly 256 UTF-8 bytes and one byte beyond: 256 is accepted as a
+temporary non-authorizing Username and 257 is rejected, with zero credential,
+permission, endpoint or listener calls. Keep the shipped executable denial for
+257 bytes under an intentionally invalid QPA backend so the rejecting path is
+also proven to terminate before Qt/runtime startup.
 
 ## R1 pre-TLS byte-accounting nonblocking handshake fairness (2026-11-01)
 

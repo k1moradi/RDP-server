@@ -71,6 +71,7 @@ def main() -> int:
         ["--username", "owner", "--username", "replacement"],
         ["--username", "owner/other"],
         ["--username", "owner\\other"],
+        ["--username", "u" * 257],
         ["--enable", "--enable"],
         ["--password-stdin", "--password-stdin"],
         ["--help", "--enable"],

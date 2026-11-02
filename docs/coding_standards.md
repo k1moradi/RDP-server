@@ -1,3 +1,12 @@
+## R7 CLI Username uses the complete R2 non-secret byte range (2026-11-01)
+
+Keep the process-only `--username` ceiling at 256 UTF-8 bytes, matching the
+existing R2 fixed preference record. Do not introduce a narrower independent
+CLI limit that prevents a valid stored Username from being supplied as a
+temporary override. Preserve strict malformed/overlong UTF-8, C0/C1/DEL and
+path-separator rejection, allocation-free argv parsing, non-secret diagnostics
+and zero authorization side effects.
+
 ## R7 redirected stdin CRLF at the exact password capacity (2026-11-01)
 
 The 256-byte private Session Password limit counts password data, not one

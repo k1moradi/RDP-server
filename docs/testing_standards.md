@@ -1,3 +1,7 @@
+## R9 exact-SHA qualification must expose independent prerequisite jobs (2026-11-01)
+
+`project.exact-sha-qualification-job-status-denials` reuses the existing Python qualification classifier and fixture-only self-test. Keep R2 Linux runtime-security complete/missing-systemd, R7 macOS native lifecycle and session sanitizers, per-OS GUI credential parity and the Windows PowerShell parser as separate per-run/SHA lanes. The Clang23 Windows staged GUI ZIP step must be classified independently of full Clang23 Debug/Release and of the separate clean-Windows consumer. A skipped ZIP staging step cannot become PASS because its parent job succeeded; a queued, skipped or canceled independent producer must retain that status. This is metadata classification only and cannot certify standalone SSPI artifact contents, real Windows App login or physical native admission.
+
 ## R5 tests-disabled native desktop build-graph regression (2026-11-01)
 
 A production adapter required by the R5 aggregate must not disappear merely because CTest is disabled. `rdp-server-linux-xshm` is a required child of `rdp-server-linux-x11-desktop`, so its CMake declaration must be Linux/dependency-gated rather than `BUILD_TESTING`-gated. Validate the dependency itself by configuring the canonical `build/` with `BUILD_TESTING=OFF` and `RDP_SERVER_BUILD_TESTING=OFF`, then building the real `rdp-server-linux-x11-desktop` target with the ordinary XCB development packages present. Reconfigure the same root for the normal Debug/Release CTests afterward; do not create a second build root.

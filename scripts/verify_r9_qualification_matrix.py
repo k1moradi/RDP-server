@@ -27,12 +27,20 @@ REQUIRED_JOBS = (
     ("windows_msvc_release", "protocol (windows-latest)", "Run Release protocol tests"),
     ("windows_clang23_debug", "r6-windows-clang23", "Run full Debug CTest under CLANG64"),
     ("windows_clang23_release", "r6-windows-clang23", "Run full Release CTest under CLANG64"),
+    ("windows_gui_staged", "r6-windows-clang23", "Stage Windows PORTABLE-GUI candidate (internal only)"),
     ("security_asan_ubsan", "r9-security-protocol-sanitizers", None),
+    ("r2_linux_security_complete", "r2-linux-production-runtime-security (complete)", None),
+    ("r2_linux_security_missing_systemd", "r2-linux-production-runtime-security (missing-systemd)", None),
+    ("r7_macos_native_lifecycle", "r7-macos-native-lifecycle", None),
+    ("r7_macos_session_sanitizers", "r7-macos-session-sanitizers", None),
     ("linux_gui_zip", "r5-linux-gui-zip", None),
     ("macos_portable_gui", "r7-macos-portable-gui", None),
     ("windows_clean_portable_gui", "r9-clean-windows-portable-gui", None),
     ("gui_bootstrap", "r9-portable-gui-bootstrap-acceptance", None),
     ("gui_round2", "r9-gui-round2-acceptance", None),
+    ("gui_credential_parity_linux", "r9-owner-gui-credential-parity (ubuntu-latest)", None),
+    ("gui_credential_parity_macos", "r9-owner-gui-credential-parity (macos-latest)", None),
+    ("windows_powershell_parser", "r9-windows-powershell-parser", None),
     ("documentation_policy", "documentation-policy", None),
     ("workflow_structure", "ci-workflow-structure", None),
     ("owner_candidate_manual", "r9-credssp-owner-candidate", None),
@@ -170,6 +178,17 @@ def self_test() -> None:
         {"name": "protocol (macos-latest)", "status": "completed", "conclusion": "cancelled"},
         {"name": "protocol (windows-latest)", "status": "queued", "conclusion": None},
         {"name": "r9-security-protocol-sanitizers", "status": "completed", "conclusion": "skipped"},
+        {"name": "r2-linux-production-runtime-security (complete)",
+         "status": "completed", "conclusion": "success"},
+        {"name": "r2-linux-production-runtime-security (missing-systemd)",
+         "status": "completed", "conclusion": "skipped"},
+        {"name": "r7-macos-native-lifecycle", "status": "queued", "conclusion": None},
+        {"name": "r7-macos-session-sanitizers", "status": "completed", "conclusion": "cancelled"},
+        {"name": "r9-owner-gui-credential-parity (ubuntu-latest)",
+         "status": "completed", "conclusion": "success"},
+        {"name": "r9-owner-gui-credential-parity (macos-latest)",
+         "status": "completed", "conclusion": "skipped"},
+        {"name": "r9-windows-powershell-parser", "status": "completed", "conclusion": "success"},
         {"name": "r9-clean-windows-portable-gui", "status": "queued", "conclusion": None},
         {"name": "r9-credssp-owner-candidate", "status": "completed", "conclusion": "skipped"},
     ]}
@@ -194,6 +213,29 @@ def self_test() -> None:
         raise AssertionError("R9 self-test denial failed")
     if not (report["lanes"]["owner_candidate_manual"] == "SKIPPED"):
         raise AssertionError("R9 self-test denial failed")
+    # Every independent producer must be visible, not hidden inside a green
+    # aggregate protocol job or silently omitted from the owner gate.
+    expected_producers = {
+        "r2_linux_security_complete": "JOB_PASS",
+        "r2_linux_security_missing_systemd": "SKIPPED",
+        "r7_macos_native_lifecycle": "QUEUED",
+        "r7_macos_session_sanitizers": "CANCELED",
+        "gui_credential_parity_linux": "JOB_PASS",
+        "gui_credential_parity_macos": "SKIPPED",
+        "windows_powershell_parser": "JOB_PASS",
+        "windows_gui_staged": "NOT_RUN",
+    }
+    if any(report["lanes"][name] != state
+           for name, state in expected_producers.items()):
+        raise AssertionError("R9 independent producer classification failed")
+    staged_only = evaluate(sha, sha, run, {"jobs": [{
+        "name": "r6-windows-clang23", "run_id": run_id,
+        "status": "completed", "conclusion": "success",
+        "steps": [{"name": "Stage Windows PORTABLE-GUI candidate (internal only)",
+                   "status": "completed", "conclusion": "skipped"}],
+    }]}, artifacts)
+    if staged_only["lanes"]["windows_gui_staged"] != "SKIPPED":
+        raise AssertionError("R9 Windows staged ZIP step was promoted")
     missing_step_report = evaluate(sha, sha, run, {"jobs": [
         {"name": "protocol (ubuntu-latest)", "status": "completed", "conclusion": "success",
          "run_id": run_id, "steps": []}

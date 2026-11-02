@@ -1,3 +1,7 @@
+## R9 independent-producer exact-SHA classifier qualification (2026-11-01)
+
+After the canonical configure/build in only `~/rdp-server/build/`, run `python3 scripts/verify_r9_qualification_matrix.py --self-test` and `ctest --test-dir build -C Debug -R '^project[.]exact-sha-qualification-job-status-denials$' --output-on-failure`, then full Debug/Release CTest and normal hosted structure/security/packaging gates at the same publication SHA. No new CTest, target, build directory, dependency or sanitizer selection. Source inspection PASS; local canonical execution NOT RUN.
+
 ## R5 production native desktop target with tests disabled (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. To prove that native Linux composition no longer depends on CTest, with the normal XCB/RandR/XShm/XFixes/Damage/XTEST development packages installed:

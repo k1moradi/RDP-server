@@ -1333,7 +1333,8 @@ void testStopRevokeRetirement()
 [[nodiscard]] bool runCompletedCredSspRetirementScenario(
     CompletedCredSspRetirement retirement,
     std::uint16_t firstPort,
-    std::uint8_t nonceSeed)
+    std::uint8_t nonceSeed,
+    bool verifyIdleServiceYield = false)
 {
     PortableBootstrapEvidence evidence(501U);
     MacRuntimeHostControl control(evidence);
@@ -1428,6 +1429,18 @@ void testStopRevokeRetirement()
     // Re-service after a genuine Microsoft Connect-Initial is already queued.
     // The authenticated proof is valid, but no R2 native admission exists:
     // R10 must not consume first MCS or synthesize R3/native state.
+    if (verifyIdleServiceYield)
+    {
+        // Production owner and production bounded scheduler: an actual R1/R2
+        // wait is not eight fabricated progress calls or a zero-delay loop.
+        const auto burst = serviceRuntimeBoundedBurst(
+            [&control]() noexcept { return control.serviceOnce(); });
+        assert(burst.serviceCalls == 1U);
+        assert(burst.lastResult.succeeded());
+        assert(burst.lastResult.retryable);
+        assert(!burst.immediateReschedule);
+        assert(assertCompletedCredSspDormantStatus(control.status()));
+    }
     for (std::size_t index = 0U; index < 8U; ++index)
     {
         assert(control.serviceOnce().succeeded());
@@ -1620,6 +1633,13 @@ void testStopRevokeRetirement()
     return runCompletedCredSspRetirementScenario(
         CompletedCredSspRetirement::NoNativeIssuerAfterQueuedMcs,
         34530U, 0xa1U);
+}
+
+[[nodiscard]] bool testMacCompletedCredSspIdleOwnerYields()
+{
+    return runCompletedCredSspRetirementScenario(
+        CompletedCredSspRetirement::NoNativeIssuerAfterQueuedMcs,
+        34620U, 0xc1U, true);
 }
 
 [[nodiscard]] bool testMacConsentScopeReplacementDenials()
@@ -1972,6 +1992,11 @@ int main(int argc, char** argv)
     else if (selected == "macos-host-control-completed-credssp-without-native-admission-denials")
     {
         if (!testMacCompletedCredSspWithoutNativeAdmissionDenials())
+            return 77;
+    }
+    else if (selected == "macos-host-control-completed-credssp-idle-owner-yields")
+    {
+        if (!testMacCompletedCredSspIdleOwnerYields())
             return 77;
     }
     else if (selected == "macos-portable-gui-bootstrap-readiness")

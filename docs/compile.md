@@ -1,3 +1,7 @@
+## R10 authenticated idle-owner scheduler test (2026-11-01)
+
+Use only `~/rdp-server/build/`; run `ctest --test-dir build -C Debug -R 'runtime[.]macos-host-control-(completed-credssp-idle-owner-yields|first-mcs-without-native-issuer-dormancy|completed-credssp-without-native-admission-denials)' --output-on-failure`, existing graphics receipt/ACK and retirement selections, full Debug/Release CTest and applicable exact-SHA sanitizers. No new target, dependency or build root.
+
 ## R7 CLI Username/R2 policy focused qualification (2026-11-01)
 
 After the canonical Debug configure/build under only `~/rdp-server/build/`:

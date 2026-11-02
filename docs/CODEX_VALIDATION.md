@@ -1,3 +1,9 @@
+## R10 idle authenticated macOS owner retryable-result correction (2026-11-01)
+
+Source audit established that the previous shared Qt bounded-burst loop could busy-spin because `MacRuntimeHostControl::serviceOnce()` returned unconditional `{None,false}` instead of its original `preAdmission` result when no mapped GraphicsReady native frame work ran. The minimal production fix preserves the real R1/R2 peer wait, without changing R4's concurrent tight-BGRA native validation. New ordinary existing-binary test checks real TLS/CredSSP synthetic peer completion and a single retryable shared-burst call. No second socket/reader/framer/ACK owner.
+
+Canonical local Debug/Release build, CTest, sanitizers and benchmarks NOT RUN: no canonical checkout or usable GitHub network from this container. Exact publication-SHA hosted CI remains required. Physical macOS capture/Windows App visibility/ACK and Linux Windows App same-attempt Type-2 client evidence remain NOT RUN.
+
 ## R7 rapid-test Username/R2 parity and credential-copy cleanup (2026-11-01)
 
 Source/owner/dependency review baseline `7662e75d52b5fcc203bcf94103e094e950e530cb`. Existing R2 secure

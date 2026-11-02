@@ -1,3 +1,9 @@
+## R10 P1 — original macOS R1/R2 wait propagation after bounded GUI progress (2026-11-01)
+
+The prior common eight-call Qt burst revealed a genuine no-progress loop: `MacRuntimeHostControl::serviceOnce()` discarded a successful retryable pre-admission step outside the GraphicsReady frame service. Completed CredSSP without a native R2 issuer, or resize Graphics control waiting on the peer, could trigger eight no-op calls and immediate zero-delay rescheduling. Return the original pre-admission result inside the active client lifetime when no frame work ran, preserving the R4 native stride/borrow fence, R3/R4 frames and exact R1 writer. An ordinary production-backed macOS HostControl CTest checks real synthetic TLS/CredSSP completion, queued Microsoft MCS, one-call peer-wait yield, dormant status and Stop.
+
+Track A is still awaiting authorized original Windows App client-side Type-2 receipt/decryption or first typed error; Track B remains subject to exact-SHA hosted full CI and physical native pixel/client frame acceptance. No DesktopVisible promotion.
+
 ## R7 P0 follow-up — CLI Username parity and adapter secret retirement (2026-11-01)
 
 Reviewed main parent `7662e75d52b5fcc203bcf94103e094e950e530cb`. R2's secure per-user preferences API,

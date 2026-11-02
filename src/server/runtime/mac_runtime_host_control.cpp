@@ -3096,6 +3096,9 @@ RuntimeHostResult MacRuntimeHostControl::serviceOnce() noexcept try
                 AcceptedClientAdmissionStage::GraphicsReady)
                 return serviceAcceptedClientGraphicsOnce(nativeObservation);
         }
+        // No GraphicsReady work: propagate the original R1/R2 peer wait
+        // rather than fabricating immediate progress for the Qt burst.
+        return preAdmission;
     }
 
     return {RuntimeHostError::None, false};

@@ -1,3 +1,7 @@
+## R10 macOS owner wait must survive the bounded GUI wrapper (2026-11-01)
+
+After original R1/R2 pre-admission service, R10 must return the actual retryable wait whenever no mapped GraphicsReady frame step ran. Native servicing in a non-GraphicsReady stage is not itself TLS progress. The frame path still returns R3/R4's result; retain the sole original socket/TLS reader/writer and the eight-call finite Qt burst.
+
 ## R7 temporary CLI Username grammar and adapter secret retirement (2026-11-01)
 
 Keep process-only --username validation consistent with R2's non-secret

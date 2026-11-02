@@ -1,3 +1,7 @@
+## R10 completed CredSSP idle owner yield (2026-11-01)
+
+Keep ordinary `runtime.macos-host-control-completed-credssp-idle-owner-yields` in the existing macOS HostControl executable. Reuse production TLS/CredSSP and queued Microsoft MCS with no native R2 issuer. Require exactly one successful retryable production owner call in the shared burst, no immediate reschedule, unchanged dormant/unauthorized state and subsequent Stop. Environment unavailable SKIP 77, never physical client acceptance.
+
 ## R7 CLI Username parity/R2 non-secret grammar offline test (2026-11-01)
 
 `gui.offscreen-rapid-cli-username-r2-validation` reuses the existing

@@ -1167,6 +1167,17 @@ if(TARGET rdp-server-macos-host-control)
             SKIP_RETURN_CODE 77
             TIMEOUT 45)
 
+    # Real completed R1/CredSSP plus queued Microsoft MCS without an R2
+    # issuer must yield after one original owner peer wait.
+    add_test(NAME runtime.macos-host-control-completed-credssp-idle-owner-yields
+        COMMAND test_macos_runtime_host_control
+            macos-host-control-completed-credssp-idle-owner-yields)
+    set_tests_properties(
+        runtime.macos-host-control-completed-credssp-idle-owner-yields
+        PROPERTIES
+            LABELS "runtime;macos;security;transport;tls;credssp;admission;owner-scheduler;native-environment;offline"
+            SKIP_RETURN_CODE 77 TIMEOUT 45)
+
     # Completed CredSSP and queued first-MCS are not native Admission in the
     # injected-owner offline fixture; keep production R10 fail-closed.
     add_test(

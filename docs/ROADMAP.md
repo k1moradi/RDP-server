@@ -1,3 +1,9 @@
+## R5 — exact-SHA terminal held-input sanitizer follow-through (2026-11-01)
+
+Reviewed `main` parent `1d2d76505e9770f4178bff21d421e3115e54f049` and exact R5 commit `3e01037949ec6ea73f09aa5ab909992069800e80`. Actions run `41355455479` confirmed Ubuntu Debug/Release 1115/1115 CTests each (including `x11.desktop-resource-authority-loss-held-key-button-no-xtest`), native X11 ASan/UBSan 45/45, separate implicit-destructor ASan/UBSan 2/2, and macOS Debug/Release 888/888; Windows protocol/Clang 23, Linux runtime security and Linux GUI ZIP also PASS. Manual R9 owner candidate SKIPPED and clean-Windows GUI queued on inspection. The previously unverified R5 new ordinary behavior is now empirically PASS at this SHA. The remaining **coverage** gap is that explicit aggregate held-key+button authorization-loss teardown has not run under sanitizers. Add one independent ASan/UBSan selection with an exact one-test CTest name and mandatory count; leave the 45 native and 2 implicit-destructor selectors byte-for-byte unchanged. No production code/authorization/performance changes. New publication-SHA sanitizer PENDING. Local owner build/CTest/sanitizers/benchmarks NOT RUN. Real physical Type 3, R2, seat0, capture, complete R1 frame receipt, genuine inbound ACK, input, Stop and reconnect NOT RUN; Windows App still blocks before Type 3.
+
+R4 remains the frame-layout, encoder-credit and matching inbound ACK owner; R10 remains the sole accepted-client X11/capture/input scheduler; no second native authority or Clipboard activation is permitted.
+
 ## R7 P0 — preserve manual Username against late R10 status (2026-11-01)
 
 **Authoring parent:** `7662e75d52b5fcc203bcf94103e094e950e530cb`. R2 per-user non-secret storage,

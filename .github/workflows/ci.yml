@@ -2443,6 +2443,32 @@ jobs:
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$implicit_destructor_selection" --output-on-failure
 
+      # Separate ASan/UBSan assurance for aggregate terminal authority loss.
+      # Keep the fixed 45-case selector and two-case implicit lane unchanged.
+      # Only a disposable Xvfb is used: no native seat0 or R2 permission.
+      - name: Run additional R5 authority-loss held-input Xvfb CTest with sanitizers
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          authority_loss_held_input_selection='^x11[.]desktop-resource-authority-loss-held-key-button-no-xtest$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$authority_loss_held_input_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq ': x11.desktop-resource-authority-loss-held-key-button-no-xtest' <<< "$selected_tests"
+          readonly authority_loss_held_input_expected_test_count=1
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' \
+            <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$authority_loss_held_input_expected_test_count" ]]; then
+            printf 'R5 authority-loss held-input registry mismatch: expected %s tests, found %s\n' \
+              "$authority_loss_held_input_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$authority_loss_held_input_selection" --output-on-failure
+
       - name: Run bounded coverage-guided MCS/CLIPRDR fuzzer
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:

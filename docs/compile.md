@@ -1,3 +1,7 @@
+## R5 — exact-SHA terminal held-input sanitizer follow-through (2026-11-01)
+
+Only `~/rdp-server/build/` is reusable as the persistent build root. After the existing sanitizer configure/build, independently run `ctest --test-dir build -C Debug -R '^x11[.]desktop-resource-authority-loss-held-key-button-no-xtest$' --output-on-failure`. The workflow verifies exactly one match before invocation. Existing fixed 45-case and two-case implicit sanitizer lanes must remain unchanged. Hosted exact follow-up SHA and local benchmark are NOT RUN at authoring; original R5 `3e010379` ordinary Debug/Release and 45+2 sanitizer results PASS.
+
 ## R7 late credential-status Username projection focused qualification (2026-11-01)
 
 Reuse only `~/rdp-server/build/` for Debug, Release and applicable

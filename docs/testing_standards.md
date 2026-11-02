@@ -1,3 +1,7 @@
+## R5 — exact-SHA terminal held-input sanitizer follow-through (2026-11-01)
+
+Run the new aggregate explicit terminal held-input CTest under ASan/UBSan separately after the fixed 45-case R5 selector and unmodified two-case implicit-destructor selection. The exact test `x11.desktop-resource-authority-loss-held-key-button-no-xtest` must be present once, fail if its count is not one, and exercise both held input classes, native zero-release behavior, XCB closure, retired XShm/XDamage isolation and fresh successor capture. Synthetic Xvfb results cannot establish live seat0 permission.
+
 ## R7 owner Username and late runtime credential status (2026-11-01)
 
 The ordinary offscreen

@@ -1,3 +1,13 @@
+## R7 maximum redirected password CRLF qualification (2026-11-01)
+
+Reuse only `~/rdp-server/build/`; after the canonical Debug build run
+`ctest --test-dir build -C Debug -R '^gui[.]offscreen-rapid-(stdin-crlf-maximum|cli-privacy|password-input-bounds)$' --output-on-failure`.
+Then run the normal full Debug and Release CTest and applicable security
+sanitizer lanes on the same exact commit. The test uses only a process-local
+temporary synthetic input stream and fake R10: no live native resources,
+credentials, new executable or build root. Connector-local execution NOT RUN;
+hosted exact-SHA results are the next gate.
+
 ## R8 client-initialization/Monitor-receipt focused qualification (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build, run `ctest --test-dir build -C Debug -R '^(runtime[.]clipboard-(client-initialization-requires-monitor-delivery|client-monitor-ready-route-retirement|initial-handshake-exact-receipt-denials|permission-only-route-observation-consumption)|runtime[.]linux-clipboard-native-publication-receipt-scope-denial|security[.]macos-(post-join-clipboard-view-input-denial|share-activated-clipboard-permission-denial|share-activated-clipboard-scope-classifier-denial|graphics-ready-clipboard-view-input-denial))$' --output-on-failure`, then full Debug/Release CTest and the unchanged fixed 107-case Clipboard ASan/UBSan lane on the exact publication SHA. The change adds no target, dependency, build root, native operation or benchmark workload. Connector-local execution is **NOT RUN**; hosted exact-SHA qualification is required.

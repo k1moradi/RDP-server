@@ -1,3 +1,32 @@
+## R7 P0 follow-up — maximum-length stdin CRLF without widening the secret (2026-11-01)
+
+**Authoring parent:** `60b02ba7ae6a9c0233fa6124fa7c05a1987ac9d7`. Rechecked current main R2 preference
+owner, R7 CLI/GUI, R10 Sharing/credential owner and the CI dependency graph.
+The previously blocking R7 CTest taxonomy name was corrected independently
+in `f55ad153`; the headless protocol tests-OFF/tests-ON cache blocker was
+corrected independently in `4728faea`, with a scoped CI structure guard.
+Do not redo those resolved edits. Hosted exact-SHA jobs remain an executable
+qualification gate, not a reason to bypass R10.
+
+Audit found that a valid 256-byte `--password-stdin` value worked with
+LF or EOF but failed with ordinary CRLF: the reader rejected the framing CR
+before its existing trailing-CR normalization. Preserve the existing
+256-byte secret cap, limited stack array, no heap/log/argv copy and fail-only
+typed stderr; when the buffer is exactly full, accept only one trailing CR
+followed by LF or error-free EOF. Any other extra data, second CR or I/O
+error still rejects. No new buffering, password store, GUI login, listener,
+R2 permission or runtime authorization.
+
+Ordinary `gui.offscreen-rapid-stdin-crlf-maximum` in the existing
+single-QApplication fake-R10 executable checks exact-limit EOF, LF, CRLF,
+terminal CR, oversized LF, CR+non-LF and repeated CR framing; it checks
+temporary-buffer wipe and zero runtime credential, permission and Start calls.
+Source/owner/registry review PASS. Local canonical Debug/Release
+configure/build/CTest/sanitizers NOT RUN (no mounted owner checkout or Qt6
+toolchain). Next: exact-SHA hosted full platform CTest and independently
+authorized physical Type-2/Type-3/native client evidence. Prior physical
+peer close before Type 3 remains upstream R1/R6 BLOCKED.
+
 ## R5 P1 — authorized graceful held-input cleanup vs terminal retirement (2026-11-01)
 
 **Refreshed shared-main parent:** `5471eb9b649cf1705b56705d0944d95692b12c0d`. The originally assigned aggregate

@@ -175,6 +175,16 @@ inline constexpr std::size_t kDesktopMaximumPasswordBytes = 256;
             break;
         if (length == kDesktopMaximumPasswordBytes)
         {
+            // A CRLF (or final CR before EOF) is line framing, not an extra
+            // password code unit. Inspect at most one more byte, without
+            // copying it or raising the secret-size limit.
+            if (next == '\r')
+            {
+                const int lineEnd = std::fgetc(source);
+                if (lineEnd == '\n' ||
+                    (lineEnd == EOF && !std::ferror(source)))
+                    break;
+            }
             password.fill('\0');
             length = 0;
             return DesktopLaunchError::PasswordTooLong;

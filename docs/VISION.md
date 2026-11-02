@@ -1,3 +1,12 @@
+## R7 maximum-length redirected Session Password framing (2026-11-01)
+
+The `--password-stdin` secret remains capped at 256 bytes. One terminal
+CRLF or CR-before-EOF is input framing, not a secret byte; a 256-byte valid
+password is accepted with LF, CRLF or EOF equally. Additional content after
+the exact limit still fails closed. Parsing, GUI preview and tests do not
+authorize Sharing, permit argv/env passwords, store a credential or open a
+listener.
+
 ## R7 bounded GUI Session Password input (2026-11-01)
 
 The portable GUI bounds both masked Session Password editors to the same

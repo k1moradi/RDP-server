@@ -1,3 +1,14 @@
+## Exact-boundary redirected password line ending (2026-11-01)
+
+Register `gui.offscreen-rapid-stdin-crlf-maximum` in the existing
+single-QApplication offline executable. Read a synthetic 256-byte secret
+through the production bounded stdin reader with EOF, LF, CRLF and final
+CR/EOF, and reject one extra content byte, CR+non-LF and double-CR
+variants. Assert expected length, private buffer retirement, and zero
+fake-HostControl credential/permission/Start calls. No physical listener
+or real password. Keep the separate shipped CLI denial and GUI editor
+limit tests unchanged.
+
 ## R5 aggregate graceful held-input release boundary (2026-11-01)
 
 Keep `x11.desktop-resource-graceful-disconnect-held-key-button-release-once` as an ordinary production-backed Xvfb regression in the

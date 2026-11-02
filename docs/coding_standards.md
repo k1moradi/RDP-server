@@ -1,3 +1,12 @@
+## R7 redirected stdin CRLF at the exact password capacity (2026-11-01)
+
+The 256-byte private Session Password limit counts password data, not one
+terminal CRLF framing pair. At exactly maximum length, inspect at most the
+single byte after CR and accept only LF or clean EOF; reject every other
+extra input without heap copies, logging, larger secret buffers or a second
+parser. Always wipe the bounded stack staging on every caller return.
+Do not relax general UTF-8 validation or R10 credential authorization.
+
 ## R6 original-record timestamp anti-splice invariant (2026-11-01)
 
 Review parent `9c71295082b1a7369056109a1d872fddaccb62a9` found one private provenance inconsistency:

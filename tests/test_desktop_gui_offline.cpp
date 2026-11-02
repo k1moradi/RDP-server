@@ -895,6 +895,49 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (mode == "rapid-stdin-crlf-maximum")
+    {
+        // Only a single bounded redirected line is read. CRLF framing
+        // cannot consume a code unit of the 256-byte private secret limit.
+        const std::string maximumPassword(kDesktopMaximumPasswordBytes, 'x');
+        const auto check = [&maximumPassword](
+            const std::string& input, DesktopLaunchError expected) {
+            std::FILE* const stream = std::tmpfile();
+            assert(stream != nullptr);
+            assert(std::fwrite(input.data(), 1, input.size(), stream) ==
+                   input.size());
+            std::rewind(stream);
+            std::array<char, kDesktopMaximumPasswordBytes + 1U> secret{};
+            std::size_t length = 0;
+            assert(readDesktopPasswordLine(stream, secret, length) == expected);
+            if (expected == DesktopLaunchError::None)
+            {
+                assert(length == maximumPassword.size());
+                assert(std::string_view(secret.data(), length) ==
+                       maximumPassword);
+            }
+            else
+            {
+                assert(length == 0U);
+            }
+            wipeDesktopPassword(secret);
+            assert(std::all_of(secret.begin(), secret.end(),
+                               [](char byte) { return byte == 0; }));
+            std::fclose(stream);
+        };
+        check(maximumPassword, DesktopLaunchError::None);
+        check(maximumPassword + "\n", DesktopLaunchError::None);
+        check(maximumPassword + "\r\n", DesktopLaunchError::None);
+        check(maximumPassword + "\r", DesktopLaunchError::None);
+        check(maximumPassword + "x\n", DesktopLaunchError::PasswordTooLong);
+        check(maximumPassword + "\rx\n", DesktopLaunchError::PasswordTooLong);
+        check(maximumPassword + "\r\r\n", DesktopLaunchError::PasswordTooLong);
+        assert(runtime.standaloneCredentialCalls == 0);
+        assert(runtime.permissionSetupCalls == 0);
+        assert(runtime.startCalls == 0);
+        return 0;
+    }
+
     if (mode == "rapid-cli-username-r2-validation")
     {
         const auto parseUsername = [](const std::string_view username) {

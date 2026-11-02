@@ -1,3 +1,23 @@
+## R7 exact-limit --password-stdin CRLF (2026-11-01)
+
+Reviewed main parent `60b02ba7ae6a9c0233fa6124fa7c05a1987ac9d7`, R2 secure prefs, R7 bounded
+launch parser/Qt adapter, R10 sole credential/Sharing transaction, existing
+offline parser/GUI cases, and concurrent R7 CTest rename/protocol CI cache
+repair. Exactly 256 bytes ending with LF/EOF were accepted, but the same
+payload ending CRLF failed `PasswordTooLong` because the framing CR was
+checked against the secret byte limit. At the exact limit only, read at most
+one additional byte after CR; accept LF or clean EOF, reject any other extra
+content. Preserve a 257-byte fixed array, UTF-8 checks, final stack wipe,
+private diagnostics and zero unattended Sharing.
+
+New `gui.offscreen-rapid-stdin-crlf-maximum` covers EOF/LF/CRLF/final CR,
+three malformed over-limit alternatives, fixed wipe and zero fake-R10
+credential/permission/Start. Source/ownership/CTest registration review
+PASS. Local canonical configure/full Debug+Release CTest/sanitizers NOT RUN
+(no owner checkout or Qt6 SDK). Hosted exact-publication structure, platform
+matrix and sanitizers PENDING, with physical Windows App Type-3/native
+admission independently BLOCKED pending authorized evidence.
+
 ## R5 authorized graceful aggregate held-input cleanup (2026-11-01)
 
 - Refreshed source parent: `5471eb9b649cf1705b56705d0944d95692b12c0d`.

@@ -471,11 +471,18 @@ if(NOT WIN32)
         COMMAND test_runtime_user_preferences unsafe-home-ancestor-status)
     add_test(NAME runtime.user-preferences-intermediate-home-symlink-denied
         COMMAND test_runtime_user_preferences symlinked-home-parent-status)
+    add_test(NAME runtime.user-preferences-posix-nonregular-fifo-target-denial
+        COMMAND test_runtime_user_preferences posix-fifo-target-denial)
     set_tests_properties(
         runtime.user-preferences-unsafe-config-ancestor-reports-invalid
         runtime.user-preferences-unsafe-home-ancestor-reports-invalid
         runtime.user-preferences-intermediate-home-symlink-denied
+        runtime.user-preferences-posix-nonregular-fifo-target-denial
         PROPERTIES LABELS "runtime;preferences;security;offline;posix")
+    # A blocking FIFO read is a test failure, not a reason to stall full CI.
+    set_tests_properties(
+        runtime.user-preferences-posix-nonregular-fifo-target-denial
+        PROPERTIES TIMEOUT 5)
 else()
     add_test(NAME runtime.user-preferences-windows-inaccessible-directory-not-missing
         COMMAND test_runtime_user_preferences

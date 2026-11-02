@@ -321,6 +321,51 @@ int runSymlinkedHomeParentStatusTest()
 #endif
 }
 
+#if !defined(_WIN32)
+int runPosixFifoTargetDenialTest()
+{
+    using Status = RuntimeUserPreferencesStorageStatus;
+    const auto directory = std::filesystem::current_path() /
+        ("runtime-user-preferences-fifo-" +
+         std::to_string(static_cast<unsigned long>(::getpid())));
+    assert(createPrivateDirectory(directory));
+    const auto file = directory / "preferences.bin";
+
+    // A private FIFO is not a regular preferences record. An attacker-created
+    // nonregular target must not block on read, be decoded, or be replaced.
+    assert(::mkfifo(file.c_str(), 0600) == 0);
+    assert(::chmod(file.c_str(), 0600) == 0);
+    RuntimeUserPreferences loaded;
+    loaded.lastExplicitUsername = "must-reset";
+    loaded.preferredStableLanInterfaceId = "stale-interface";
+    loaded.port = 3399U;
+    const RuntimeUserPreferences defaults{};
+    assert(detail::loadRuntimeUserPreferencesFromDirectory(
+               directory, loaded) == Status::Invalid);
+    assert(loaded.lastExplicitUsername.empty());
+    assert(loaded.preferredStableLanInterfaceId.empty());
+    assert(loaded.port == defaults.port);
+    assert(loaded.preferRemoteInput == defaults.preferRemoteInput);
+    assert(loaded.permissionLifetimeMinutes ==
+           defaults.permissionLifetimeMinutes);
+
+    RuntimeUserPreferences replacement;
+    replacement.lastExplicitUsername = "private-owner";
+    assert(detail::saveRuntimeUserPreferencesToDirectory(
+               directory, replacement) == Status::Invalid);
+    struct stat metadata{};
+    assert(::lstat(file.c_str(), &metadata) == 0);
+    assert(S_ISFIFO(metadata.st_mode));
+    assert((metadata.st_mode & 07777) == 0600);
+
+    assert(::unlink(file.c_str()) == 0);
+    assert(detail::loadRuntimeUserPreferencesFromDirectory(
+               directory, loaded) == Status::Missing);
+    assert(std::filesystem::remove(directory));
+    return 0;
+}
+#endif
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -335,6 +380,11 @@ int main(int argc, char** argv)
     if (argc == 2 &&
         std::string_view{argv[1]} == "windows-file-hard-link-denial")
         return runWindowsPreferenceHardLinkDenialTest();
+#endif
+#if !defined(_WIN32)
+    if (argc == 2 &&
+        std::string_view{argv[1]} == "posix-fifo-target-denial")
+        return runPosixFifoTargetDenialTest();
 #endif
     if (argc == 2 &&
         std::string_view{argv[1]} == "unsafe-config-ancestor-status")

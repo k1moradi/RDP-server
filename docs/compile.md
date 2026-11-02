@@ -1,3 +1,9 @@
+## R4/R10 native-observation boundary focused qualification (2026-11-01)
+
+Use only the canonical `~/rdp-server/build` tree. The focused lane for this increment is the new `runtime.macos-host-control-native-frame-observation-preborrow-fences` plus `graphics.frame-native-borrow-segmented-receipt-fence`, `graphics.frame-delivery-session-retirement-before-ack`, `graphics.frame-partial-data-retirement-successor-generation` and `graphics.frame-ack-intake-session-retirement-before-consume`. Then run the normal full Debug/Release CTest gates. Do not change the fixed 23 Graphics DVC sanitizer selector or the two independently selected R4 retirement sanitizer cases.
+
+The connector environment has no mounted canonical checkout and cannot resolve GitHub for a clone, so configure/build/CTest/sanitizer commands are NOT RUN here; exact-publication hosted CI is the executable verification gate. Source-contract checks performed during authoring confirm stale native generation and 64-frame credit deferral precede the synchronous borrow, and the callback now requires R7's exact tight BGRA stride. This is not physical-client qualification.
+
 ## R5 — exact-SHA terminal held-input sanitizer follow-through (2026-11-01)
 
 Only `~/rdp-server/build/` is reusable as the persistent build root. After the existing sanitizer configure/build, independently run `ctest --test-dir build -C Debug -R '^x11[.]desktop-resource-authority-loss-held-key-button-no-xtest$' --output-on-failure`. The workflow verifies exactly one match before invocation. Existing fixed 45-case and two-case implicit sanitizer lanes must remain unchanged. Hosted exact follow-up SHA and local benchmark are NOT RUN at authoring; original R5 `3e010379` ordinary Debug/Release and 45+2 sanitizer results PASS.

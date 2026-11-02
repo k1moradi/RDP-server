@@ -19,6 +19,7 @@ def main() -> int:
     parser.add_argument("--check-share-activation", action="store_true")
     parser.add_argument("--check-graphics-control", action="store_true")
     parser.add_argument("--check-frame-pump", action="store_true")
+    parser.add_argument("--check-frame-observation-preborrow-fences", action="store_true")
     parser.add_argument("--check-frame-borrow-callback-failure", action="store_true")
     args = parser.parse_args()
 
@@ -357,6 +358,78 @@ def main() -> int:
         require(
             "acceptedClientPreauthDiagnostics.firstLiveGraphicsTrace" not in status,
             "pre-auth diagnostics must not own post-Graphics frame trace",
+        )
+
+    if args.check_frame_observation_preborrow_fences:
+        # A service observation is only a freshness selector. A stale admitted
+        # native-session generation must retire before any native borrow, while
+        # ordinary R4 ACK-window saturation must return before borrow/encode/
+        # reservation/TLS work. R7's mailbox contract is tight contiguous BGRA.
+        frame_begin = source.find(
+            "MacRuntimeHostControl::serviceAcceptedClientGraphicsOnce("
+        )
+        frame_end = source.find("catch (const std::bad_alloc&)", frame_begin)
+        require(frame_begin >= 0 and frame_end > frame_begin,
+                "cannot isolate R10 native observation/frame boundary")
+        frame_pump = source[frame_begin:frame_end]
+
+        native_start = frame_pump.find("using NativeState =")
+        resize_start = frame_pump.find(
+            "const Reconfiguration reconfiguration =", native_start
+        )
+        preflight_start = frame_pump.find(
+            "const Readiness readiness =", resize_start
+        )
+        borrow_start = frame_pump.find(
+            "const bool borrowed = nativeDesktop_.borrowFramebuffer(",
+            preflight_start,
+        )
+        stale_before_resize = frame_pump.find(
+            "observation.admittedSessionGeneration !=", native_start
+        )
+        stale_retire = frame_pump.find(
+            "return retireGraphics(RuntimeHostError::GraphicsUnavailable);",
+            stale_before_resize,
+        )
+        require(
+            0 <= native_start < stale_before_resize < stale_retire < resize_start
+            < preflight_start < borrow_start,
+            "stale native generation must retire before resize/preflight/borrow",
+        )
+
+        deferred_start = frame_pump.find(
+            "if (readiness == Readiness::DeferredForFrameAcknowledge)",
+            preflight_start,
+        )
+        deferred_return = frame_pump.find(
+            "return {RuntimeHostError::None, true};", deferred_start
+        )
+        stale_after_preflight = frame_pump.find(
+            "observation.admittedSessionGeneration !=", deferred_return
+        )
+        require(
+            preflight_start < deferred_start < deferred_return
+            < stale_after_preflight < borrow_start,
+            "R4 credit exhaustion must return before generation recheck/native borrow",
+        )
+
+        callback_start = frame_pump.find("const auto publishFrame = +[](")
+        callback = frame_pump[callback_start:borrow_start]
+        require(
+            callback_start >= 0
+            and "framebuffer.widthPixels != context->pixelGeometry.widthPixels"
+                in callback
+            and "framebuffer.heightPixels != context->pixelGeometry.heightPixels"
+                in callback
+            and "framebuffer.strideBytes != context->minimumStrideBytes"
+                in callback
+            and "geometryGeneration != context->geometryGeneration" in callback
+            and (
+                "admittedSessionGeneration != "
+                "context->admittedSessionGeneration"
+            ) in callback
+            and "frameSequence != context->frameSequence" in callback,
+            "R10 callback must require exact R7 geometry/generation/tight BGRA",
         )
 
     if args.check_frame_borrow_callback_failure:

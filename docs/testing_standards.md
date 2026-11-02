@@ -1,3 +1,11 @@
+## R4/R10 native-observation pre-borrow fence regression (2026-11-01)
+
+New ordinary CTest `runtime.macos-host-control-native-frame-observation-preborrow-fences` reuses `test_macos_host_control_licensing_composition.py`; no executable or dependency is added. It pins three production-source facts at the R7/R10/R4 boundary: a stale `observation.admittedSessionGeneration` retires before resize/preflight/native borrow; R4 `DeferredForFrameAcknowledge` returns before the native borrow and therefore before encode/reservation/new TLS frame work; and the synchronous callback requires exact width, height, tight `strideBytes == width * 4`, geometry generation, admitted-session generation and frame sequence.
+
+Coverage is intentionally non-duplicative. `graphics.frame-delivery-session-retirement-before-ack` already proves a fully delivered frame's ACK membership is cleared before a later ACK; `graphics.frame-partial-data-retirement-successor-generation` already proves partial DATA never creates membership and cannot transfer credit to a successor. `graphics.frame-native-borrow-segmented-receipt-fence` already covers zero/positive partial DATA receipts, resize deferral and an early unmatched ACK. The existing ACK-intake-before-consume retirement test remains separate.
+
+The fixed 23-case Graphics DVC sanitizer inventory is unchanged, and the two separately selected R4 retirement tests remain separate and unchanged. This new macOS source-contract case is ordinary additive coverage only. Connector-side source assertions PASS; canonical CTest execution is NOT RUN locally; hosted exact-SHA execution is PENDING. Physical Windows client frame/FRAME_ACK/visible pixels remain NOT RUN.
+
 ## R5 — exact-SHA terminal held-input sanitizer follow-through (2026-11-01)
 
 Run the new aggregate explicit terminal held-input CTest under ASan/UBSan separately after the fixed 45-case R5 selector and unmodified two-case implicit-destructor selection. The exact test `x11.desktop-resource-authority-loss-held-key-button-no-xtest` must be present once, fail if its count is not one, and exercise both held input classes, native zero-release behavior, XCB closure, retired XShm/XDamage isolation and fresh successor capture. Synthetic Xvfb results cannot establish live seat0 permission.

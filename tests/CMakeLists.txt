@@ -1516,6 +1516,22 @@ set_tests_properties(
         LABELS "runtime;macos;security;graphics;frame;transport;policy;offline"
         TIMEOUT 15)
 
+# R4/R10 native-observation boundary: stale native generations and the
+# 64-frame ACK-credit backpressure decision must retire/defer before borrow,
+# while R7's synchronous mailbox is accepted only with exact tight BGRA stride.
+# Reuses the existing macOS HostControl source-contract test executable.
+add_test(NAME runtime.macos-host-control-native-frame-observation-preborrow-fences
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_host_control_licensing_composition.py"
+        --source "${PROJECT_SOURCE_DIR}/src/server/runtime/mac_runtime_host_control.cpp"
+        --header "${PROJECT_SOURCE_DIR}/src/server/runtime/mac_runtime_host_control.h"
+        --check-frame-observation-preborrow-fences)
+set_tests_properties(
+    runtime.macos-host-control-native-frame-observation-preborrow-fences
+    PROPERTIES
+        LABELS "runtime;macos;security;graphics;frame;backpressure;retirement;offline"
+        TIMEOUT 15)
+
 # R10 native mailbox misses before the callback may retry. Once the
 # synchronous callback ran, invalid frame/R3 preparation must retire instead.
 # Source-only regression reuses the existing macOS composition test runner.

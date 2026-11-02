@@ -2037,7 +2037,7 @@ MacRuntimeHostControl::serviceAcceptedClientGraphicsOnce(
             context->frameId == 0U || !framebuffer.valid() ||
             framebuffer.widthPixels != context->pixelGeometry.widthPixels ||
             framebuffer.heightPixels != context->pixelGeometry.heightPixels ||
-            framebuffer.strideBytes < context->minimumStrideBytes ||
+            framebuffer.strideBytes != context->minimumStrideBytes ||
             geometryGeneration != context->geometryGeneration ||
             admittedSessionGeneration != context->admittedSessionGeneration ||
             frameSequence != context->frameSequence)

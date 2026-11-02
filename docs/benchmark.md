@@ -1,3 +1,9 @@
+## R4/R10 exact native-frame boundary benchmark status (2026-11-01)
+
+This is a correctness/fencing increment, not a throughput change. Tightening the callback to the exact R7 tight-BGRA stride adds no new allocation, copy, queue, encoder or transport owner. The 64-outstanding-frame path remains a preflight fast refusal: when credit is unavailable R10 must not borrow native pixels, encode ClearCodec, reserve a frame or initiate a new TLS frame write.
+
+No benchmark is required to claim this correction and none was run in the connector environment. Future first-frame performance evidence must still measure the original native observation/borrow through R4 preparation, R3 segmented accepted-byte receipts, sole R1 wire progress and a genuine client FRAME_ACK/visibility observation. GraphicsReady, native readiness, local preparation, a complete local TLS write or a synthetic ACK are not benchmark evidence for visible pixels.
+
 ## R4 delayed stale-writer abort is correctness, not throughput (2026-11-01)
 
 A late aborted partial/unsent segmented frame tests lifecycle ownership and outstanding ACK membership, not native capture, CPU, FPS, bandwidth or real client presentation. Benchmark NOT RUN. Do not infer physical visibility or performance.

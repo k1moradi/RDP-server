@@ -1,3 +1,7 @@
+## R3 original mixed joins to partial licensing Stop (2026-11-01)
+
+After the sequential first MCS Join Request and a later client TLS batch, only exact full original R1 accepted-byte receipts may mark R3 channel joins; queued or positive-partial confirmations remain non-authorizing. A valid later Client Info can select PersonalDesktop licensing only through original R2 authenticated/native owner and immutable policy. Server License Request zero/partial R1 writes must retain replySequence/writeSliceSequence, must not begin licensing or Share, and must be retired on owner Stop. Never add a competing R1 reader, R3 state machine, licensing issuer, native permission provider or client ACK tracker to accommodate batching.
+
 ## R7 manual LAN activation must refresh without preference storage (2026-11-01)
 
 `QComboBox::activated` is the only owner-intent signal for manual LAN interface choice; `setCurrentIndex` and `currentIndexChanged` remain presentation-only. The GUI must refresh its Start-eligibility projection after genuine activation even if the optional R2 secure-preference save callback is absent; that path must not invent a store or bypass R10's exact interface/address reauthorization. An unchanged automatic recommendation remains non-authorizing until an owner action, and a saved stable ID remains only a fresh-enumeration hint. No credential, permission, listener, GraphicsReady or Clipboard grant is implied.

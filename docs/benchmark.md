@@ -1,3 +1,7 @@
+## R3 mixed-join / partial licensing Stop is correctness, not throughput (2026-11-01)
+
+The new production-linked R1/R2/R3 offline regression changes no protocol hot path, TLS buffering, native capture, memory allocation, scheduler or algorithm. No benchmark was run and no throughput, timing, real-client or pixel-visibility claim is justified. Original authenticated Microsoft-client and owner-native evidence remain independent.
+
 ## R8 later Format List response retirement has no hot-path change (2026-11-01)
 
 This change adds only an offline production-backed test and canonical documentation. No production allocation, queue, TLS writer, R8 owner, R2 permission or X11 callback changes; the fixed 107-case Clipboard sanitizer selector is preserved. No benchmark was run, and real Clipboard latency/paste/INCR require separate owner authorization.

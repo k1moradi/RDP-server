@@ -2390,6 +2390,17 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "protocol;security;transport;tls;mcs;admission;offline"
                 TIMEOUT 30)
 
+        # Mixed client joins advance to Client Info only on complete receipts;
+        # owner Stop retires the original partial Server License Request.
+        add_test(NAME security.macos-protected-mixed-joins-client-info-partial-license-stop
+            COMMAND "${test_target}"
+                "macos-protected-mixed-joins-client-info-partial-license-stop")
+        set_tests_properties(
+            security.macos-protected-mixed-joins-client-info-partial-license-stop
+            PROPERTIES
+                LABELS "protocol;security;transport;tls;mcs;admission;offline"
+                TIMEOUT 30)
+
         # Valid Client Info cannot overtake a partial Join Confirm sent
         # through the sole original R1 TLS writer.
         add_test(NAME security.macos-protected-client-info-during-partial-join-confirm-denial

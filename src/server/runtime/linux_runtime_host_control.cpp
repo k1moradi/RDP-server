@@ -2480,11 +2480,31 @@ RuntimeHostResult LinuxRuntimeHostControl::startSharing()
 #if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     return deny(RuntimeHostError::CredentialProviderUnavailable);
 #else
+    // A retained standalone credential is bound to the exact native session
+    // that configured it. Validate that binding before an early native-desktop
+    // denial can bypass terminal lock/logout/user/session replacement cleanup.
+    if (authenticationMode_ == ConfiguredAuthenticationMode::StandalonePassword &&
+        selectedStandaloneCredentialReady())
+    {
+        const RuntimeHostResult sessionValidation = validateRuntimeOwnerOnce();
+        if (!sessionValidation.succeeded())
+            return sessionValidation;
+    }
+
     // No listener or native capture is created unless the current desktop is
     // a fresh same-owner unlocked physical X11 session from native evidence.
-    if (!rdp_server::server::security::selectCurrentPhysicalX11Desktop(
-            *ownerEvidenceSource_).eligible())
+    const auto currentDesktop =
+        rdp_server::server::security::selectCurrentPhysicalX11Desktop(
+            *ownerEvidenceSource_);
+    if (!currentDesktop.eligible())
+    {
+        // CurrentOwnerSharingAuthority owns consent revocation on fresh native
+        // evidence mismatch. Invoke the authoritative check before returning so
+        // a lock/session change cannot make an old grant usable after recovery.
+        (void)ownerSharingAuthority_.authorizes(
+            rdp_server::server::security::kConsoleViewPermission);
         return deny(RuntimeHostError::NativeAuthorizationDenied);
+    }
     if (licensingContext_ == nullptr || !licensingContext_->configured())
         return deny(RuntimeHostError::InternalFailure);
     // Native admission is a Start prerequisite, not a credential-configured

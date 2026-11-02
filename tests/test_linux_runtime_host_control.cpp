@@ -1884,8 +1884,13 @@ int main(int argc, char** argv)
 
 
     if (testCase ==
-        "linux-host-control-original-owner-changed-after-configure-denial")
+            "linux-host-control-original-owner-changed-after-configure-denial" ||
+        testCase ==
+            "linux-host-control-start-lock-retires-standalone-credential")
     {
+        const bool lockBeforeStart =
+            testCase ==
+            "linux-host-control-start-lock-retires-standalone-credential";
 #if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
         return 77;
 #else
@@ -1923,27 +1928,53 @@ int main(int argc, char** argv)
         assert(prepared.listenerGeneration == 0U);
         assert(prepared.boundEndpoint.empty());
 
-        // The original, injected R2 owner disappears after TLS/endpoint
-        // preparation but before explicit Start. Reusing the selected
-        // interface and cached consent cannot create a real R1 listener.
-        evidence.switchToDifferentUser();
-        const RuntimeHostResult denied = control.startSharing();
-        assert(denied.error == RuntimeHostError::NativeAuthorizationDenied);
-        const RuntimeHostStatus afterOwnerChange = control.status();
-        assert(!afterOwnerChange.listenerAvailable);
-        assert(afterOwnerChange.listenerGeneration == 0U);
-        assert(afterOwnerChange.boundEndpoint.empty());
-        assert(afterOwnerChange.activeClients.empty());
-        assert(!afterOwnerChange.nativeDesktopReady);
-        assert(!afterOwnerChange.firstLiveGraphicsTrace.firstFramebufferAvailable);
-        assert(!afterOwnerChange.firstLiveGraphicsTrace.firstExactTlsWriteCommitted);
-        assert(!afterOwnerChange.firstLiveGraphicsTrace.firstGenuineMatchingFrameAcknowledge);
+        const auto originalCredential =
+            control.standaloneApplicationPasswordObservation();
+        assert(originalCredential.configured &&
+               originalCredential.generation != 0U);
 
-        assert(control.stopSharing().succeeded());
-        const RuntimeHostStatus stopped = control.status();
-        assert(!stopped.hostOwnerAuthorized);
-        assert(!stopped.listenerAvailable);
-        assert(stopped.boundEndpoint.empty());
+        // The exact session becomes terminal after endpoint/TLS preparation but
+        // before explicit Start. The Start path itself must retire the retained
+        // password and owner-consent epoch; it cannot rely on a later service
+        // tick to discover the replacement/lock.
+        if (lockBeforeStart)
+            evidence.setLockState(
+                rdp_server::server::security::ConsoleDesktopLockState::Locked);
+        else
+            evidence.switchToDifferentUser();
+
+        const RuntimeHostResult denied = control.startSharing();
+        assert(denied.error == RuntimeHostError::CredentialNotConfigured);
+        const RuntimeHostStatus afterSessionLoss = control.status();
+        assert(!afterSessionLoss.credentialsConfigured);
+        assert(!afterSessionLoss.product.credentialsConfigured);
+        assert(!afterSessionLoss.hostOwnerAuthorized);
+        assert(!afterSessionLoss.listenerAvailable);
+        assert(afterSessionLoss.listenerGeneration == 0U);
+        assert(afterSessionLoss.boundEndpoint.empty());
+        assert(afterSessionLoss.activeClients.empty());
+        assert(!afterSessionLoss.nativeDesktopReady);
+        assert(!afterSessionLoss.tlsIdentityReady);
+        assert(!afterSessionLoss.firstLiveGraphicsTrace.firstFramebufferAvailable);
+        assert(!afterSessionLoss.firstLiveGraphicsTrace.firstExactTlsWriteCommitted);
+        assert(!afterSessionLoss.firstLiveGraphicsTrace.firstGenuineMatchingFrameAcknowledge);
+
+        const auto retiredCredential =
+            control.standaloneApplicationPasswordObservation();
+        assert(!retiredCredential.configured);
+        assert(retiredCredential.generation > originalCredential.generation);
+
+        // Restoring the desktop cannot resurrect either the old Session
+        // Password generation or consent. A new owner transaction is required.
+        if (lockBeforeStart)
+            evidence.setLockState(
+                rdp_server::server::security::ConsoleDesktopLockState::Unlocked);
+        else
+            evidence.restoreProcessOwner();
+        assert(!control.startSharing().succeeded());
+        assert(!control.standaloneApplicationPasswordObservation().configured);
+        assert(!control.status().hostOwnerAuthorized);
+        assert(!control.status().listenerAvailable);
         return 0;
 #endif
     }

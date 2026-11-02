@@ -1,3 +1,7 @@
+## R10 Start-time session retirement is correctness-only (2026-11-01)
+
+The correction adds one credential/session validation only to the cold explicit Start path and one existing consent revalidation on a native-desktop failure path. It changes no per-packet, frame, input, Clipboard or steady-state scheduler hot loop and allocates no new state. No benchmark is required for this security/lifecycle correction; benchmark NOT RUN.
+
 ## R6 paired-evidence fixture repair is not a benchmark (2026-11-01)
 
 The correction changes only offline Python evidence fixtures and assertions. It does not change production TLS, NTLM/CredSSP, parsing, allocation, transport, scheduler, native admission or client-visible behavior, so no performance benchmark is required or claimed.

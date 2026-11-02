@@ -1,3 +1,9 @@
+## R8 malformed late Temporary Directory cannot complete an owned partial response (2026-11-02)
+
+After Monitor Ready, a first client Temporary Directory is legal even after the bridge has reached Ready, but it is still a recognized CLIPRDR initialization PDU and must pass the bounded parser. MS-RDPECLIP 2.2.2.3 requires msgFlags zero and an exact 520-byte null-terminated UTF-16 directory field. A complete outer PDU with exact dataLen but no terminator is malformed, not an unexpected message to ignore.
+
+If such a recognized malformed PDU arrives while a later server Format List Response has a positive-partial original R3/R1 receipt, R8 must retire its route/state only. It must not mark the response Delivered, consume or advance R3's pending suffix, preserve Ready, publish a native source, create R2 Clipboard authority, or carry transfer generation state into a replacement route. R3 remains the sole static-channel/reply/slice owner, R1 the sole TLS writer, R2 the sole Clipboard permission issuer and R10 the sole scheduler. Keep `kLinuxProductionClipboardActivationApproved = false`; View/Input-only permission never implies Clipboard permission.
+
 ## R3 later finalization write/read ownership (2026-11-02)
 
 For Linux R10's original Share activation action, a late client Font List may be pending in R1 TLS after Client Request Control while a Server Granted Control reply has accepted only a prefix. Maintain `Write` until exact positive full R1 accepted-byte receipt marks that particular R3 reply `Delivered`; prepared/zero/partial bytes cannot open client intake. Read the already-arrived bounded Font List through the same R1 TLS reader only after this transition, preserving immutable policy, current R2 proof and exact reply/write-slice identities. Font Map completes Share, and separate original graphics control receipts map the surface. Do not add a reader, parser queue, second licensing owner or CAL bypass.

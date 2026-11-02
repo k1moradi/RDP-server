@@ -3227,6 +3227,16 @@ set_tests_properties(
     runtime.clipboard-post-initialization-malformed-capabilities-pending-response-retirement
     PROPERTIES LABELS "runtime;security;offline")
 
+# A complete but non-terminated first late Temporary Directory cannot race a
+# positive-partial later Format List response or consume its R3/R1 suffix.
+# Distinct ordinary coverage, outside the fixed 107 Clipboard sanitizer cases.
+add_test(NAME runtime.clipboard-post-initialization-malformed-temporary-directory-pending-response-retirement
+    COMMAND test_r8_r3_clipboard_bridge
+        post-initialization-malformed-temporary-directory-pending-response-retirement)
+set_tests_properties(
+    runtime.clipboard-post-initialization-malformed-temporary-directory-pending-response-retirement
+    PROPERTIES LABELS "runtime;security;offline")
+
 # Permission-only native R2 visits must not leave one-shot route authority
 # armed for a later R8 PDU. Outside the fixed 107-case Clipboard selector.
 add_test(NAME runtime.clipboard-permission-only-route-observation-consumption

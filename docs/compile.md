@@ -1,3 +1,11 @@
+## R8 malformed late Temporary Directory partial-response qualification (2026-11-02)
+
+No new target, dependency, build root or sanitizer selector is introduced. Reuse the canonical owner `~/rdp-server/build/` (hosted checkout `build/`). After Debug configure/build, run:
+
+`ctest --test-dir build -C Debug -R '^runtime[.]clipboard-post-initialization-malformed-temporary-directory-pending-response-retirement$' --output-on-failure`
+
+Then run full ordinary Debug CTest; reconfigure the same root for Release and repeat focused/full CTest. Hosted sanitizer qualification must keep Clipboard **107**, static CLIPRDR **9**, X11 callback retirement **3**, and the existing separately pinned receipt/isolation tests unchanged. No native clipboard, X11 paste, file transfer, credential, listener or physical Microsoft client is required. Connector-local executable qualification is NOT RUN; exact-publication-SHA hosted evidence is required.
+
 ## R3 positive late Font List interleave focused qualification (2026-11-02)
 
 Reuse only the existing owner `~/rdp-server/build/` (hosted checkout `build/`): configure/build Debug and run `ctest --test-dir build -C Debug -R '^security[.]macos-protected-share-(partial-granted-control-buffered-font-list-graphics|partial-synchronize-buffered-client-finalization|finalization-client-batch-tls-receipts)$' --output-on-failure`, then ordinary full Debug CTest. Reconfigure that same root for Release and repeat; inspect exact publication-SHA Ubuntu, macOS, Windows MSVC and CLANG64 hosted jobs, rather than extrapolating from ancestor runs. Local owner checkout and native desktop are not available in connector-only authoring. No additional build root or benchmark is justified.

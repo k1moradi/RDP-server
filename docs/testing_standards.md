@@ -1,3 +1,9 @@
+## R8 malformed late Temporary Directory / partial-response retirement (2026-11-02)
+
+Register one ordinary production-backed offline case: `runtime.clipboard-post-initialization-malformed-temporary-directory-pending-response-retirement`. Negotiate client Capabilities, complete the initial Format List Response to reach Ready while leaving Temporary Directory unconsumed, then accept a later Format List and commit exactly one original R3/R1 response byte. Feed a complete, exact-length, zero-flag `CB_TEMP_DIRECTORY` whose 520-byte UTF-16 field contains no NUL terminator. Require bridge retirement/Dormant, transfer generation reset, zero server Clipboard generation, and the exact R3 pending suffix unchanged until the failed route is closed. Reconnect on a newer route generation; require the stale receipt to be inert, source epoch monotonic, and a valid first Temporary Directory to succeed without minting native/R2 authority.
+
+This case is intentionally outside the fixed `clipboard` label inventory. Keep the Clipboard sanitizer census at **107**, the static CLIPRDR selector at **9**, the three X11 callback-retirement cases separate, and the existing exact-name receipt/isolation sanitizer pins unchanged. Run the new case in ordinary Debug/Release CTest and do not duplicate the already-qualified malformed late-Capabilities case.
+
 ## R9 clean-Windows release aggregates require executed launch evidence (2026-11-02)
 
 A hosted aggregate must not report GUI release acceptance while the

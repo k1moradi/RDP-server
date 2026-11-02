@@ -1,3 +1,7 @@
+## R8 malformed late Temporary Directory retirement is test-only (2026-11-02)
+
+This increment adds one ordinary production-backed protocol regression and documentation only. Production CLIPRDR parsing, allocations, queues, TLS I/O, R2 permission checks, R3 receipt ownership, R10 scheduling and native X11 callbacks are unchanged. The test composes an existing bounded 520-byte parser failure with an existing positive-partial response receipt, so no throughput or latency benchmark is applicable. Benchmark NOT RUN; physical Clipboard/paste performance remains outside the disabled live-activation gate.
+
 ## R4 Linux dual-scheduler ACK pre-borrow source regression is test-only (2026-11-02)
 
 The existing offline source-contract CTest adds a second read-only check for Linux `LinuxRuntimeHostControl` preflight/deferred-return ordering and negative mutations. It changes no native X11 capture, ClearCodec or x264 hot loop, reservation, 64-frame ACK window, R3 segmented DATA accounting, R1 TLS writer, memory layout or traffic. No physical frame, latency, throughput or FPS benchmark was run or is implied. Exact-SHA hosted correctness CTest and sanitizer checks, not synthetic performance claims, are the qualification gate.

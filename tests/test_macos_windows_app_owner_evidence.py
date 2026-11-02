@@ -1151,6 +1151,8 @@ class OwnerEvidenceTests(unittest.TestCase):
         private_provider = "private-provider-first-error"
         for platform in ("macos", "windows"):
             with self.subTest(platform=platform, case="generic-error-denied"):
+                # No provider category/timestamp exists yet: classify the
+                # typed provider event as missing before source sufficiency.
                 manifest = evidence.build_manifest(self.options)
                 pair = self._paired_record(manifest)
                 row = pair[platform]

@@ -452,11 +452,6 @@ def _credssp_failure_first_error_failures(
         return [f"{prefix}_CREDSSP_FAILURE_TYPED_ERROR_MISSING"]
     if not first_error_valid:
         return [f"{prefix}_CREDSSP_FAILURE_TYPED_ERROR_INVALID"]
-    # UI-only error text is not an original CredSSP provider observation,
-    # even when a private record supplies a plausible category and UTC time.
-    if first_error.get("source") not in {
-            "core", "core-and-ui", "owner-approved-diagnostic"}:
-        return [f"{prefix}_CREDSSP_FAILURE_TYPED_ERROR_INVALID"]
 
     provider_category = first_error.get("provider_category_exact")
     error_time = first_error.get("event_time_utc")
@@ -465,6 +460,12 @@ def _credssp_failure_first_error_failures(
             or provider_category is None
             or error_time is None):
         return [f"{prefix}_CREDSSP_FAILURE_TYPED_ERROR_MISSING"]
+
+    # UI-only error text is not an original CredSSP provider observation,
+    # even when a private record supplies a plausible category and UTC time.
+    if first_error.get("source") not in {
+            "core", "core-and-ui", "owner-approved-diagnostic"}:
+        return [f"{prefix}_CREDSSP_FAILURE_TYPED_ERROR_INVALID"]
 
     try:
         _text(provider_category, f"{prefix} CredSSP failure provider category", 128)

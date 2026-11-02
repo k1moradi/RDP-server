@@ -320,8 +320,9 @@ int runWindowsFirstPublicationRaceDenialTest()
                &received, nullptr) != 0);
     assert(received ==
            static_cast<DWORD>(kRacedFirstPublicationBytes.size()));
-    assert(std::string_view{racedBytes.data(), received} ==
-           kRacedFirstPublicationBytes);
+    const std::string_view racedContents{
+        racedBytes.data(), static_cast<std::size_t>(received)};
+    assert(racedContents == kRacedFirstPublicationBytes);
 
     std::size_t entryCount = 0U;
     for (const auto& entry : std::filesystem::directory_iterator(directory))

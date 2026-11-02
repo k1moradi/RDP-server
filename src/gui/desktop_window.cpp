@@ -1163,7 +1163,13 @@ DesktopWindow::DesktopWindow(
                 // activated() is the owner action even when the already
                 // selected automatic recommendation is chosen again.
                 manualInterfaceOverride_ = true;
-                saveOwnerPreferences();
+                // A secure preferences backend is optional. Manual owner
+                // activation must still refresh Start eligibility when there
+                // is no persistence callback to perform the refresh.
+                if (preferencesAccess_.save != nullptr)
+                    saveOwnerPreferences();
+                else
+                    refresh();
             });
     connect(port_, &QSpinBox::valueChanged, this, [this](int) {
         saveOwnerPreferences();

@@ -1,3 +1,7 @@
+## R7 offline GUI LAN activation is correctness-only (2026-11-01)
+
+The missing-preference-callback `activated` refresh and offscreen fixture corrections do not add protocol/graphics/clipboard hot-path work, network I/O, native session activity or new storage. They require correctness/negative CTests, not a throughput benchmark. Benchmark NOT RUN; no performance or live-listener qualification is inferred.
+
 ## R10 owner-change endpoint regression is not a throughput result (2026-11-01)
 
 The new first-Start denial test changes no runtime code, hot-path work, buffer, scheduler, TLS writer, codec or permission behavior. No benchmark was run or is warranted by this test-only increment; physical frame latency and throughput remain separately unverified.

@@ -6222,6 +6222,14 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-interface-endpoint-client-disconnect-denials
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime" TIMEOUT 30)
+    # A genuine activated() choice must refresh the GUI even when no R2
+    # preferences storage callback is installed. No live listener is used.
+    add_test(NAME gui.offscreen-manual-lan-activation-without-preference-store
+        COMMAND test_desktop_gui_offline lan-activation-no-preferences)
+    set_tests_properties(
+        gui.offscreen-manual-lan-activation-without-preference-store
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;security;runtime;lan;preferences" TIMEOUT 30)
     # R10 peer, endpoint and interface data must remain literal Qt text.
     add_test(NAME gui.offscreen-runtime-peer-and-endpoint-plain-text
         COMMAND test_desktop_gui_offline plain-runtime-text)

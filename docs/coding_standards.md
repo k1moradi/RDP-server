@@ -1,3 +1,7 @@
+## R7 manual LAN activation must refresh without preference storage (2026-11-01)
+
+`QComboBox::activated` is the only owner-intent signal for manual LAN interface choice; `setCurrentIndex` and `currentIndexChanged` remain presentation-only. The GUI must refresh its Start-eligibility projection after genuine activation even if the optional R2 secure-preference save callback is absent; that path must not invent a store or bypass R10's exact interface/address reauthorization. An unchanged automatic recommendation remains non-authorizing until an owner action, and a saved stable ID remains only a fresh-enumeration hint. No credential, permission, listener, GraphicsReady or Clipboard grant is implied.
+
 ## Windows preference files require single-link identity (2026-11-01)
 
 For the R2 per-user non-secret store, keep Windows file validation symmetric with the POSIX single-link contract: after opening the final file with reparse traversal disabled and validating its current-user owner/protected DACL, require `GetFileInformationByHandle(...).nNumberOfLinks == 1`. Reject a multi-link alias before decode or replacement. Do not weaken the LocalAppData ancestry walk, app-directory DACL, same-directory atomic replacement, fixed v1 schema or independent R2/native/Sharing gates.

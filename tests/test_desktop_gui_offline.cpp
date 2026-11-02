@@ -1212,7 +1212,7 @@ int main(int argc, char** argv)
                 {"192.168.0.10"}, false, true},
             RuntimeHostInterface{
                 "wifi-2", "Private Wi-Fi",
-                {"192.168.0.20"}, true, true}};
+                {"192.168.0.20"}, false, true}};
         candidate.snapshot.product.recommendedEndpoint = {
             "ethernet-1", "192.168.0.10", 3389U,
             RuntimeHostAddressFamily::Ipv4, true, true, 10U, false,
@@ -4342,6 +4342,37 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (mode == "lan-activation-no-preferences")
+    {
+        // No persistence callbacks are installed. A real owner activation
+        // still needs to refresh Start eligibility; programmatic index
+        // changes alone must not authorize a disabled Sharing control.
+        prepareReadyHost(runtime);
+        runtime.interfaces.push_back(
+            {"wifi-2", "Private Wi-Fi", {"192.168.0.11"}, false, true});
+        DesktopWindow window(host);
+        auto* interfaces = requiredCombo(window, "lanInterface");
+        auto* toggle = sharingToggle(window);
+        assert(interfaces->count() == 3);
+        assert(interfaces->currentIndex() == 0 && !toggle->isEnabled());
+
+        interfaces->setCurrentIndex(2);
+        assert(!toggle->isEnabled());
+        assert(runtime.configureCalls == 0 && runtime.startCalls == 0);
+        assert(QMetaObject::invokeMethod(
+            interfaces, "activated", Qt::DirectConnection,
+            Q_ARG(int, interfaces->currentIndex())));
+        assert(toggle->isEnabled() && window.canStart());
+        window.refresh();
+        assert(interfaces->currentData(Qt::UserRole + 1).toString() ==
+               QStringLiteral("wifi-2"));
+        assert(toggle->isEnabled());
+        assert(runtime.configureCalls == 0);
+        assert(runtime.permissionSetupCalls == 0);
+        assert(runtime.startCalls == 0);
+        return 0;
+    }
+
     if (mode == "lan-client")
     {
         prepareReadyHost(runtime);
@@ -4361,8 +4392,16 @@ int main(int argc, char** argv)
         auto* disconnect =
             requiredButton(window, "disconnectClient");
         assert(interfaces->currentIndex() == 0);
+        assert(!toggle->isEnabled());
         interfaces->setCurrentIndex(2);
+        // Qt index assignment is only presentation. The owner explicitly
+        // activates Wi-Fi before requesting Sharing from fake R10.
+        assert(QMetaObject::invokeMethod(
+            interfaces, "activated", Qt::DirectConnection,
+            Q_ARG(int, interfaces->currentIndex())));
+        assert(toggle->isEnabled());
         toggle->click();
+        assert(runtime.configureCalls == 1 && runtime.startCalls == 1);
         assert(runtime.lastOptions.interfaceId == "wifi-2");
         assert(runtime.lastOptions.localAddress == "192.168.0.11");
 
@@ -4373,8 +4412,22 @@ int main(int argc, char** argv)
                 7U, "192.168.0.44", false, true, true}};
         window.refresh();
         assert(sharingToggle(window)->isChecked());
+        assert(requiredLabel(window, "connectionAddress")->text() ==
+               QStringLiteral("Connect to: 192.168.0.11:3389"));
         assert(clients->count() == 2);
         clients->setCurrentIndex(1);
+        assert(disconnect->isEnabled());
+
+        // A selected opaque ID is not authority: R10 may retire the peer
+        // between the last GUI refresh and the owner's Disconnect click.
+        runtime.snapshot.activeClients.clear();
+        disconnect->click();
+        assert(runtime.disconnectCalls == 0);
+        runtime.snapshot.activeClients = {
+            RuntimeHostClient{
+                7U, "192.168.0.44", false, true, true}};
+        window.refresh();
+        assert(clients->currentData().toULongLong() == 7U);
         assert(disconnect->isEnabled());
 
         runtime.disconnectSucceeds = true;

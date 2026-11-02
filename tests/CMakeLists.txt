@@ -2534,6 +2534,31 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "protocol;security;native-authorization;transport;tls;mcs;admission;graphics;offline"
                 TIMEOUT 90)
 
+        if(APPLE)
+            # R10/R7 production-backed composition: deterministic native owner
+            # observation/borrow, protected R2/R3/R4, original R1 TLS receipts,
+            # then a separately classified and consumed fixture FRAME_ACK.
+            add_test(NAME runtime.macos-native-observation-segmented-tls-genuine-ack
+                COMMAND "${test_target}"
+                    "macos-protected-graphics-native-observation-exact-tls-receipt-client-ack")
+            set_tests_properties(
+                runtime.macos-native-observation-segmented-tls-genuine-ack
+                PROPERTIES
+                    LABELS "runtime;macos;protocol;security;native-authorization;transport;tls;mcs;admission;graphics;offline;native"
+                    TIMEOUT 90)
+
+            # Consent replacement after a real R7 observation must revoke both
+            # the native owner and the original protected R2/R3/R1 lifetime.
+            add_test(NAME runtime.macos-post-graphics-native-consent-revocation-retirement
+                COMMAND "${test_target}"
+                    "macos-protected-graphics-native-observation-consent-revocation-retirement")
+            set_tests_properties(
+                runtime.macos-post-graphics-native-consent-revocation-retirement
+                PROPERTIES
+                    LABELS "runtime;macos;protocol;security;native-authorization;transport;tls;mcs;admission;graphics;offline;native"
+                    TIMEOUT 90)
+        endif()
+
         # R8 View|Input-only scope must remain non-Clipboard even after the
         # protected Share and Graphics control reach a mapped surface.
         add_test(NAME security.macos-graphics-ready-clipboard-view-input-denial
@@ -3143,6 +3168,12 @@ target_link_libraries(test_owned_preauth_session PRIVATE
     rdp-server-runtime-licensing
     rdp-server-standalone-ntlmv2
     rdp-server-mac-console-admission)
+if(APPLE)
+    # R10 native-observation qualification reuses the production R7 owner and
+    # its permission-free injected backend; no second capture/frame owner.
+    target_link_libraries(test_owned_preauth_session PRIVATE
+        rdp-server-macos-capture)
+endif()
 if(TARGET rdp-server-linux-gssapi)
     # Exercise real TLS -> actual MIT GSSAPI handoff using the existing
     # in-memory TLS fixture; no duplicate certificate/test implementation.

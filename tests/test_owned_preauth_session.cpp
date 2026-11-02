@@ -13,6 +13,11 @@
 #include "security/credssp_tls_certificate.h"
 #include "security/standalone_ntlmssp.h"
 #include "server/security/mac_console_admission.h"
+#if defined(__APPLE__)
+#include "platform/macos/mac_native_desktop_owner.h"
+#include <CoreVideo/CoreVideo.h>
+#include <expected>
+#endif
 #include "transport/mcs_connect_initial.h"
 #ifdef RDP_TEST_LINUX_GSSAPI
 #include "server/runtime/linux_runtime_connection.h"
@@ -8025,6 +8030,321 @@ public:
     MacConsoleAdmissionBroker broker;
 };
 
+#if defined(__APPLE__)
+class MacProtectedNativeDesktopHarness final
+{
+public:
+    explicit MacProtectedNativeDesktopHarness(
+        MacProtectedTransportFixture &fixture)
+        : authorization_(
+              fixture.proof, fixture.nativeEvidence, fixture.ownerAuthority),
+          captureState_(std::make_shared<CaptureState>())
+    {
+        using namespace rdp::macos;
+
+        assert(authorization_.bindAuthenticatedSession(kConsoleViewPermission) ==
+               NativeDesktopAuthorizationBindResult::Bound);
+
+        MacNativeDesktopTestConfiguration configuration{};
+        configuration.selectedDisplayId = kDisplayId;
+        configuration.maximumFramebufferBytes =
+            static_cast<std::size_t>(kWidthPixels) *
+            static_cast<std::size_t>(kHeightPixels) * kBytesPerPixel;
+        configuration.displayWatchCallbacks = {
+            &watch_, &WatchFixture::installDisplay, &WatchFixture::removeDisplay};
+        configuration.sessionWatchCallbacks = {
+            &watch_, &WatchFixture::installSession, &WatchFixture::removeSession};
+        configuration.displayReader = &DesktopFixture::readDisplay;
+        configuration.sessionReader = {
+            &desktop_, &DesktopFixture::readSession};
+        configuration.permissionReader = {
+            &desktop_, &DesktopFixture::readCapturePermission,
+            &DesktopFixture::readInputPermission};
+        configuration.inputCallbacks = {
+            &desktop_, &DesktopFixture::sendInput};
+        configuration.captureBackend =
+            std::make_unique<CaptureBackend>(captureState_);
+
+        auto created = MacNativeDesktopOwner::createForTesting(
+            authorization_, authorization_.authorizationGeneration(),
+            std::move(configuration));
+        assert(created);
+        owner_ = std::move(*created);
+    }
+
+    [[nodiscard]] rdp::macos::MacNativeDesktopServiceObservation
+    publishFirstFrame()
+    {
+        using namespace rdp::macos;
+
+        auto observation = owner_->serviceOnce();
+        assert(observation.state ==
+               MacNativeDesktopOwnerState::CapturePreparing);
+        observation = owner_->serviceOnce();
+        assert(observation.state ==
+               MacNativeDesktopOwnerState::CaptureStarting);
+        observation = owner_->serviceOnce();
+        assert(observation.state == MacNativeDesktopOwnerState::Ready);
+
+        const std::size_t strideBytes =
+            static_cast<std::size_t>(kWidthPixels) * kBytesPerPixel;
+        const std::size_t frameBytes =
+            strideBytes * static_cast<std::size_t>(kHeightPixels);
+        pixels_.resize(frameBytes);
+        for (std::size_t index = 0U; index < pixels_.size(); ++index)
+        {
+            pixels_[index] =
+                static_cast<std::byte>((index % 251U) + 1U);
+        }
+
+        assert(captureState_->callbackState != nullptr);
+        CVPixelBufferRef pixelBuffer = nullptr;
+        const CVReturn createResult = CVPixelBufferCreateWithBytes(
+            kCFAllocatorDefault, kWidthPixels, kHeightPixels,
+            kCVPixelFormatType_32BGRA, pixels_.data(), strideBytes,
+            nullptr, nullptr, nullptr, &pixelBuffer);
+        assert(createResult == kCVReturnSuccess && pixelBuffer != nullptr);
+        const auto disposition = captureState_->callbackState->consumeFrame(
+            pixelBuffer, MacScreenCaptureFrameStatus::Complete);
+        CVPixelBufferRelease(pixelBuffer);
+        assert(disposition == MacScreenCaptureFrameDisposition::Published);
+
+        observation = owner_->serviceOnce();
+        const PixelSize expectedGeometry{kWidthPixels, kHeightPixels};
+        assert(observation.state == MacNativeDesktopOwnerState::Ready);
+        assert(observation.pixelGeometry == expectedGeometry);
+        assert(observation.geometryGeneration != 0U);
+        assert(observation.admittedSessionGeneration ==
+               authorization_.authorizationGeneration());
+        assert(observation.latestFrameSequence != 0U);
+        assert(observation.frameAvailable);
+        return observation;
+    }
+
+    [[nodiscard]] bool borrowFramebuffer(
+        const std::uint64_t expectedFrameSequence,
+        const rdp::macos::MacNativeDesktopFrameConsumer consumer) noexcept
+    {
+        return owner_->borrowFramebuffer(expectedFrameSequence, consumer);
+    }
+
+    [[nodiscard]] rdp::macos::MacNativeDesktopServiceObservation
+    serviceOnce() noexcept
+    {
+        return owner_->serviceOnce();
+    }
+
+    [[nodiscard]] std::uint64_t authorizationGeneration() const noexcept
+    {
+        return authorization_.authorizationGeneration();
+    }
+
+private:
+    static constexpr std::uint32_t kDisplayId = 100U;
+    static constexpr std::uint32_t kWidthPixels = 128U;
+    static constexpr std::uint32_t kHeightPixels = 96U;
+    static constexpr std::size_t kBytesPerPixel = 4U;
+
+    struct WatchFixture final
+    {
+        static bool installDisplay(
+            void *,
+            rdp::macos::NativeDisplayReconfigurationWatch::ChangeRecorder
+                recorder) noexcept
+        {
+            return recorder != nullptr;
+        }
+
+        static bool removeDisplay(void *) noexcept
+        {
+            return true;
+        }
+
+        static bool installSession(
+            void *, const std::uint64_t registrationEpoch,
+            const rdp::macos::NativeSessionChangeRecorder recorder) noexcept
+        {
+            return registrationEpoch != 0U && recorder != nullptr;
+        }
+
+        static bool removeSession(void *) noexcept
+        {
+            return true;
+        }
+    };
+
+    struct DesktopFixture final
+    {
+        static rdp::macos::NativeDisplayReadStatus readDisplay(
+            void *, std::span<rdp::macos::NativeDisplayObservation> destination,
+            std::size_t &reportedCount) noexcept
+        {
+            if (destination.empty())
+                return rdp::macos::NativeDisplayReadStatus::Unavailable;
+
+            destination[0] = {
+                kDisplayId, 0.0, 0.0,
+                static_cast<double>(kWidthPixels),
+                static_cast<double>(kHeightPixels),
+                kWidthPixels, kHeightPixels, 0U, 0.0};
+            reportedCount = 1U;
+            return rdp::macos::NativeDisplayReadStatus::Ok;
+        }
+
+        static bool readSession(
+            void *,
+            rdp::macos::MacDesktopSessionObservation &observation) noexcept
+        {
+            observation = {501U, 501U, true, true};
+            return true;
+        }
+
+        static rdp::macos::ScreenCapturePreflightStatus
+        readCapturePermission(void *) noexcept
+        {
+            return rdp::macos::ScreenCapturePreflightStatus::Granted;
+        }
+
+        static rdp::macos::MacInputPermissionStatus
+        readInputPermission(void *) noexcept
+        {
+            return rdp::macos::MacInputPermissionStatus::Trusted;
+        }
+
+        static std::size_t sendInput(
+            void *,
+            const std::span<const rdp::macos::MacNativeInputCommand>
+                commands) noexcept
+        {
+            return commands.size();
+        }
+    };
+
+    struct CaptureState final
+    {
+        std::shared_ptr<rdp::macos::detail::MacScreenCaptureState>
+            callbackState{};
+    };
+
+    class CaptureBackend final
+        : public rdp::macos::detail::MacScreenCaptureBackend
+    {
+    public:
+        explicit CaptureBackend(
+            std::shared_ptr<CaptureState> state) noexcept
+            : state_(std::move(state))
+        {
+        }
+
+        [[nodiscard]] rdp::macos::ScreenCapturePreflightStatus
+        preflight() noexcept override
+        {
+            return rdp::macos::ScreenCapturePreflightStatus::Granted;
+        }
+
+        [[nodiscard]] std::expected<void, rdp::macos::MacScreenCaptureError>
+        prepare(
+            const rdp::macos::MacScreenCaptureBinding &,
+            const std::shared_ptr<
+                rdp::macos::detail::MacScreenCaptureState> &state)
+            noexcept override
+        {
+            state_->callbackState = state;
+            state->prepared();
+            return {};
+        }
+
+        [[nodiscard]] std::expected<void, rdp::macos::MacScreenCaptureError>
+        start(
+            const std::shared_ptr<
+                rdp::macos::detail::MacScreenCaptureState> &state)
+            noexcept override
+        {
+            state_->callbackState = state;
+            state->startCompleted(true);
+            return {};
+        }
+
+        [[nodiscard]] std::expected<void, rdp::macos::MacScreenCaptureError>
+        stop(
+            const std::shared_ptr<
+                rdp::macos::detail::MacScreenCaptureState> &state)
+            noexcept override
+        {
+            state_->callbackState = state;
+            state->stopCompleted(true);
+            return {};
+        }
+
+        void close(
+            const std::shared_ptr<
+                rdp::macos::detail::MacScreenCaptureState> &state)
+            noexcept override
+        {
+            state_->callbackState = state;
+            state->close();
+        }
+
+    private:
+        std::shared_ptr<CaptureState> state_{};
+    };
+
+    MacNativeDesktopAuthorization authorization_;
+    WatchFixture watch_{};
+    DesktopFixture desktop_{};
+    std::shared_ptr<CaptureState> captureState_{};
+    std::unique_ptr<rdp::macos::MacNativeDesktopOwner> owner_{};
+    std::vector<std::byte> pixels_{};
+};
+
+struct MacProtectedNativeFrameBorrowContext final
+{
+    MacProtectedTransportFixture *fixture{};
+    rdp_server::server::runtime::RuntimeDeploymentPolicy *policy{};
+    std::uint32_t frameId{};
+    rdp::macos::MacNativeDesktopServiceObservation observation{};
+    bool callbackReached{};
+    bool publicationPrepared{};
+
+    static bool consume(
+        void *const context,
+        const ::FramebufferView &framebuffer,
+        const std::uint64_t geometryGeneration,
+        const std::uint64_t admittedSessionGeneration,
+        const std::uint64_t frameSequence) noexcept
+    {
+        auto &self =
+            *static_cast<MacProtectedNativeFrameBorrowContext *>(context);
+        self.callbackReached = true;
+
+        const std::size_t expectedStride =
+            static_cast<std::size_t>(
+                self.observation.pixelGeometry.widthPixels) * 4U;
+        if (!framebuffer.valid() ||
+            framebuffer.widthPixels !=
+                self.observation.pixelGeometry.widthPixels ||
+            framebuffer.heightPixels !=
+                self.observation.pixelGeometry.heightPixels ||
+            framebuffer.strideBytes != expectedStride ||
+            geometryGeneration != self.observation.geometryGeneration ||
+            admittedSessionGeneration !=
+                self.observation.admittedSessionGeneration ||
+            frameSequence != self.observation.latestFrameSequence)
+        {
+            return false;
+        }
+
+        const auto pending =
+            self.fixture->broker.beginR3GraphicsClearCodecFramePublication(
+                *self.fixture->session, *self.policy, self.frameId, framebuffer);
+        self.publicationPrepared =
+            pending && *pending &&
+            pending->kind == RdpGraphicsDvcWriteKind::GraphicsFrameData;
+        return self.publicationPrepared;
+    }
+};
+#endif
+
 [[nodiscard]] std::vector<std::uint8_t> macProtectedHybridConnectInitial()
 {
     auto packet = validMcsPacket();
@@ -10838,7 +11158,8 @@ void testMacProtectedShareActivatedClipboardR2ClassifierDenial()
 
 void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
     bool publishFirstFrameAndAcknowledge,
-    bool denyClipboardAtGraphicsReady)
+    bool denyClipboardAtGraphicsReady,
+    bool useNativeObservation = false)
 {
     using rdp_server::server::runtime::RuntimeDeploymentPolicy;
     using Write = RdpGraphicsDvcWriteOutcome;
@@ -10946,9 +11267,6 @@ void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
         Write::Delivered);
 
     constexpr std::uint32_t firstFrameId = 1U;
-    assert(fixture->broker.preflightR3GraphicsFramePublication(
-               *fixture->session, policy, firstFrameId) ==
-           RdpGraphicsFramePublicationReadiness::Ready);
     const auto mapped =
         fixture->session->firstClientAcceptanceObservability();
     assert(mapped.shareActivated);
@@ -10960,6 +11278,29 @@ void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
     assert(!mapped.firstExactFrameWriteCommitted);
     assert(mapped.outstandingFrameAcknowledgements == 0U);
     assert(!mapped.firstGenuineFrameAcknowledge);
+
+#if defined(__APPLE__)
+    std::unique_ptr<MacProtectedNativeDesktopHarness> nativeDesktop{};
+    std::optional<rdp::macos::MacNativeDesktopServiceObservation>
+        nativeObservation{};
+    if (useNativeObservation)
+    {
+        nativeDesktop =
+            std::make_unique<MacProtectedNativeDesktopHarness>(*fixture);
+        nativeObservation = nativeDesktop->publishFirstFrame();
+        assert(nativeObservation->admittedSessionGeneration ==
+               nativeDesktop->authorizationGeneration());
+        assert(fixture->broker.revalidate(kConsoleViewPermission));
+    }
+#else
+    assert(!useNativeObservation);
+#endif
+
+    // R7 observation is freshness only. The protected R2/R3/R4 chain still
+    // must approve this exact mapped frame before the synchronous native borrow.
+    assert(fixture->broker.preflightR3GraphicsFramePublication(
+               *fixture->session, policy, firstFrameId) ==
+           RdpGraphicsFramePublicationReadiness::Ready);
 
     if (denyClipboardAtGraphicsReady)
     {
@@ -11001,12 +11342,41 @@ void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
         assert(width <= (std::numeric_limits<std::size_t>::max)() / 4U);
         const std::size_t strideBytes = width * 4U;
         assert(height <= (std::numeric_limits<std::size_t>::max)() / strideBytes);
-        std::vector<std::byte> framePixels(strideBytes * height);
-        const ::FramebufferView framebuffer{
-            framePixels, widthPixels, heightPixels, strideBytes};
-        const auto firstPending =
-            fixture->broker.beginR3GraphicsClearCodecFramePublication(
+
+        const auto firstPending = [&]()
+        {
+#if defined(__APPLE__)
+            if (useNativeObservation)
+            {
+                assert(nativeDesktop != nullptr && nativeObservation);
+                assert(nativeObservation->pixelGeometry.widthPixels ==
+                       widthPixels);
+                assert(nativeObservation->pixelGeometry.heightPixels ==
+                       heightPixels);
+                assert(fixture->broker.revalidate(kConsoleViewPermission));
+
+                MacProtectedNativeFrameBorrowContext borrowContext{
+                    fixture.get(), &policy, firstFrameId, *nativeObservation};
+                const bool borrowed = nativeDesktop->borrowFramebuffer(
+                    nativeObservation->latestFrameSequence,
+                    rdp::macos::MacNativeDesktopFrameConsumer{
+                        &borrowContext,
+                        &MacProtectedNativeFrameBorrowContext::consume});
+                assert(borrowed);
+                assert(borrowContext.callbackReached);
+                assert(borrowContext.publicationPrepared);
+                return fixture->broker
+                    .pendingR3GraphicsDynamicVirtualChannelWrite(
+                        *fixture->session, policy);
+            }
+#endif
+
+            std::vector<std::byte> framePixels(strideBytes * height);
+            const ::FramebufferView framebuffer{
+                framePixels, widthPixels, heightPixels, strideBytes};
+            return fixture->broker.beginR3GraphicsClearCodecFramePublication(
                 *fixture->session, policy, firstFrameId, framebuffer);
+        }();
         assert(firstPending && *firstPending &&
                firstPending->kind == RdpGraphicsDvcWriteKind::GraphicsFrameData);
         const auto prepared =
@@ -11016,10 +11386,9 @@ void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
         assert(prepared.outstandingFrameAcknowledgements == 0U);
         assert(!prepared.firstGenuineFrameAcknowledge);
 
-        // R4 has synchronously copied BGRA into the R3-owned frame. The
-        // borrowed source is retired before any TLS DATA write is scheduled.
-        std::vector<std::byte>{}.swap(framePixels);
-
+        // R4 synchronously owns the encoded copy before this point. The
+        // deterministic R7 borrow and synthetic fallback source both end
+        // before any TLS DATA write is scheduled.
         // Commit one genuine R1 TLS plaintext byte, then insist on the exact
         // R3 suffix tuple. Neither encoding nor a partial DATA receipt
         // records client decode progress or an outstanding ACK.
@@ -11180,7 +11549,19 @@ void exerciseMacProtectedGraphicsMappedFirstFrameTransition(
     assert(fixture->ownerAuthority.diagnosticGrantGeneration() >
            previousGrantGeneration);
 
-    // R10 must perform this fresh protected preflight before R7 lends pixels.
+#if defined(__APPLE__)
+    if (useNativeObservation)
+    {
+        assert(nativeDesktop != nullptr);
+        const auto revokedObservation = nativeDesktop->serviceOnce();
+        assert(revokedObservation.state ==
+               rdp::macos::MacNativeDesktopOwnerState::Revoked);
+        assert(nativeDesktop->authorizationGeneration() == 0U);
+    }
+#endif
+
+    // The same owner-consent replacement must also retire the protected R2/R3
+    // publication path before any observed native frame can be borrowed again.
     assert(fixture->broker.preflightR3GraphicsFramePublication(
                *fixture->session, policy, firstFrameId) ==
            RdpGraphicsFramePublicationReadiness::Rejected);
@@ -11211,6 +11592,18 @@ void testMacProtectedGraphicsFirstFrameR1ReceiptClientAcknowledge()
 {
     exerciseMacProtectedGraphicsMappedFirstFrameTransition(true, false);
 }
+
+#if defined(__APPLE__)
+void testMacProtectedGraphicsNativeObservationExactTlsReceiptClientAcknowledge()
+{
+    exerciseMacProtectedGraphicsMappedFirstFrameTransition(true, false, true);
+}
+
+void testMacProtectedGraphicsNativeObservationConsentRevocationRetirement()
+{
+    exerciseMacProtectedGraphicsMappedFirstFrameTransition(false, false, true);
+}
+#endif
 
 void testMacProtectedGraphicsReadyClipboardViewInputDenial()
 {
@@ -15894,6 +16287,12 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedGraphicsMappedFirstFrameConsentReplacementDenial},
     {"macos-protected-graphics-first-frame-r1-receipt-client-ack",
      &testMacProtectedGraphicsFirstFrameR1ReceiptClientAcknowledge},
+#if defined(__APPLE__)
+    {"macos-protected-graphics-native-observation-exact-tls-receipt-client-ack",
+     &testMacProtectedGraphicsNativeObservationExactTlsReceiptClientAcknowledge},
+    {"macos-protected-graphics-native-observation-consent-revocation-retirement",
+     &testMacProtectedGraphicsNativeObservationConsentRevocationRetirement},
+#endif
     {"macos-graphics-ready-clipboard-view-input-denial",
      &testMacProtectedGraphicsReadyClipboardViewInputDenial},
     {"macos-post-join-clipboard-view-input-denial",

@@ -127,7 +127,7 @@ Repeat full Release CTest and the existing applicable security/protocol sanitize
 
 ## R10 macOS bounded first-frame service pacing qualification (2026-11-01)
 
-Reuse only `~/rdp-server/build/`. Build the existing desktop/runtime and `test_runtime_host_control` targets, run `runtime.host-control-bounded-service-burst-scheduling` together with `runtime.macos-host-control-native-frame-pump-composition-contract`, `graphics.frame-native-borrow-segmented-receipt-fence`, `security.macos-protected-graphics-first-frame-exact-tls-receipt-client-ack` and the existing post-Graphics revocation/terminal selections, then ordinary full Debug/Release CTest and applicable sanitizers on the exact publication SHA. No new executable, build root or dependency is introduced.
+Reuse only `~/rdp-server/build/`. Build the existing desktop/runtime, `test_runtime_host_control` and `test_owned_preauth_session` targets, run `runtime.host-control-bounded-service-burst-scheduling` together with `runtime.macos-host-control-native-frame-pump-composition-contract`, `runtime.macos-native-observation-segmented-tls-genuine-ack`, `runtime.macos-post-graphics-native-consent-revocation-retirement`, `graphics.frame-native-borrow-segmented-receipt-fence`, `security.macos-protected-graphics-first-frame-exact-tls-receipt-client-ack` and the existing post-Graphics revocation/terminal selections, then ordinary full Debug/Release CTest and applicable sanitizers on the exact publication SHA. No new executable, external dependency or build root is introduced; the existing protected fixture links the existing macOS capture production library only on APPLE.
 
 ## R7 preference write-coalescing focused qualification (2026-11-01)
 
@@ -239,9 +239,9 @@ Repeat Release and unchanged 107-case R8 Clipboard ASan/UBSan on the publication
 
 ## R10 macOS native frame-pump focused qualification (2026-11-01)
 
-Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build, run `runtime.macos-host-control-native-frame-pump-composition-contract` together with `graphics.frame-native-borrow-segmented-receipt-fence`, `security.macos-protected-graphics-mapped-first-frame-consent-replacement-denial`, `security.macos-protected-graphics-first-frame-exact-tls-receipt-client-ack` and `runtime.platform-native-desktop-macos-frame-observation-fail-closed`, then ordinary full Debug CTest. Repeat the full Release suite and applicable macOS native/security ASan/UBSan lanes on the exact publication SHA.
+Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build, run `runtime.macos-host-control-native-frame-pump-composition-contract`, `runtime.macos-native-observation-segmented-tls-genuine-ack` and `runtime.macos-post-graphics-native-consent-revocation-retirement` together with `graphics.frame-native-borrow-segmented-receipt-fence`, `security.macos-protected-graphics-mapped-first-frame-consent-replacement-denial`, `security.macos-protected-graphics-first-frame-exact-tls-receipt-client-ack` and `runtime.platform-native-desktop-macos-frame-observation-fail-closed`, then ordinary full Debug CTest. Repeat the full Release suite and applicable macOS native/security ASan/UBSan lanes on the exact publication SHA.
 
-No additional executable, build root or dependency is introduced. Connector-local compile/CTest is NOT RUN because the canonical checkout is unavailable; physical ScreenCaptureKit/client frame and ACK remain NOT RUN.
+No additional executable, external dependency or build root is introduced. The existing `test_owned_preauth_session` target links the existing `rdp-server-macos-capture` production library only on APPLE so the deterministic R7 owner can feed the already protected R1/R2/R3/R4 fixture. Connector-local compile/CTest is NOT RUN because the canonical checkout is unavailable; physical ScreenCaptureKit/client frame and ACK remain NOT RUN.
 
 ## R2 documentation-policy registry co-change (2026-11-01)
 

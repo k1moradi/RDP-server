@@ -1,3 +1,9 @@
+## Preference ancestry and explicit interface intent remain non-authorizing (2026-11-01)
+
+The per-user non-secret preference store must resolve POSIX account-home ancestry component by component with no-follow directory handles; a symlink in any selected home component is a storage failure, never a route to another configuration root. The existing Windows current-user protected-DACL/reparse policy remains the equivalent platform boundary. Storage availability never changes R2, R1, native-consent or GraphicsReady state.
+
+A stable LAN interface identifier becomes a persisted preference only from an explicit owner selection event. Generic/programmatic selection-change notifications are presentation state, not consent and not persistence intent. Restored IDs are re-matched against the fresh runtime-approved interface list; addresses, listener state and authorization are never restored.
+
 ## R7 maximum-length redirected Session Password framing (2026-11-01)
 
 The `--password-stdin` secret remains capped at 256 bytes. One terminal

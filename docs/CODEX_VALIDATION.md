@@ -1,3 +1,13 @@
+## R2 P0 no-follow preference ancestry and explicit-interface intent (2026-11-01)
+
+Authoring parent: `c1bb91e688bf2cc143e06f0dc52d7f2384e1b9f1`.
+
+Review/implementation: **PASS** by source/dependency/CTest-registry inspection. POSIX account-home resolution now walks every absolute path component with descriptor-relative `O_NOFOLLOW|O_DIRECTORY` before the existing final owner/mode checks. The GUI marks a stable LAN interface as manual only from `QComboBox::activated`; a generic `currentIndexChanged` only refreshes presentation. The preferences target still has no HostControl/credential dependency, Session Password remains volatile-only, and the fixed v1 record still contains no secret, credential generation, consent epoch, listener token, native proof or Clipboard grant.
+
+New focused gates: `runtime.user-preferences-intermediate-home-symlink-denied` and `gui.offscreen-preference-interface-requires-explicit-activation`. The latter also asserts zero configure, credential setup, host-permission setup and listener-start calls with GraphicsReady/listener state false across preference load/save. Existing round-trip/version/UTF-8/privilege-field/partial/atomic/private-mode/hard-link/reparse denials remain registered.
+
+Canonical local configure/build, focused/full Debug+Release CTest, ASan/UBSan and benchmark: **NOT RUN** in this connector environment (no mounted owner checkout). Exact publication-SHA hosted CI: **PENDING**. No physical client/native authority test is required to establish this deny-only storage boundary; such tests remain independently gated by their owning milestones.
+
 ## R9 run-scheduling matrix classification correction (2026-11-01)
 
 Reviewed shared `main`, mandatory AGENTS/VISION/ROADMAP and coding/testing/

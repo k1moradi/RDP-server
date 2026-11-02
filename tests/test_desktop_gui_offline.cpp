@@ -1160,6 +1160,80 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (mode == "rapid-preferences-interface-explicit-activation")
+    {
+        fakeLoadStatus = RuntimeUserPreferencesStorageStatus::Loaded;
+        fakeSaveStatus = RuntimeUserPreferencesStorageStatus::Stored;
+        fakePreferenceSaves = 0;
+        fakeStoredPreferences = {
+            "stored-owner", "", 3390U, false, 22U};
+
+        FakeRuntimeHost candidate;
+        candidate.deriveProductStatusFromLegacy = false;
+        candidate.snapshot.lastError = RuntimeHostError::None;
+        candidate.snapshot.product.state = RuntimeProductHostState::Stopped;
+        candidate.snapshot.product.controlAvailable = true;
+        candidate.snapshot.product.eligibleLanInterfaces = {
+            RuntimeHostInterface{
+                "ethernet-1", "Private Ethernet",
+                {"192.168.0.10"}, false, true},
+            RuntimeHostInterface{
+                "wifi-2", "Private Wi-Fi",
+                {"192.168.0.20"}, true, true}};
+        candidate.snapshot.product.recommendedEndpoint = {
+            "ethernet-1", "192.168.0.10", 3389U,
+            RuntimeHostAddressFamily::Ipv4, true, true, 10U, false,
+            RuntimeHostRecommendationSource::PreferredRoute};
+
+        HostControl candidateHost(candidate);
+        DesktopWindow window(candidateHost, nullptr, kFakePreferences);
+        auto* interfaces = window.findChild<QComboBox*>("lanInterface");
+        auto* port = window.findChild<QSpinBox*>("sharingPort");
+        assert(interfaces && port);
+        assert(interfaces->currentData(Qt::UserRole + 1).toString() ==
+               QStringLiteral("ethernet-1"));
+        assert(fakePreferenceSaves == 0);
+
+        int wifiIndex = 0;
+        for (int index = 1; index < interfaces->count(); ++index)
+        {
+            if (interfaces->itemData(
+                    index, Qt::UserRole + 1).toString() ==
+                QStringLiteral("wifi-2"))
+            {
+                wifiIndex = index;
+                break;
+            }
+        }
+        assert(wifiIndex != 0);
+
+        // setCurrentIndex() is a programmatic change notification, not the
+        // user's activated() selection. It must fall back to the fresh R10
+        // recommendation and must not poison a later unrelated preference save.
+        interfaces->setCurrentIndex(wifiIndex);
+        assert(interfaces->currentData(Qt::UserRole + 1).toString() ==
+               QStringLiteral("ethernet-1"));
+        assert(fakePreferenceSaves == 0);
+
+        port->setValue(3391);
+        assert(fakePreferenceSaves == 1);
+        assert(fakeStoredPreferences.port == 3391U);
+        assert(fakeStoredPreferences.preferredStableLanInterfaceId.empty());
+
+        // Loading or saving non-secret preferences cannot configure a
+        // credential, request host permission, configure/start R1, or publish
+        // GraphicsReady. Clipboard has no preference representation at all.
+        assert(candidate.configureCalls == 0);
+        assert(candidate.credentialSetupCalls == 0);
+        assert(candidate.standaloneCredentialCalls == 0);
+        assert(candidate.permissionSetupCalls == 0);
+        assert(candidate.startCalls == 0);
+        assert(!candidate.snapshot.credentialsConfigured);
+        assert(!candidate.snapshot.listenerAvailable);
+        assert(!candidate.snapshot.graphicsReady);
+        return 0;
+    }
+
     if (mode == "rapid-preferences-manual-username-late-runtime-status")
     {
         fakeLoadStatus = RuntimeUserPreferencesStorageStatus::Missing;

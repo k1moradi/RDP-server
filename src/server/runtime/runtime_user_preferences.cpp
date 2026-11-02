@@ -160,6 +160,59 @@ private:
     int descriptor_{-1};
 };
 
+[[nodiscard]] FileDescriptor openAbsoluteDirectoryWithoutSymlinkComponents(
+    std::string_view path) noexcept
+{
+    constexpr std::size_t kMaximumAccountHomeBytes{16384U};
+    constexpr std::size_t kMaximumPathComponentBytes{1023U};
+    if (path.empty() || path.size() > kMaximumAccountHomeBytes ||
+        path.front() != '/')
+    {
+        errno = EINVAL;
+        return FileDescriptor{};
+    }
+
+    FileDescriptor directory{
+        ::open("/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)};
+    if (!directory)
+        return FileDescriptor{};
+
+    std::array<char, kMaximumPathComponentBytes + 1U> component{};
+    std::size_t offset = 1U;
+    while (offset < path.size())
+    {
+        while (offset < path.size() && path[offset] == '/')
+            ++offset;
+        if (offset == path.size())
+            break;
+
+        const std::size_t separator = path.find('/', offset);
+        const std::size_t componentEnd =
+            separator == std::string_view::npos ? path.size() : separator;
+        const std::string_view name =
+            path.substr(offset, componentEnd - offset);
+        if (name == "." || name == ".." ||
+            name.size() > kMaximumPathComponentBytes)
+        {
+            errno = EINVAL;
+            return FileDescriptor{};
+        }
+
+        std::copy(name.begin(), name.end(), component.begin());
+        component[name.size()] = '\0';
+        FileDescriptor child{::openat(
+            directory.get(), component.data(),
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)};
+        if (!child)
+            return FileDescriptor{};
+        directory = std::move(child);
+        if (separator == std::string_view::npos)
+            break;
+        offset = separator + 1U;
+    }
+    return directory;
+}
+
 [[nodiscard]] bool privateObject(
     int descriptor, bool directory, bool exactPrivateMode) noexcept
 {
@@ -216,8 +269,10 @@ directoryOpenFailureStatus(const bool create) noexcept
     if (homeDirectory == nullptr || homeDirectory[0] != '/')
         return RuntimeUserPreferencesStorageStatus::Unavailable;
 
-    FileDescriptor home{
-        ::open(homeDirectory, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)};
+    // Walk from the filesystem root so O_NOFOLLOW protects every account-home
+    // path component rather than only the final home directory.
+    FileDescriptor home{openAbsoluteDirectoryWithoutSymlinkComponents(
+        homeDirectory)};
     if (!home)
     {
         // A missing account home is not an ordinary first-run preferences

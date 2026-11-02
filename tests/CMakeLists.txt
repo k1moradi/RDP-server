@@ -469,9 +469,12 @@ if(NOT WIN32)
         COMMAND test_runtime_user_preferences unsafe-config-ancestor-status)
     add_test(NAME runtime.user-preferences-unsafe-home-ancestor-reports-invalid
         COMMAND test_runtime_user_preferences unsafe-home-ancestor-status)
+    add_test(NAME runtime.user-preferences-intermediate-home-symlink-denied
+        COMMAND test_runtime_user_preferences symlinked-home-parent-status)
     set_tests_properties(
         runtime.user-preferences-unsafe-config-ancestor-reports-invalid
         runtime.user-preferences-unsafe-home-ancestor-reports-invalid
+        runtime.user-preferences-intermediate-home-symlink-denied
         PROPERTIES LABELS "runtime;preferences;security;offline;posix")
 else()
     add_test(NAME runtime.user-preferences-windows-inaccessible-directory-not-missing
@@ -6048,6 +6051,13 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     add_test(NAME gui.offscreen-rapid-preferences-write-coalescing
         COMMAND test_desktop_gui_offline
             rapid-preferences-write-coalescing)
+    add_test(NAME gui.offscreen-preference-interface-requires-explicit-activation
+        COMMAND test_desktop_gui_offline
+            rapid-preferences-interface-explicit-activation)
+    set_tests_properties(
+        gui.offscreen-preference-interface-requires-explicit-activation
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;preferences;security;offline" TIMEOUT 20)
     add_test(NAME gui.offscreen-rapid-preferences-preserve-unrelated-action-error
         COMMAND test_desktop_gui_offline
             rapid-preferences-preserve-unrelated-action-error)

@@ -1157,7 +1157,9 @@ DesktopWindow::DesktopWindow(
             this, [this] { exportDiagnostics(); });
     connect(interfaces_, &QComboBox::currentIndexChanged,
             this, [this](int) {
-                manualInterfaceOverride_ = true;
+                // A change notification alone is not owner intent:
+                // programmatic selection changes must never become a saved
+                // stable-interface preference.
                 refresh();
             });
     connect(interfaces_, &QComboBox::activated, this,

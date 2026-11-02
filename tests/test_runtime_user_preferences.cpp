@@ -217,6 +217,42 @@ int runUnsafeHomeAncestorStatusTest()
 #endif
 }
 
+int runSymlinkedHomeParentStatusTest()
+{
+#if defined(_WIN32)
+    return 77;
+#else
+    const unsigned long processId = static_cast<unsigned long>(::getpid());
+    const auto baseDirectory = std::filesystem::current_path() /
+        ("runtime-user-preferences-home-parent-" + std::to_string(processId));
+    const auto realParent = baseDirectory / "real-parent";
+    const auto realHome = realParent / "home";
+    const auto linkedParent = baseDirectory / "linked-parent";
+    const RuntimeUserPreferences defaults{};
+
+    assert(createPrivateDirectory(baseDirectory));
+    assert(createPrivateDirectory(realParent));
+    assert(createPrivateDirectory(realHome));
+    assert(::symlink(realParent.c_str(), linkedParent.c_str()) == 0);
+
+    RuntimeUserPreferences loaded;
+    loaded.lastExplicitUsername = "must-reset";
+    loaded.port = 3399U;
+    assert(detail::loadRuntimeUserPreferencesFromHomeDirectoryForTesting(
+               linkedParent / "home", loaded) ==
+           RuntimeUserPreferencesStorageStatus::Invalid);
+    assert(loaded.lastExplicitUsername.empty());
+    assert(loaded.port == defaults.port);
+    assert(loaded.preferRemoteInput == defaults.preferRemoteInput);
+
+    assert(::unlink(linkedParent.c_str()) == 0);
+    assert(std::filesystem::remove(realHome));
+    assert(std::filesystem::remove(realParent));
+    assert(std::filesystem::remove(baseDirectory));
+    return 0;
+#endif
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -232,6 +268,9 @@ int main(int argc, char** argv)
     if (argc == 2 &&
         std::string_view{argv[1]} == "unsafe-home-ancestor-status")
         return runUnsafeHomeAncestorStatusTest();
+    if (argc == 2 &&
+        std::string_view{argv[1]} == "symlinked-home-parent-status")
+        return runSymlinkedHomeParentStatusTest();
     assert(argc == 1);
     static_assert(!runtimeBootstrapMayPersist(
         RuntimeBootstrapMaterial::SessionPassword));

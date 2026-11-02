@@ -56,6 +56,7 @@ inline constexpr std::size_t kDesktopMaximumPasswordBytes = 256;
             return false;
         const auto second = static_cast<unsigned char>(text[offset + 1U]);
         if ((second & 0xc0U) != 0x80U ||
+            (first == 0xc2U && second < 0xa0U) || // Reject C1 controls.
             (first == 0xe0U && second < 0xa0U) ||
             (first == 0xedU && second >= 0xa0U) ||
             (first == 0xf0U && second < 0x90U) ||
@@ -68,6 +69,15 @@ inline constexpr std::size_t kDesktopMaximumPasswordBytes = 256;
         offset += continuationCount + 1U;
     }
     return true;
+}
+
+// R2-compatible non-secret Username: unlike Session Password, it cannot
+// contain path separators. The caller still owns all authorization decisions.
+[[nodiscard]] inline bool validDesktopUsername(
+    const std::string_view username) noexcept
+{
+    return validDesktopText(username) &&
+           username.find_first_of("/\\") == std::string_view::npos;
 }
 
 [[nodiscard]] inline DesktopLaunchError parseDesktopLaunchOptions(
@@ -99,7 +109,7 @@ inline constexpr std::size_t kDesktopMaximumPasswordBytes = 256;
             {
                 if (options.usernameProvided ||
                     value.size() > kDesktopMaximumUsernameBytes ||
-                    !validDesktopText(value))
+                    !validDesktopUsername(value))
                     return DesktopLaunchError::InvalidOption;
                 options.username = value;
                 options.usernameProvided = true;

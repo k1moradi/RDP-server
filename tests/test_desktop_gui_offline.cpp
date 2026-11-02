@@ -894,6 +894,40 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (mode == "rapid-cli-username-r2-validation")
+    {
+        const auto parseUsername = [](const std::string_view username) {
+            const std::array<std::string_view, 3> arguments{
+                "rdp-server-desktop", "--username", username};
+            DesktopLaunchOptions options;
+            const auto result = parseDesktopLaunchOptions(arguments, options);
+            if (result == DesktopLaunchError::None)
+                assert(options.username == username);
+            return result;
+        };
+
+        // R2 rejects path separators and C1 controls in a stored Username;
+        // private Session Password stdin retains ordinary punctuation.
+        for (const std::string_view invalidUsername : {
+                 std::string_view{"owner/account"},
+                 std::string_view{"owner\\account"},
+                 std::string_view{"\xc2\x85"},
+                 std::string_view{"owner\xc2\x9f"},
+                 std::string_view{"\x7f"},
+                 std::string_view{"\xed\xa0\x80"}})
+        {
+            assert(parseUsername(invalidUsername) ==
+                   DesktopLaunchError::InvalidOption);
+        }
+        assert(parseUsername("owner-\xc3\xa9") == DesktopLaunchError::None);
+        assert(parseUsername("owner name") == DesktopLaunchError::None);
+        assert(validDesktopText("password/\\punctuation"));
+        assert(!validDesktopText("\xc2\x85"));
+        assert(runtime.startCalls == 0);
+        assert(runtime.permissionSetupCalls == 0);
+        return 0;
+    }
+
     if (mode == "rapid-start-consent")
     {
         FakeRuntimeHost candidate;

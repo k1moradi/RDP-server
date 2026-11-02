@@ -1,3 +1,30 @@
+## R7 P0 follow-up — CLI Username parity and adapter secret retirement (2026-11-01)
+
+Reviewed main parent `7662e75d52b5fcc203bcf94103e094e950e530cb`. R2's secure per-user preferences API,
+R7 zero-argument desktop/--help/--password-stdin/--enable and restored
+preferences, and R10's exclusive Sharing transaction already exist.
+No unresolved R2/R7/R10 source integration dependency blocks the offline
+rapid-test feature. The CLI permitted path separators and C1 control
+Unicode in --username although R2's non-secret Username validator denies
+those values on save. The Qt adapter also left retirement of its separate
+temporary UTF-16 password copy solely to R10's implementation.
+
+This patch aligns the process-only Username grammar with R2, retains
+punctuation in Session Password, and unconditionally scrubs R7's temporary
+credential copy after the synchronous R10 call. Dedicated ordinary
+`gui.offscreen-rapid-cli-username-r2-validation` covers invalid/valid
+Username forms, password punctuation and zero fake-HostControl listener/
+permission calls; the shipped executable denial suite covers argv separators.
+No second storage file, saved secret, authorization or automatic Sharing.
+
+Source, ownership, test registration and dependency review PASS. This
+connector has no canonical checkout or Qt6 SDK: local Debug/Release
+compile/CTest, sanitizers and benchmark NOT RUN. Next gate is same-SHA
+hosted Linux/macOS/Windows CI followed by independently authorized
+native/physical admission. The current owner-reported physical peer still
+exits before NTLM Type 3; this UI-only change does not alter that upstream
+R1/R6 interoperability boundary.
+
 ## R4 P1 — exact native-observation pre-borrow frame fence (2026-11-01)
 
 **Authoring parent:** `43ea6fbbeb76fbbbcb44384c945b2d01b0083a6e`. R10's macOS post-Graphics frame pump is already integrated on current `main`; this R4 increment therefore proceeds without waiting on another integration commit. Audit confirms the intended single-owner chain: R2 View -> R3 mapped surface/reconfiguration and R4 credit -> R7 exact latest native-frame synchronous borrow -> R4 ClearCodec -> R3 segmented DATA -> sole R1 TLS accepted-byte receipts -> separately consumed inbound client FRAME_ACK. R4's 64-frame ACK window remains authoritative; complete final DATA acceptance alone creates outstanding membership.

@@ -1,3 +1,13 @@
+## R7 temporary CLI Username grammar and adapter secret retirement (2026-11-01)
+
+Keep process-only --username validation consistent with R2's non-secret
+Username record: bounded valid UTF-8, no C0/C1/DEL control characters or
+path separators. Do not apply the Username path restriction to Session
+Password punctuation. R7's HostControl is a synchronous Qt/R10 adapter,
+not a credential owner; scrub its own mutable UTF-16 conversion buffer
+unconditionally after calling the sole R10 credential transaction, including
+a denial. Neither secrets nor consent/Sharing are persisted or logged.
+
 ## R4/R10 exact native-observation frame boundary (2026-11-01)
 
 R7's macOS mailbox is the original-authority pixel owner. It copies each accepted source row into one contiguous BGRA arena and publishes a tight `FramebufferView` whose dimensions match the current native geometry and whose `strideBytes` is exactly `widthPixels * 4`. R10 must therefore reject a callback unless width, height, tight BGRA stride, geometry generation, admitted-session generation and frame sequence all exactly match the current service observation. The `width * 4` overflow check remains before construction of the callback contract; R4 then independently retains its `FramebufferView`, u16 graphics-dimension, source-extent, ClearCodec wire-length and segmented-DATA length checks before any owned staging is published.

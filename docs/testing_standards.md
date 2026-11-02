@@ -1,3 +1,13 @@
+## R7 CLI Username parity/R2 non-secret grammar offline test (2026-11-01)
+
+`gui.offscreen-rapid-cli-username-r2-validation` reuses the existing
+single-QApplication fake-R10 executable. Verify valid UTF-8, path separator
+and C1/DEL/malformed UTF-8 rejection, normal Session Password punctuation,
+and zero permission/listener actions. The shipped CLI negative test also
+rejects argv separator values without starting Qt or logging private input.
+Retain independent bounded stdin, --enable confirmation, preference restart,
+Stop/restart, interface replacement and Release credential capability gates.
+
 ## R4/R10 native-observation pre-borrow fence regression (2026-11-01)
 
 New ordinary CTest `runtime.macos-host-control-native-frame-observation-preborrow-fences` reuses `test_macos_host_control_licensing_composition.py`; no executable or dependency is added. It pins three production-source facts at the R7/R10/R4 boundary: a stale `observation.admittedSessionGeneration` retires before resize/preflight/native borrow; R4 `DeferredForFrameAcknowledge` returns before the native borrow and therefore before encode/reservation/new TLS frame work; and the synchronous callback requires exact width, height, tight `strideBytes == width * 4`, geometry generation, admitted-session generation and frame sequence.

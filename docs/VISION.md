@@ -1,3 +1,13 @@
+## R7 temporary CLI Username and credential copy rules (2026-11-01)
+
+The non-authorizing --username override uses R2-compatible bounded UTF-8:
+reject path separators and C0/C1/DEL controls. Session Password remains
+independent and permits ordinary punctuation. R7's Qt adapter also retires
+its own temporary mutable UTF-16 password copy after R10's synchronous
+credential handoff even if an implementation returns without clearing it.
+No password persistence, auto-Sharing, new settings store, permission,
+listener, native authority or Release credential gate changes.
+
 ## R7 restored rapid-test preferences integration (2026-11-01)
 
 The portable desktop consumes R2's existing secure per-user non-secret

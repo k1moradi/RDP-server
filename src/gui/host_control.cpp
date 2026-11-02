@@ -466,8 +466,14 @@ bool HostControl::configureStandalonePassword(
 {
     const std::u16string usernameUtf16 = username.toStdU16String();
     std::u16string mutablePassword = password.toStdU16String();
-    return runtime_.configureStandaloneApplicationPassword(
+    const bool configured = runtime_.configureStandaloneApplicationPassword(
         usernameUtf16, std::span<char16_t>{mutablePassword});
+    // R10 owns the credential transaction, but our separate mutable copy
+    // must be scrubbed even if a denying implementation returns without
+    // overwriting the borrowed synchronous span.
+    for (char16_t& codeUnit : mutablePassword)
+        *static_cast<volatile char16_t*>(&codeUnit) = u'\0';
+    return configured;
 }
 
 bool HostControl::requestHostPermission(

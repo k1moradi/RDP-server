@@ -69,6 +69,8 @@ def main() -> int:
         ["--password=" + SECRET_SENTINEL],
         ["--session-password", SECRET_SENTINEL],
         ["--username", "owner", "--username", "replacement"],
+        ["--username", "owner/other"],
+        ["--username", "owner\\other"],
         ["--enable", "--enable"],
         ["--password-stdin", "--password-stdin"],
         ["--help", "--enable"],

@@ -1,3 +1,21 @@
+## R7 rapid-test Username/R2 parity and credential-copy cleanup (2026-11-01)
+
+Source/owner/dependency review baseline `7662e75d52b5fcc203bcf94103e094e950e530cb`. Existing R2 secure
+per-user load/save API, R7 process-only CLI and explicit GUI confirmation,
+R10 sole runtime ownership, offscreen GUI and shipped CLI regression suites
+are present. R7's prior CLI validator accepted path separators and UTF-8
+C1 controls that R2's non-secret Username record would reject. The Qt
+adapter's independent UTF-16 password copy also had no unconditional
+local scrub after a denying runtime handoff. Corrected only those R7 boundaries.
+
+New ordinary behavior-named `gui.offscreen-rapid-cli-username-r2-validation`
+plus executable argv separator denials. Source/CTest/ownership review PASS.
+Full canonical checkout and Qt6 SDK unavailable: local configure/build,
+focused/full Debug/Release CTest, ASan/UBSan, benchmark NOT RUN. Hosted
+exact-publication-SHA qualification PENDING; real native desktop/client
+admission NOT RUN. No R2 store/schema, R10 permission/Start, Release gate or
+listener behavior changed.
+
 ## R4/R10 native-observation pre-borrow correctness (2026-11-01)
 
 Authoring parent: `43ea6fbbeb76fbbbcb44384c945b2d01b0083a6e`. Current-main audit traced the macOS R7 mailbox, R10 post-Graphics frame pump, R4 ClearCodec/presentation/ACK lifecycle and R3 segmented DATA receipt path. R10 integration is already present, so no dependency wait is required. One production contract drift was found: R7 publishes a contiguous tight BGRA view, but the R10 callback accepted any stride >= `width * 4`. The callback now requires exact `strideBytes == width * 4` while retaining exact geometry/generation/sequence checks and R4's independent overflow/u16/wire-length validation.

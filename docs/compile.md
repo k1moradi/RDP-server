@@ -1,3 +1,16 @@
+## R7 CLI Username/R2 policy focused qualification (2026-11-01)
+
+After the canonical Debug configure/build under only `~/rdp-server/build/`:
+
+```sh
+ctest --test-dir build -C Debug -R '^gui[.](offscreen-rapid-cli-(username-r2-validation|privacy)|rapid-cli-executable-denials|offscreen-rapid-start-explicit-consent|offscreen-rapid-preferences-restart-cli-precedence)$' --output-on-failure
+ctest --test-dir build -C Debug --output-on-failure
+```
+
+Repeat the full Release CTest and applicable GUI/sanitizer lanes on the exact
+publication SHA. No new target/dependency/build root; connector-local
+compilation, tests and sanitizer execution NOT RUN.
+
 ## R4/R10 native-observation boundary focused qualification (2026-11-01)
 
 Use only the canonical `~/rdp-server/build` tree. The focused lane for this increment is the new `runtime.macos-host-control-native-frame-observation-preborrow-fences` plus `graphics.frame-native-borrow-segmented-receipt-fence`, `graphics.frame-delivery-session-retirement-before-ack`, `graphics.frame-partial-data-retirement-successor-generation` and `graphics.frame-ack-intake-session-retirement-before-consume`. Then run the normal full Debug/Release CTest gates. Do not change the fixed 23 Graphics DVC sanitizer selector or the two independently selected R4 retirement sanitizer cases.

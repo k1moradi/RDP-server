@@ -5903,6 +5903,9 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     # R7 rapid-test CLI reuses the existing fake R10 Qt fixture.
     add_test(NAME gui.offscreen-rapid-cli-privacy
         COMMAND test_desktop_gui_offline rapid-cli-privacy)
+    # Match the R2 Username grammar without restricting password punctuation.
+    add_test(NAME gui.offscreen-rapid-cli-username-r2-validation
+        COMMAND test_desktop_gui_offline rapid-cli-username-r2-validation)
     add_test(NAME gui.offscreen-rapid-start-explicit-consent
         COMMAND test_desktop_gui_offline rapid-start-consent)
     add_test(NAME gui.offscreen-rapid-preferences-restart-cli-precedence
@@ -5925,6 +5928,7 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
             rapid-preferences-manual-username-late-runtime-status)
     set_tests_properties(
         gui.offscreen-rapid-cli-privacy
+        gui.offscreen-rapid-cli-username-r2-validation
         gui.offscreen-rapid-start-explicit-consent
         gui.offscreen-rapid-preferences-restart-cli-precedence
         gui.offscreen-rapid-preferences-invalid-replaced-interface

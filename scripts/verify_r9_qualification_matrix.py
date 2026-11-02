@@ -77,11 +77,15 @@ def classify_job(job: object) -> str:
 
 
 
-def classify_unscheduled_lane(run: dict[str, object]) -> str:
-    """Run-level lifecycle is not evidence that an individual job executed."""
+def classify_run_fallback(
+    run: dict[str, object], completed_absent_state: str
+) -> str:
+    """Classify unavailable per-run evidence without inventing execution."""
     status = run.get("status")
     if status == "queued":
         return "RUN_QUEUED"
+    if status == "in_progress":
+        return "RUN_IN_PROGRESS"
     if status in {"pending", "requested", "waiting"}:
         return "RUN_PENDING"
     if status == "completed":
@@ -89,7 +93,17 @@ def classify_unscheduled_lane(run: dict[str, object]) -> str:
             return "RUN_CANCELED"
         if run.get("conclusion") == "skipped":
             return "RUN_SKIPPED"
-    return "NOT_RUN"
+    return completed_absent_state
+
+
+def classify_unscheduled_lane(run: dict[str, object]) -> str:
+    """Run-level lifecycle is not evidence that an individual job executed."""
+    return classify_run_fallback(run, "NOT_RUN")
+
+
+def classify_missing_artifact(run: dict[str, object]) -> str:
+    """Distinguish an artifact still pending from one absent after the run."""
+    return classify_run_fallback(run, "NOT_PRESENT")
 
 
 def evaluate(expected_sha: str, current_sha: str,
@@ -158,7 +172,7 @@ def evaluate(expected_sha: str, current_sha: str,
     elif len(matching_artifacts) > 1:
         sspi_artifact = "AMBIGUOUS"
     elif not matching_artifacts:
-        sspi_artifact = "NOT_PRESENT"
+        sspi_artifact = classify_missing_artifact(run)
     elif (not isinstance(matching_artifacts[0].get("workflow_run"), dict)
           or matching_artifacts[0]["workflow_run"].get("id") != run_id
           or matching_artifacts[0]["workflow_run"].get("head_sha") != expected_sha):
@@ -326,23 +340,23 @@ def self_test_unscheduled_run_state() -> None:
     missing_jobs = {"jobs": []}
     no_artifacts = {"artifacts": []}
 
-    for status, conclusion, expected in (
-        ("queued", None, "RUN_QUEUED"),
-        ("pending", None, "RUN_PENDING"),
-        ("requested", None, "RUN_PENDING"),
-        ("waiting", None, "RUN_PENDING"),
-        ("completed", "cancelled", "RUN_CANCELED"),
-        ("completed", "skipped", "RUN_SKIPPED"),
-        ("completed", "success", "NOT_RUN"),
-        ("completed", "failure", "NOT_RUN"),
-        ("in_progress", None, "NOT_RUN"),
+    for status, conclusion, expected_lane, expected_artifact in (
+        ("queued", None, "RUN_QUEUED", "RUN_QUEUED"),
+        ("in_progress", None, "RUN_IN_PROGRESS", "RUN_IN_PROGRESS"),
+        ("pending", None, "RUN_PENDING", "RUN_PENDING"),
+        ("requested", None, "RUN_PENDING", "RUN_PENDING"),
+        ("waiting", None, "RUN_PENDING", "RUN_PENDING"),
+        ("completed", "cancelled", "RUN_CANCELED", "RUN_CANCELED"),
+        ("completed", "skipped", "RUN_SKIPPED", "RUN_SKIPPED"),
+        ("completed", "success", "NOT_RUN", "NOT_PRESENT"),
+        ("completed", "failure", "NOT_RUN", "NOT_PRESENT"),
     ):
         run = {**base_run, "status": status, "conclusion": conclusion}
         report = evaluate(sha, sha, run, missing_jobs, no_artifacts)
-        if not all(value == expected for value in report["lanes"].values()):
+        if not all(value == expected_lane for value in report["lanes"].values()):
             raise AssertionError("unscheduled workflow was promoted to job evidence")
-        if report["sspi_artifact"] != "NOT_PRESENT":
-            raise AssertionError("missing SSPI archive was promoted")
+        if report["sspi_artifact"] != expected_artifact:
+            raise AssertionError("missing SSPI archive lost workflow lifecycle")
         if report["physical_windows_app_login"] != "NOT_VERIFIED":
             raise AssertionError("run scheduling was promoted to physical acceptance")
         if expected == "RUN_QUEUED":
@@ -367,6 +381,17 @@ def self_test_unscheduled_run_state() -> None:
         raise AssertionError("present job status replaced by run fallback")
     if report["lanes"]["linux_debug"] != "RUN_QUEUED":
         raise AssertionError("missing job status lost queued-run origin")
+
+    # A matching artifact remains visible even while other workflow work is queued.
+    present_artifacts = {"artifacts": [{
+        "name": "r9-microsoft-interop-" + sha,
+        "expired": False,
+        "workflow_run": {"id": run_id, "head_sha": sha},
+    }]}
+    artifact_report = evaluate(
+        sha, sha, run, missing_jobs, present_artifacts)
+    if artifact_report["sspi_artifact"] != "PRESENT_UNINSPECTED":
+        raise AssertionError("present SSPI artifact was hidden by run fallback")
 
 
 def read_json(path: Path) -> object:

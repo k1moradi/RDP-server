@@ -1,3 +1,29 @@
+## R9 Round 1 follow-up — active workflows are not completed NOT_RUN evidence (2026-11-01)
+
+**Authoring parent:** `8734b53c44d2e00ed6fe1cb19a0afe4d13c1d0ce`. Rechecked current main, the primary Actions
+dependency graph, R7/R2 rapid settings fixes and the R9 exact-run classifier.
+The previously observed R7 Round 2 GUI failure at ancestor
+`6f12e72a201b34ef26909ee24edfa260f5186e09` is resolved on shared main by
+the explicit Qt `activated()` fixture correction; do not weaken the
+production explicit-owner-intent policy.
+
+A remaining R9 bookkeeping defect was independent of that GUI fix: after an
+exact-SHA workflow transitions from queued to in-progress, downstream jobs
+that GitHub has not instantiated yet were reported as `NOT_RUN`. They now
+remain `RUN_IN_PROGRESS`; the standalone Microsoft SSPI artifact uses the
+same lifecycle fallback until it appears or the run completes. Completed
+absence is still `NOT_RUN` / `NOT_PRESENT`, and no run state can produce
+SSPI, CTest, packaging, owner or physical-client PASS.
+
+Existing ordinary CTest and fast structure self-test are strengthened in
+place; no new executable or dependency is added. Canonical local
+Debug/Release build/full CTest/sanitizers/benchmark: **NOT RUN** in this
+connector environment. Exact publication-SHA hosted qualification:
+**PENDING**. Manual owner candidate and physical Windows App/mstsc work:
+**NOT RUN / not authorized**. The physical authentication gate still requires
+same-attempt client receipt/decryption of Type 2, first provider error and
+subsequent Type-3 state; standalone SSPI cannot substitute for it.
+
 ## R7 P0 — Round 2 explicit network selection test fixture follows activated() (2026-11-01)
 
 **Authoring parent:** `7163e2b4711c7234f3199edfc54b555e864576de`. Exact source SHA

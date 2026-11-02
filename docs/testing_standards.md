@@ -1,3 +1,20 @@
+## In-progress exact-SHA workflows retain pending evidence state (2026-11-01)
+
+The R9 qualification verifier must not collapse dependency-gated jobs that
+have not yet been created to `NOT_RUN` merely because the overall workflow
+advanced from `queued` to `in_progress`. Use `RUN_IN_PROGRESS` for
+absent job lanes while the same exact-SHA run is active, preserving existing
+`RUN_QUEUED`, `RUN_PENDING`, `RUN_CANCELED` and `RUN_SKIPPED`
+states. A completed run with no matching job remains `NOT_RUN`.
+
+Apply the same lifecycle fallback to the standalone Microsoft SSPI artifact:
+while the exact run is queued/in-progress/pending/canceled/skipped and the
+artifact does not yet exist, retain that run state; only a completed run may
+report `NOT_PRESENT`. A matching run/SHA artifact always takes precedence
+and remains `PRESENT_UNINSPECTED` until its contents are independently
+verified. These states are evidence bookkeeping only and never establish
+SSPI success, owner acceptance or physical Windows App authentication.
+
 ## Round 2 manual network override must use Qt owner activation (2026-11-01)
 
 In `gui.offscreen-round2-endpoint-refresh-fail-closed`, selecting the VPN

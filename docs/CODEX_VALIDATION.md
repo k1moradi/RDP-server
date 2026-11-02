@@ -1,3 +1,24 @@
+## R9 in-progress workflow evidence-state correction (2026-11-01)
+
+Reviewed exact shared-main Actions dependencies after the earlier queued-run
+classifier increment. A live primary workflow can be `in_progress` while
+downstream jobs such as clean-Windows and GUI Round 2 have not yet been
+instantiated because their producers are still running. The verifier previously
+fell back to `NOT_RUN` in that state, which incorrectly described lifecycle
+rather than execution. Missing lanes now report `RUN_IN_PROGRESS`; missing
+SSPI artifacts use the same run-lifecycle fallback and become `NOT_PRESENT`
+only after a completed run. Present exact-run artifacts and present jobs retain
+their own states.
+
+The existing ordinary
+`project.exact-sha-qualification-unscheduled-run-state-denials` CTest and
+the fast workflow-structure `--self-test` cover queued, in-progress,
+pending/requested/waiting, canceled, skipped and completed-absent cases plus
+present-job/artifact precedence. Source/log/dependency review PASS. Local
+canonical build/full CTest/sanitizers/benchmark NOT RUN in this connector
+environment. No owner/manual workflow or physical client/native action was
+dispatched.
+
 ## R7 Round 2 GUI fixture explicit activation correction (2026-11-01)
 
 Parent `7163e2b4711c7234f3199edfc54b555e864576de`. Exact-ancestor Actions `41388752573`

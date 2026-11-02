@@ -1,3 +1,7 @@
+## R10 Start-denial probe and admitting R2 source contract (2026-11-01)
+
+For `runtime.linux-host-control-provisioned-listener-transaction`, the new fail-closed native-desktop denial can visit `(void)ownerSharingAuthority_.authorizes(View)` **before** credential preflight only to revoke a stale original grant. The real Start authorization remains the distinct conditional `if (!ownerSharingAuthority_.authorizes(View))` **after** `!credentialsConfigured_` and before exact current interface, TLS identity and R1 bind. Pin both orders separately rather than matching the first bare method name; never remove denial-side revocation to satisfy a source string test. Run existing source guard and both production-backed user-switch/lock-at-Start cases under ordinary CTest.
+
 ## R2 Windows active reader and atomic save CTest (2026-11-01)
 
 `runtime.user-preferences-windows-active-reader-atomic-replacement` runs only on Windows in the original preferences executable and centralized CTest registry. In a private isolated fixture it holds an old READ/DELETE-sharing record handle, publishes a new record through production save, verifies the original handle still yields intact old bytes and a fresh production load yields only the new record. Preserve existing Windows hard-link/ancestor/SID/DACL denials and SKIP 77; keep POSIX tests unchanged. Never touch the real LocalAppData store or start Sharing. Source/registry review PASS, local CTest NOT RUN, same-SHA Windows MSVC/CLANG64 execution PENDING.

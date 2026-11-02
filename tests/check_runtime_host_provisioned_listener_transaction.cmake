@@ -51,10 +51,30 @@ math(EXPR transaction_length "${transaction_end} - ${transaction_begin}")
 string(SUBSTRING "${host_source}" ${transaction_begin}
     ${transaction_length} transaction_source)
 
-# Pin semantic boundaries, not line formatting.
+# Keep the denial-side, fresh-R2 consent probe separate from the later
+# admitting guard. A native-desktop refusal must invalidate stale consent
+# without being mistaken for permission to open the R1 listener.
+string(FIND "${transaction_source}"
+    "if (!currentDesktop.eligible())" native_denial_guard)
+string(FIND "${transaction_source}"
+    "(void)ownerSharingAuthority_.authorizes(" native_denial_probe)
+string(FIND "${transaction_source}"
+    "return deny(RuntimeHostError::NativeAuthorizationDenied);" native_denial_return)
+string(FIND "${transaction_source}"
+    "!credentialsConfigured_" credential_guard)
+if(native_denial_guard LESS 0 OR
+   native_denial_probe LESS_EQUAL native_denial_guard OR
+   native_denial_return LESS_EQUAL native_denial_probe OR
+   credential_guard LESS_EQUAL native_denial_return)
+    message(FATAL_ERROR
+        "HostControl native-denial consent retirement order regressed")
+endif()
+
+# Pin the *admitting* R2 check after actual credentials. A non-authorizing
+# probe on a fail-closed path must never satisfy this transaction contract.
 set(ordered_tokens
     "!credentialsConfigured_"
-    "ownerSharingAuthority_.authorizes("
+    "if (!ownerSharingAuthority_.authorizes("
     "assessRuntimeSelectedLanEndpoint("
     "resolveCurrentLinuxNativeLanInterface("
     "tlsContext_->identityStatus()"

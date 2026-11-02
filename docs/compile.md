@@ -1,3 +1,7 @@
+## R10 Linux Start transaction source-guard follow-up (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build run `ctest --test-dir build -C Debug -R '^runtime[.]linux-host-control-(provisioned-listener-transaction|original-owner-changed-after-configure-denial|start-lock-retires-standalone-credential|retained-credential-lock-session-loss|fresh-native-authorization-every-start)$' --output-on-failure`, then the complete ordinary Debug CTest and Release equivalent within the same root. Hosted CI must qualify the exact correction SHA across Linux, macOS, Windows and security sanitizers before M1. Source preflight PASS; connector-local CMake/CTest/benchmarks NOT RUN, physical client NOT RUN.
+
 ## R2 Windows active-reader atomic save qualification (2026-11-01)
 
 Reuse only `~/rdp-server/build/` or the hosted job's sole checkout `build/`. After Debug configure/build run `ctest --test-dir build -C Debug -R '^runtime[.]user-preferences-windows-(active-reader-atomic-replacement|hard-link-substitution-denial|localappdata-ancestor-denial|inaccessible-directory-not-missing)$' --output-on-failure` and full CTest. Repeat Release in the same build root with `-C Release`; require Windows MSVC and CLANG64 exact-SHA evidence. This fixture has no live native settings or RDP authority. Local focused/full build, CTest and benchmark NOT RUN.

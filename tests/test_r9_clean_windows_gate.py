@@ -83,6 +83,17 @@ def require_release_gate(workflow: str, verifier: str) -> None:
         raise AssertionError("Only the consumer may publish the Windows ZIP")
     if workflow.count("name: r9-windows-unverified-" + SHA_EXPR) != 2:
         raise AssertionError("The producer/consumer must use one exact archive")
+
+    round2_job = workflow_job(workflow, "r9-gui-round2-acceptance")
+    for required in (
+        "      - r9-clean-windows-portable-gui",
+        "CLEAN_WINDOWS_RESULT: ${{ needs.r9-clean-windows-portable-gui.result }}",
+        '"$CLEAN_WINDOWS_RESULT"',
+    ):
+        if required not in round2_job:
+            raise AssertionError(
+                f"GUI Round 2 can bypass clean-Windows execution: {required}"
+            )
     for required in (
         "IsInRole", "Get-Process explorer", "SessionId", "Get-FileHash",
         "PORTABLE-GUI-MANIFEST.json", "SHA256SUMS.txt", "LICENSE", "NOTICE",
@@ -213,6 +224,16 @@ class CleanWindowsReleaseGateTests(unittest.TestCase):
         )
         self.assertNotEqual(changed_producer, producer)
         changed = self.workflow.replace(producer, changed_producer, 1)
+        with self.assertRaises(AssertionError):
+            require_release_gate(changed, self.verifier)
+
+    def test_gui_round2_without_clean_windows_dependency_denied(self) -> None:
+        round2_job = workflow_job(self.workflow, "r9-gui-round2-acceptance")
+        changed_round2 = round2_job.replace(
+            "      - r9-clean-windows-portable-gui\n", "", 1
+        )
+        self.assertNotEqual(changed_round2, round2_job)
+        changed = self.workflow.replace(round2_job, changed_round2, 1)
         with self.assertRaises(AssertionError):
             require_release_gate(changed, self.verifier)
 

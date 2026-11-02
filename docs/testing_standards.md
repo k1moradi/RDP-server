@@ -1,3 +1,15 @@
+## R9 clean-Windows release aggregates require executed launch evidence (2026-11-02)
+
+A hosted aggregate must not report GUI release acceptance while the
+`r9-clean-windows-portable-gui` job is queued, skipped, canceled, absent or has
+not executed `Validate unmodified ZIP and launch in ordinary Windows desktop`.
+GUI Round 2 therefore depends on that self-hosted clean-machine gate and checks
+its successful result. The exact-SHA qualification matrix must also enumerate
+the required `server-test-preview-status` producer independently; a staged ZIP
+or successful job metadata with the clean launch step absent/skipped is not a
+clean-machine PASS. This evidence remains separate from physical Microsoft-client
+acceptance and from M1 owner-native same-SHA receipts.
+
 ## R4/R10 Linux dual-scheduler pre-borrow source coverage (2026-11-02)
 
 The existing registered `runtime.linux-serve-persistent-post-share-single-owner` offline CMake CTest source-guards the original serve-loop `DeferredForFrameAcknowledge` terminal `continue` and now also the Linux GUI `LinuxRuntimeHostControl::serviceNativeDesktop()` terminal `return {None, true}` path. Both preflight R3/R4's one 64-frame ACK window before R5 synchronous XShm borrow, ClearCodec authorization, frame-ID commitment and Graphics TLS writer arming. Scope the GUI gate after the legitimate R3 DELETE/CREATE/MAP reconfiguration writer, not over it. Strip C++ comments and normalize whitespace to reject commented-out safety checks without freezing harmless formatting. Mutate the actual source within the existing CTest: for the serve loop, remove `continue`, insert early borrow, insert early writer; for HostControl, remove terminal return, insert early borrow, writer and ClearCodec start. Each must yield a contract failure. This is a lexical source guard, not a real R2 admission, frame capture, delivery receipt or client-visible-pixel test. No CTest selector or fixed 23-case Graphics DVC / 29-case x264 sanitizer inventory changes; follow with exact-SHA hosted full CTest and applicable sanitizers.

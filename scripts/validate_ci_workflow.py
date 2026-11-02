@@ -187,6 +187,7 @@ REQUIRED_JOBS = {
     "r9-credssp-owner-candidate",
     "r9-windows-powershell-parser",
     "r9-clean-windows-portable-gui",
+    "r9-gui-round2-acceptance",
     "r7-macos-native-lifecycle",
     "r7-macos-session-sanitizers",
     "r7-macos-portable-gui",
@@ -268,6 +269,7 @@ REQUIRED_TOKENS = (
     "r9-windows-clang23-credential-semantics-${{ github.sha }}",
     "R9 WINDOWS CLANG64 QUALIFICATION PASS:",
     "GUI_ROUND2_RESULT",
+    "CLEAN_WINDOWS_RESULT",
     "OWNER_PACKAGE_RESULT",
     "r9-owner-acceptance-manifest-${{ github.sha }}",
     "candidate-gate=PASS",
@@ -696,6 +698,29 @@ def validate(path: Path, full: bool) -> tuple[str, int]:
         require(
             r6_job.count("-DRDP_SERVER_BUILD_DESKTOP_GUI=OFF") == 1,
             "only the R6 sanitizer reconfigure may disable the desktop GUI",
+        )
+        gui_round2_start = next(
+            line for job, line in found_jobs if job == "r9-gui-round2-acceptance"
+        ) - 1
+        gui_round2_position = next(
+            index for index, (job, _) in enumerate(found_jobs)
+            if job == "r9-gui-round2-acceptance"
+        )
+        gui_round2_end = (
+            found_jobs[gui_round2_position + 1][1] - 1
+            if gui_round2_position + 1 < len(found_jobs)
+            else len(lines)
+        )
+        gui_round2_job = "\n".join(lines[gui_round2_start:gui_round2_end])
+        require(
+            "      - r9-clean-windows-portable-gui" in gui_round2_job,
+            "GUI Round 2 may not pass before the clean-Windows launch gate",
+        )
+        require(
+            "CLEAN_WINDOWS_RESULT: ${{ needs.r9-clean-windows-portable-gui.result }}"
+            in gui_round2_job
+            and '"$CLEAN_WINDOWS_RESULT"' in gui_round2_job,
+            "GUI Round 2 does not fail closed on the clean-Windows result",
         )
         candidate_start = next(
             line for job, line in found_jobs if job == "r9-credssp-owner-candidate"

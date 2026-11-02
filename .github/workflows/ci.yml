@@ -2962,6 +2962,7 @@ jobs:
       - r5-linux-gui-zip
       - r7-macos-portable-gui
       - r6-windows-clang23
+      - r9-clean-windows-portable-gui
       - documentation-policy
     runs-on: ubuntu-latest
     steps:
@@ -2970,6 +2971,7 @@ jobs:
           LINUX_GUI_RESULT: ${{ needs.r5-linux-gui-zip.result }}
           MACOS_GUI_RESULT: ${{ needs.r7-macos-portable-gui.result }}
           WINDOWS_GUI_RESULT: ${{ needs.r6-windows-clang23.result }}
+          CLEAN_WINDOWS_RESULT: ${{ needs.r9-clean-windows-portable-gui.result }}
           DOCUMENTATION_RESULT: ${{ needs.documentation-policy.result }}
         run: |
           set -euo pipefail
@@ -2977,6 +2979,7 @@ jobs:
             "$LINUX_GUI_RESULT" \
             "$MACOS_GUI_RESULT" \
             "$WINDOWS_GUI_RESULT" \
+            "$CLEAN_WINDOWS_RESULT" \
             "$DOCUMENTATION_RESULT"; do
             test "$result" = success
           done

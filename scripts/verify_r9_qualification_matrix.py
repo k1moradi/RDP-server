@@ -35,7 +35,9 @@ REQUIRED_JOBS = (
     ("r7_macos_session_sanitizers", "r7-macos-session-sanitizers", None),
     ("linux_gui_zip", "r5-linux-gui-zip", None),
     ("macos_portable_gui", "r7-macos-portable-gui", None),
-    ("windows_clean_portable_gui", "r9-clean-windows-portable-gui", None),
+    ("windows_clean_portable_gui", "r9-clean-windows-portable-gui",
+     "Validate unmodified ZIP and launch in ordinary Windows desktop"),
+    ("server_test_preview", "server-test-preview-status", None),
     ("gui_bootstrap", "r9-portable-gui-bootstrap-acceptance", None),
     ("gui_round2", "r9-gui-round2-acceptance", None),
     ("gui_credential_parity_linux", "r9-owner-gui-credential-parity (ubuntu-latest)", None),
@@ -244,6 +246,7 @@ def self_test() -> None:
          "status": "completed", "conclusion": "skipped"},
         {"name": "r9-windows-powershell-parser", "status": "completed", "conclusion": "success"},
         {"name": "r9-clean-windows-portable-gui", "status": "queued", "conclusion": None},
+        {"name": "server-test-preview-status", "status": "completed", "conclusion": "success"},
         {"name": "r9-credssp-owner-candidate", "status": "completed", "conclusion": "skipped"},
     ]}
     run_id = 41318750637
@@ -278,6 +281,7 @@ def self_test() -> None:
         "gui_credential_parity_macos": "SKIPPED",
         "windows_powershell_parser": "JOB_PASS",
         "windows_gui_staged": "NOT_RUN",
+        "server_test_preview": "JOB_PASS",
     }
     if any(report["lanes"][name] != state
            for name, state in expected_producers.items()):
@@ -290,6 +294,32 @@ def self_test() -> None:
     }]}, artifacts)
     if staged_only["lanes"]["windows_gui_staged"] != "SKIPPED":
         raise AssertionError("R9 Windows staged ZIP step was promoted")
+    clean_success_without_launch = evaluate(sha, sha, run, {"jobs": [{
+        "name": "r9-clean-windows-portable-gui", "run_id": run_id,
+        "status": "completed", "conclusion": "success", "steps": [],
+    }]}, artifacts)
+    if clean_success_without_launch["lanes"]["windows_clean_portable_gui"] != "STEPS_UNVERIFIED":
+        raise AssertionError("R9 clean-Windows success without launch step was promoted")
+    clean_success = evaluate(sha, sha, run, {"jobs": [{
+        "name": "r9-clean-windows-portable-gui", "run_id": run_id,
+        "status": "completed", "conclusion": "success",
+        "steps": [{
+            "name": "Validate unmodified ZIP and launch in ordinary Windows desktop",
+            "status": "completed", "conclusion": "success",
+        }],
+    }]}, artifacts)
+    if clean_success["lanes"]["windows_clean_portable_gui"] != "JOB_PASS":
+        raise AssertionError("R9 executed clean-Windows launch step was rejected")
+    clean_skipped_launch = evaluate(sha, sha, run, {"jobs": [{
+        "name": "r9-clean-windows-portable-gui", "run_id": run_id,
+        "status": "completed", "conclusion": "success",
+        "steps": [{
+            "name": "Validate unmodified ZIP and launch in ordinary Windows desktop",
+            "status": "completed", "conclusion": "skipped",
+        }],
+    }]}, artifacts)
+    if clean_skipped_launch["lanes"]["windows_clean_portable_gui"] != "SKIPPED":
+        raise AssertionError("R9 skipped clean-Windows launch step was promoted")
     missing_step_report = evaluate(sha, sha, run, {"jobs": [
         {"name": "protocol (ubuntu-latest)", "status": "completed", "conclusion": "success",
          "run_id": run_id, "steps": []}

@@ -6057,6 +6057,150 @@ void testGraphicsNativeBorrowSegmentedReceiptFence()
 }
 
 
+
+void testGraphicsFramePartialDataResizeAfterAcknowledge()
+{
+    using Decision = RdpGraphicsSurfaceReconfiguration;
+    using Kind = RdpGraphicsDvcWriteKind;
+    constexpr RdpDynamicVirtualChannelAllocation allocation{20U, 220U};
+    constexpr std::uint32_t oldFrameId = 112U;
+    constexpr std::uint32_t nextFrameId = 113U;
+    constexpr PixelSize resizedGeometry{65U, 64U};
+
+    RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+    completeGraphicsDynamicVirtualChannelReady(
+        dvc, allocation, 1007U, 1005U);
+
+    // R4 synchronously encodes the borrowed top-left BGRA source; R3 owns
+    // the resulting contiguous segmented DATA before any TLS receipt.
+    std::array<std::byte, 64U * 64U * 4U> originalPixels{};
+    const FramebufferView originalView{
+        originalPixels, 64U, 64U, 64U * 4U};
+    rdp_server::rdp::GfxAvc420SegmentedFrame originalFrame;
+    assert(dvc.preflightFramePublication(oldFrameId) ==
+           RdpGraphicsFramePublicationReadiness::Ready);
+    assert(dvc.prepareClearCodecFrame(
+        oldFrameId, originalView, originalFrame));
+    assert(dvc.beginFramePublication(
+        std::move(originalFrame), RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    assert(dvc.frameRecordMap().size() > 1U);
+    const auto firstWrite = dvc.pendingServerWrite();
+    const auto firstRecord = dvc.frameRecordMap().front();
+    const std::size_t headerBytes =
+        firstRecord.outerPlaintextBytes - firstRecord.frameBytes;
+    assert(firstWrite &&
+           firstWrite.kind == Kind::GraphicsFrameData &&
+           headerBytes + 1U < firstWrite.bytes.size());
+
+    // Neither a zero accepted-byte receipt nor a positive partial
+    // DATA_FIRST receipt can publish an ACK-tracked frame or permit resize.
+    assert(dvc.onServerBytesWritten(
+        firstWrite.channelGeneration, firstWrite.replySequence,
+        firstWrite.writeSliceSequence, 0U) ==
+        RdpGraphicsDvcWriteOutcome::Pending);
+    assert(dvc.outstandingGraphicsFrames() == 0U);
+    assert(dvc.beginSurfaceReconfiguration(
+        allocation.generation, resizedGeometry) == Decision::Deferred);
+    assert(dvc.onServerBytesWritten(
+        firstWrite.channelGeneration, firstWrite.replySequence,
+        firstWrite.writeSliceSequence, headerBytes + 1U) ==
+        RdpGraphicsDvcWriteOutcome::Pending);
+    assert(dvc.outstandingGraphicsFrames() == 0U);
+
+    const auto earlyAcknowledge = makeR3GraphicsFrameAcknowledgeTpkt(
+        allocation.channelId, oldFrameId, 4096U, 1U);
+    assert(dvc.onClientTpkt(
+        allocation.generation, earlyAcknowledge) ==
+        RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+    assert(dvc.consumePendingClientFrameAcknowledge(
+        allocation.generation) ==
+        RdpGraphicsFrameAcknowledgeIntake::Unmatched);
+    assert(dvc.beginSurfaceReconfiguration(
+        allocation.generation, resizedGeometry) == Decision::Deferred);
+
+    // Finish every original DATA receipt; the earlier unmatched ACK cannot
+    // retroactively free credit when the final segment is accepted.
+    auto outcome = RdpGraphicsDvcWriteOutcome::Pending;
+    for (std::size_t attempt = 0U;
+         attempt < 256U && outcome == RdpGraphicsDvcWriteOutcome::Pending;
+         ++attempt)
+    {
+        const auto write = dvc.pendingServerWrite();
+        assert(write && write.kind == Kind::GraphicsFrameData);
+        outcome = dvc.onServerBytesWritten(
+            write.channelGeneration, write.replySequence,
+            write.writeSliceSequence, write.bytes.size());
+    }
+    assert(outcome == RdpGraphicsDvcWriteOutcome::Delivered);
+    assert(dvc.outstandingGraphicsFrames() == 1U);
+    assert(dvc.beginSurfaceReconfiguration(
+        allocation.generation, resizedGeometry) == Decision::Deferred);
+
+    // Classified but unconsumed client input still cannot release the R4
+    // membership or start DELETE/CREATE/MAP for the next surface.
+    const auto matchingAcknowledge = makeR3GraphicsFrameAcknowledgeTpkt(
+        allocation.channelId, oldFrameId, 4096U, 2U);
+    assert(dvc.onClientTpkt(
+        allocation.generation, matchingAcknowledge) ==
+        RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+    assert(dvc.outstandingGraphicsFrames() == 1U);
+    assert(dvc.beginSurfaceReconfiguration(
+        allocation.generation, resizedGeometry) == Decision::Deferred);
+    assert(dvc.consumePendingClientFrameAcknowledge(
+        allocation.generation) ==
+        RdpGraphicsFrameAcknowledgeIntake::Acknowledged);
+    assert(dvc.outstandingGraphicsFrames() == 0U);
+    assert(dvc.beginSurfaceReconfiguration(
+        allocation.generation, resizedGeometry) == Decision::Started);
+
+    constexpr std::array<Kind, 3U> expectedCommands{
+        Kind::GraphicsDeleteSurface,
+        Kind::GraphicsCreateSurface,
+        Kind::GraphicsMapSurfaceToOutput};
+    for (std::size_t index = 0U; index < expectedCommands.size(); ++index)
+    {
+        const auto write = dvc.pendingServerWrite();
+        assert(write && write.kind == expectedCommands[index]);
+        const auto commandOutcome = dvc.onServerBytesWritten(
+            write.channelGeneration, write.replySequence,
+            write.writeSliceSequence, write.bytes.size());
+        assert(commandOutcome ==
+            (index + 1U == expectedCommands.size()
+                ? RdpGraphicsDvcWriteOutcome::Delivered
+                : RdpGraphicsDvcWriteOutcome::Pending));
+    }
+    assert(dvc.presentationMapped());
+    assert(!dvc.pendingServerWrite());
+    assert(dvc.outstandingGraphicsFrames() == 0U);
+
+    // A stale native observation of the old size is not eligible for R4
+    // publication after the new surface is mapped.
+    assert(dvc.preflightFramePublication(nextFrameId) ==
+           RdpGraphicsFramePublicationReadiness::Ready);
+    rdp_server::rdp::GfxAvc420SegmentedFrame rejectedFrame;
+    assert(!dvc.prepareClearCodecFrame(
+        nextFrameId, originalView, rejectedFrame));
+    assert(!rejectedFrame.valid());
+    assert(!dvc.pendingServerWrite());
+    assert(dvc.outstandingGraphicsFrames() == 0U);
+
+    std::array<std::byte, 65U * 64U * 4U> resizedPixels{};
+    const FramebufferView resizedView{
+        resizedPixels, 65U, 64U, 65U * 4U};
+    rdp_server::rdp::GfxAvc420SegmentedFrame resizedFrame;
+    assert(dvc.prepareClearCodecFrame(
+        nextFrameId, resizedView, resizedFrame));
+    assert(dvc.beginFramePublication(
+        std::move(resizedFrame), RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    assert(dvc.outstandingGraphicsFrames() == 0U);
+    assert(dvc.cancelUnwrittenFramePublication(allocation.generation));
+    assert(dvc.outstandingGraphicsFrames() == 0U);
+    assert(dvc.preflightFramePublication(nextFrameId) ==
+           RdpGraphicsFramePublicationReadiness::Ready);
+}
+
 void testGraphicsFrameAcknowledgeIntakeSessionRetirementBeforeConsume()
 {
     constexpr RdpDynamicVirtualChannelAllocation allocation{16U, 217U};
@@ -13534,6 +13678,12 @@ int main(int argc, char **argv)
         "dvc-graphics-frame-abort-after-session-retirement-closed")
     {
         testGraphicsFrameAbortAfterSessionRetirementClosed();
+        return 0;
+    }
+    if (std::string_view{argv[1]} ==
+        "dvc-graphics-frame-partial-data-resize-after-ack")
+    {
+        testGraphicsFramePartialDataResizeAfterAcknowledge();
         return 0;
     }
     if (std::string_view{argv[1]} ==

@@ -1,3 +1,7 @@
+## R4 partial segmented DATA-to-resize fence is correctness, not throughput (2026-11-01)
+
+The additional offline regression changes no production hot path, ACK window, native borrow, encoder, transport writer or scheduler; no performance benchmark was run. At 64 outstanding ACKs preflight must deny native pixel borrow, encoding, reservation and TLS write. No client-visible pixels can be inferred from GraphicsReady, native readiness, prepared ClearCodec bytes, completed local R1 receipts or synthetic ACK fixtures. Original-authority real-client pixel and genuine FRAME_ACK evidence remains an independent physical gate.
+
 ## R7 CLI Username byte-bound parity is not a benchmark (2026-11-01)
 
 Changing the cold startup parser's non-secret Username ceiling from 128 to the

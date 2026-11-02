@@ -1,3 +1,7 @@
+## R4 partial DATA / ACK / resize focused qualification (2026-11-01)
+
+After `git switch main && git pull --ff-only origin main`, reuse only `~/rdp-server/build/`. Configure and build Debug with `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2`; run `ctest --test-dir build -C Debug -R '^graphics[.]frame-(partial-data-resize-after-ack|delivery-session-retirement-before-ack|partial-data-retirement-successor-generation)$' --output-on-failure` and full `ctest --test-dir build -C Debug --output-on-failure`. Then repeat Release and inspect fixed 23-case Graphics DVC sanitizer inventory and two separately selected retirement cases on the exact publication SHA. No new executable, dependency or build root. Connector-local build, CTest, sanitizer and physical-client execution: NOT RUN; hosted/owner qualification remains the next gate.
+
 ## Windows preference LocalAppData ancestry focused qualification (2026-11-01)
 
 Reuse the canonical `~/rdp-server/build/` (hosted jobs use their single `build/` checkout root), then run `ctest --test-dir build -C Debug -R '^runtime[.]user-preferences-(windows-localappdata-ancestor-denial|windows-inaccessible-directory-not-missing|owner-private-versioned-roundtrip-denials)$' --output-on-failure`; repeat focused and full Debug/Release under the same root and normal sanitizer/security lanes on the exact publication SHA. Non-Windows CTest registries omit the Windows-only case. No benchmark is applicable to this cold-path security refusal.

@@ -2187,6 +2187,13 @@ function(add_rdp_test source_file suite behavior)
         set_tests_properties(
             graphics.frame-native-borrow-segmented-receipt-fence
             PROPERTIES LABELS "protocol;graphics;transport;offline")
+        # Partial DATA-to-remap transition; outside the fixed 23-case census.
+        add_test(NAME graphics.frame-partial-data-resize-after-ack
+            COMMAND "${test_target}"
+                "dvc-graphics-frame-partial-data-resize-after-ack")
+        set_tests_properties(
+            graphics.frame-partial-data-resize-after-ack
+            PROPERTIES LABELS "protocol;graphics;transport;offline")
     elseif(test_target STREQUAL "test_owned_preauth_session")
         # Behavior groups from ONE existing executable: no duplicate
         # compilation, executables, state controllers or fixture sources.

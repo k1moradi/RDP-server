@@ -1,3 +1,7 @@
+## R5 typed XShm arena denial is lifecycle correctness-only (2026-11-02)
+
+One ordinary production-linked Xvfb regression exercises the already-bounded full-frame capture failure and existing XCB/XTEST teardown path. No production hot-path allocation, copy, capture schedule, encoder, TLS writer or ACK window changes. This is not a throughput, latency, FPS, first-visible-pixel or physical-input benchmark; **benchmark NOT RUN**. Future performance/visibility claims still require original owner-admitted native frames, exact R1 accepted-byte receipts and independently received genuine client FRAME_ACK plus client visibility evidence.
+
 ## R2 first-publication race regression is correctness-only (2026-11-02)
 
 The new Windows fixture adds only a null-by-default internal test hook around the existing cold preference publication boundary and one offline CTest. Production still executes the same non-replacing `MoveFileExW(MOVEFILE_WRITE_THROUGH)` operation with no additional allocation, retry, protocol/frame/input/Clipboard work or scheduler state. No throughput benchmark is applicable or claimed; benchmark NOT RUN.

@@ -1,3 +1,7 @@
+## R5 typed native-frame arena terminal qualification (2026-11-02)
+
+Build in the sole `~/rdp-server/build/` directory (hosted Ubuntu: checked-out `build/`). Run `ctest --test-dir build -C Debug -R '^x11[.]native-frame-observation-xshm-arena-terminal-no-xtest$' --output-on-failure` followed by the full ordinary Debug CTest; reconfigure the same root to Release and repeat. The existing GitHub Ubuntu pipeline builds the same `test_x11_desktop_resources` and automatically exercises this case in its complete CTest; it also retains the fixed 45-case native X11 and independent 2+1 retirement sanitizer selectors. Check actual per-job PASS/SKIP/FAIL and never substitute the owner-local build or physical seat0 with the hosted Xvfb result. Source-only/connector verification is not an executable test; no new benchmark is requested.
+
 ## R2 Windows first-publication race focused qualification (2026-11-02)
 
 Reuse only the canonical `~/rdp-server/build/` or hosted checkout `build/`. On Windows run Debug and Release `ctest --test-dir build -C <config> -R '^runtime[.]user-preferences-windows-(first-publication-race-denial|active-reader-(atomic-replacement|replacement-identity)|hard-link-substitution-denial|localappdata-ancestor-denial|inaccessible-directory-not-missing)$' --output-on-failure`, then full CTest in each configuration. Require exact-publication-SHA MSVC and CLANG64 evidence. Connector-local build/CTest is NOT RUN; no extra build root or real user settings path is permitted.

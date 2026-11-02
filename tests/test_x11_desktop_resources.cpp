@@ -1781,6 +1781,7 @@ enum class AggregateHeldInputRetirement : std::uint8_t
     GracefulDisconnect,
     AuthorizationLoss,
     InFlightFrameBorrowAuthorizationLoss,
+    ObservedFrameArenaFailure,
 };
 
 // A positive XShm consumer return cannot republish after authority is lost.
@@ -1916,6 +1917,25 @@ syntheticXvfbHeldKeyboardAndButtonTerminalRetirement(
                     retiredGeometry, nativeSessionGeneration,
                     consumer.callback()));
                 assert(consumer.callbackCount == 1U);
+            }
+            else if (retirement ==
+                     AggregateHeldInputRetirement::ObservedFrameArenaFailure)
+            {
+                // The observation is current, but the bounded XShm arena
+                // cannot hold the complete 1280x720 R4 surface. Deny
+                // before callback; retire held input without XTEST releases.
+                assert(originalOwner.nativeGeometryIsCurrent(
+                    retiredGeometry, nativeSessionGeneration));
+                NativeGeometryFrameProbe probe{
+                    retiredGeometry.pixelGeometry,
+                    retiredGeometry.captureGeneration};
+                assert(!originalOwner.consumeR4Frame(
+                    retiredGeometry, nativeSessionGeneration,
+                    probe.callback()));
+                assert(probe.calls == 0U);
+                assert(originalOwner.failureReason() != nullptr);
+                assert(std::string_view(originalOwner.failureReason()) ==
+                       "XShm capture rectangle or arena is outside supported limits");
             }
             else
             {
@@ -2081,6 +2101,13 @@ syntheticXvfbInFlightHeldInputFrameBorrowRevocation()
 {
     syntheticXvfbHeldKeyboardAndButtonTerminalRetirement(
         AggregateHeldInputRetirement::InFlightFrameBorrowAuthorizationLoss);
+}
+
+void
+syntheticXvfbObservedFrameArenaFailureNoXtest()
+{
+    syntheticXvfbHeldKeyboardAndButtonTerminalRetirement(
+        AggregateHeldInputRetirement::ObservedFrameArenaFailure);
 }
 
 void
@@ -3117,6 +3144,11 @@ main(int argc, char **argv)
     if (behavior == "inflight-held-input-borrow-revocation")
     {
         syntheticXvfbInFlightHeldInputFrameBorrowRevocation();
+        return 0;
+    }
+    if (behavior == "observed-frame-arena-failure-no-xtest")
+    {
+        syntheticXvfbObservedFrameArenaFailureNoXtest();
         return 0;
     }
     if (behavior == "authority-retirement-queued-damage-isolation")

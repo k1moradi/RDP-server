@@ -2222,6 +2222,12 @@ function(add_rdp_test source_file suite behavior)
         # ACK bytes may already be classified when the owning session retires.
         # Keep this outside the fixed 23-case DVC sanitizer census and preserve
         # the two independently selected R4 retirement sanitizer regressions.
+        add_test(NAME graphics.frame-near-capacity-partial-data-retirement-successor-generation
+            COMMAND "${test_target}"
+                "dvc-graphics-frame-near-capacity-partial-data-retirement-successor-generation")
+        set_tests_properties(
+            graphics.frame-near-capacity-partial-data-retirement-successor-generation
+            PROPERTIES LABELS "protocol;graphics;transport;offline")
         add_test(NAME graphics.frame-ack-intake-session-retirement-before-consume
             COMMAND "${test_target}"
                 "dvc-graphics-frame-ack-intake-session-retirement-before-consume")

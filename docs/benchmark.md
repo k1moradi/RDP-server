@@ -1,3 +1,7 @@
+## R4 near-capacity partial-frame retirement is correctness-only (2026-11-02)
+
+The new regression changes no production encoder, contiguous frame storage, XShm borrow, allocation, frame scheduler, 64-credit window, surface algorithm, TLS writer or poll timing. It composes existing receipt/ACK/generation states at the 63->64 credit transition and therefore has no meaningful FPS, latency or throughput claim. Benchmark **NOT RUN**; physical first-pixel timing and genuine client FRAME_ACK remain separately authorized acceptance evidence.
+
 ## R7 restored-interface intent isolation is correctness-only (2026-11-02)
 
 The pending exact owner-activated interface pair exists only during cold GUI preference saves/retries and adds no per-packet/frame/input/Clipboard work, socket polling, capture or protocol changes. The dedicated offscreen CTest verifies durable non-secret selection provenance and lack of authority side effects. Benchmark NOT RUN; no throughput, physical LAN or real-desktop acceptance claim is justified.

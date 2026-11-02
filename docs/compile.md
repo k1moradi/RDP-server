@@ -1,3 +1,7 @@
+## R8 late Format List Response parser/receipt composition (2026-11-02)
+
+The new ordinary CTest is compiled into the existing `test_r8_r3_clipboard_bridge` and uses production `rdp-server-r8-r3-clipboard` linked publicly against `rdp-server-protocol`; no new target, package, source parser or test runner is permitted. Canonical owner root remains `~/rdp-server/build`. After pulling exact published `main`, run `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`, `cmake --build build --config Debug --parallel 2`, then `ctest --test-dir build -C Debug -R '^runtime\.clipboard-post-initialization-malformed-format-list-response-pending-response-retirement$' --output-on-failure` and the ordinary full CTest; also run Release and applicable hosted ASan/UBSan. Connector-local compilation remains **NOT RUN** without the owner's checkout; never claim a compile PASS from static GitHub inspection.
+
 ## R8 malformed late Temporary Directory partial-response qualification (2026-11-02)
 
 No new target, dependency, build root or sanitizer selector is introduced. Reuse the canonical owner `~/rdp-server/build/` (hosted checkout `build/`). After Debug configure/build, run:

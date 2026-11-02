@@ -3237,6 +3237,17 @@ set_tests_properties(
     runtime.clipboard-post-initialization-malformed-temporary-directory-pending-response-retirement
     PROPERTIES LABELS "runtime;security;offline")
 
+# A length-correct but payload-bearing late FORMAT_LIST_RESPONSE cannot
+# complete the original server offer while another R3/R1 Format List Response
+# has a positive-partial suffix. Test a valid replacement-generation reply too.
+# Outside the unchanged 107 Clipboard and 9 CLIPRDR sanitizer inventories.
+add_test(NAME runtime.clipboard-post-initialization-malformed-format-list-response-pending-response-retirement
+    COMMAND test_r8_r3_clipboard_bridge
+        post-initialization-malformed-format-list-response-pending-response-retirement)
+set_tests_properties(
+    runtime.clipboard-post-initialization-malformed-format-list-response-pending-response-retirement
+    PROPERTIES LABELS "runtime;security;offline")
+
 # Permission-only native R2 visits must not leave one-shot route authority
 # armed for a later R8 PDU. Outside the fixed 107-case Clipboard selector.
 add_test(NAME runtime.clipboard-permission-only-route-observation-consumption

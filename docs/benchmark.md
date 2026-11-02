@@ -1,3 +1,7 @@
+## R8 malformed Format List Response interleave is correctness-only (2026-11-02)
+
+The new ordinary offline regression changes no production parser, queue, allocation, TLS writer, permission check, native adapter, X11 callback, file-transfer path or R10 schedule. There is no meaningful throughput benchmark for a typed-invalid nine-byte CLIPRDR reply; performance measurement and native Clipboard latency/paste/INCR are **NOT RUN** and need separately authorized live evidence. Retain existing contiguous buffers and zero-copy borrows.
+
 ## R8 malformed late Temporary Directory retirement is test-only (2026-11-02)
 
 This increment adds one ordinary production-backed protocol regression and documentation only. Production CLIPRDR parsing, allocations, queues, TLS I/O, R2 permission checks, R3 receipt ownership, R10 scheduling and native X11 callbacks are unchanged. The test composes an existing bounded 520-byte parser failure with an existing positive-partial response receipt, so no throughput or latency benchmark is applicable. Benchmark NOT RUN; physical Clipboard/paste performance remains outside the disabled live-activation gate.

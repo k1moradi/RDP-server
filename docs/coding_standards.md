@@ -1,3 +1,7 @@
+## R8 correctly framed malformed Format List Response / receipt ownership (2026-11-02)
+
+Keep the existing `R3ClipboardTransferBridge::consumeCompletePdu` as the single post-R3 application parser: a Format List Response may be consumed only after a server Format List was fully delivered through R3/R1. The expected reply is an **eight-byte** `CB_FORMAT_LIST_RESPONSE` with a single OK/FAIL flag and zero payload. A nine-byte PDU with `dataLen=1` is **outer-valid** but typed-invalid. During its rejection, R8 may retire its source and offered-generation state, but must never mutate or acknowledge a separate R3-owned positive-partial response suffix. Retain the existing zero-copy borrowed PDU, scalar receipt, monotonically increasing source epoch and one-shot protected R2 route observation. No production path, parser, TLS writer or hot-loop optimization is justified solely by this regression.
+
 ## R8 malformed late Temporary Directory cannot complete an owned partial response (2026-11-02)
 
 After Monitor Ready, a first client Temporary Directory is legal even after the bridge has reached Ready, but it is still a recognized CLIPRDR initialization PDU and must pass the bounded parser. MS-RDPECLIP 2.2.2.3 requires msgFlags zero and an exact 520-byte null-terminated UTF-16 directory field. A complete outer PDU with exact dataLen but no terminator is malformed, not an unexpected message to ignore.

@@ -1,3 +1,24 @@
+## R7 P0 — restore compilable Username ceiling and R9 testing standard (2026-11-01)
+
+**Authoring parent:** `80e846b422840642da16dd2f0816263c740831e2`. Source review identified a C++ header
+compile regression: `src/gui/desktop_launch_options.h` contains literal
+backslash-n characters inside a `//` comment, so the declaration of
+`kDesktopMaximumUsernameBytes = 256` is accidentally commented out.
+Replace only those escaped sequences with actual line breaks. Keep the
+same R2-compatible 256 UTF-8 byte Username boundary, existing strict
+validation, and registered exact-256/+1 GUI/CLI denials.
+
+Restore the preexisting R9 queued-workflow run classification guidance in
+the shared testing standard. The R7 addition had replaced that section
+instead of prepending to it. Keep this complete ROADMAP and all other
+owner handoffs intact.
+
+Source/registry/logical C++ review **PASS**. Canonical local Debug/Release
+configure/build/CTest, security sanitizers and benchmark **NOT RUN** in
+the connector environment (no owner checkout). Exact publication-SHA
+hosted CI **PENDING**. Physical Windows App same-attempt Type-2 receipt,
+Type-3 and native R2/R3 Share remain separately **BLOCKED / NOT RUN**.
+
 ## R5 P1 — corrective X11 fixture exact-SHA Linux qualification (2026-11-01)
 
 **Qualified R5 SHA:** `d6c5d90cd3981a0f5931319ef4c4fcec84eeb6ce`. The preceding Ubuntu failure was a test-fixture precondition only: the in-flight full-frame borrow used a 262,144-pixel XShm arena for a 1280x720 surface. The corrective commit sizes only that case to the complete synthetic surface; production R5 capture/input/retirement behavior is unchanged.

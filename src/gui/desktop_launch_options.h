@@ -30,7 +30,9 @@ enum class DesktopLaunchError
 };
 
 inline constexpr std::size_t kDesktopMaximumArguments = 16;
-// Keep the temporary CLI override byte-compatible with R2's fixed\n// non-secret Username record so every stored value can be overridden.\ninline constexpr std::size_t kDesktopMaximumUsernameBytes = 256;
+// Keep the temporary CLI override byte-compatible with R2's fixed
+// non-secret Username record so every stored value can be overridden.
+inline constexpr std::size_t kDesktopMaximumUsernameBytes = 256;
 inline constexpr std::size_t kDesktopMaximumPasswordBytes = 256;
 
 // Reject UTF-8 truncation, overlong forms, surrogates, scalar overflow

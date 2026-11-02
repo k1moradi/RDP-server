@@ -1,3 +1,20 @@
+## R7 repair swallowed CLI Username constant and preserve R9 policy (2026-11-01)
+
+At authoring parent `80e846b422840642da16dd2f0816263c740831e2`, a literal `\\n` in the new
+`//` comment swallowed the subsequent C++ definition of
+`kDesktopMaximumUsernameBytes`, even though the new GUI CTest contains
+a `static_assert` referencing it. This fix uses actual source newlines,
+not a declaration rename or parser change. Also restore the independent
+R9 queued-workflow evidence standard replaced in the preceding R7 edit.
+Existing exact-256/+1 UTF-8 parser/shipped CLI denials and all R2
+ownership are preserved.
+
+Source/registry review **PASS**; local compile, Debug/Release CTest,
+ASan/UBSan and benchmarks **NOT RUN** (no canonical mounted checkout).
+Exact corrective-SHA hosted C++23 qualification **PENDING**. Physical
+Windows App Type-2/Type-3 and native desktop admission remain
+**BLOCKED / NOT RUN** without separately approved owner evidence.
+
 ## R5 exact-SHA Linux X11 corrective qualification (2026-11-01)
 
 Reviewed current main after the focused fixture correction `d6c5d90cd3981a0f5931319ef4c4fcec84eeb6ce`. The correction changes only the in-flight Xvfb test's XShm arena from the shared 262,144-pixel cap to the complete synthetic 1280x720 surface required by production `consumeR4Frame()`; no production R5 behavior changed.

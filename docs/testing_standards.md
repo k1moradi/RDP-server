@@ -48,7 +48,7 @@ Keep ordinary `runtime.macos-host-control-completed-credssp-idle-owner-yields` i
 
 ## R7 CLI Username parity/R2 non-secret grammar offline test (2026-11-01)
 
-`gui.offscreen-rapid-cli-username-r2-validation` reuses the existing
+`gui.offscreen-rapid-cli-username-preference-validation` reuses the existing
 single-QApplication fake-R10 executable. Verify valid UTF-8, path separator
 and C1/DEL/malformed UTF-8 rejection, normal Session Password punctuation,
 and zero permission/listener actions. The shipped CLI negative test also

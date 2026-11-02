@@ -7,7 +7,7 @@ Use only `~/rdp-server/build` after fresh `git switch main && git pull --ff-only
 Reuse only `~/rdp-server/build/`. After canonical Debug configure/build run:
 
 ```sh
-ctest --test-dir build -C Debug -R '^gui[.]offscreen-rapid-(password-input-bounds|cli-privacy|cli-username-r2-validation|start-explicit-consent)$' --output-on-failure
+ctest --test-dir build -C Debug -R '^gui[.]offscreen-rapid-(password-input-bounds|cli-privacy|cli-username-preference-validation|start-explicit-consent)$' --output-on-failure
 ctest --test-dir build -C Debug --output-on-failure
 ```
 

@@ -1,3 +1,9 @@
+## R7 durable rapid-CLI Username CTest-name correction (2026-11-01)
+
+At authoring parent `9335835205d88cad81ee8708549e2c64c64c0c82`, Actions `41380371589` / job `125069754802` failed during CMake configuration with `CTest name contains internal agent ownership taxonomy: gui.offscreen-rapid-cli-username-r2-validation`. The failure occurs before C++ compilation and is caused solely by the registry identifier; the existing executable mode and Username-validation behavior remain valid.
+
+The registration is renamed to `gui.offscreen-rapid-cli-username-preference-validation` while the executable dispatch case remains `rapid-cli-username-r2-validation`. Canonical focused documentation is updated accordingly. Static source/failure-log review **PASS**; local configure/build/CTest/sanitizers/benchmark **NOT RUN**; exact publication-SHA hosted qualification **PENDING**. R1 production transport remains unchanged, and physical Windows App Type-2 receipt/decryption plus R9 manual owner nomination remain independent blockers.
+
 ## R3 original R1 partial Join Confirm / early Client Info termination (2026-11-01)
 
 **Current-main authoring parent:** `63563072a4a089e342f5b2522576579e30b4ea1e`. Read AGENTS, VISION, ROADMAP, four coding/testing/build/benchmark standards and CODEX_VALIDATION; traced original Linux R1 TLS, R2 proof/native lease and R3 GCC, join, Client Info, PersonalDesktop licensing/Share/Graphics and protected macOS fixture. A distinct production-linked boundary was untested: real client Info arrives as a complete R1 SSL TPKT after one **actually accepted** server TLS byte of Join Confirm, before its suffix/other joins. New ordinary `security.macos-protected-client-info-during-partial-join-confirm-denial` exercises zero/positive one-byte original R1 receipts, R3-owned reply/slice, pending membership, terminal R2/R3/R1 retirement and rejected copied stale receipts. Existing production behavior is correct; no protocol implementation change or native authorization shortcut.
@@ -92,7 +98,7 @@ C1 controls that R2's non-secret Username record would reject. The Qt
 adapter's independent UTF-16 password copy also had no unconditional
 local scrub after a denying runtime handoff. Corrected only those R7 boundaries.
 
-New ordinary behavior-named `gui.offscreen-rapid-cli-username-r2-validation`
+New ordinary behavior-named `gui.offscreen-rapid-cli-username-preference-validation`
 plus executable argv separator denials. Source/CTest/ownership review PASS.
 Full canonical checkout and Qt6 SDK unavailable: local configure/build,
 focused/full Debug/Release CTest, ASan/UBSan, benchmark NOT RUN. Hosted

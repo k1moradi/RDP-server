@@ -1,3 +1,7 @@
+## R9 canonical roadmap serialization-prefix guard (2026-11-01)
+
+Reviewed parent `46393a11f5be815fb1f78233c7f063f268ad1b6e`. Concurrent main already repaired the one observed `[object Object]` prefix while preserving the full ROADMAP; source review found the existing integrity self-test would not prevent recurrence because prepend-only status sections are intentionally accepted. The validator now rejects that object-serialization token only when it is directly attached to a Markdown heading and adds a matching negative self-test. Existing ordinary CTest and workflow-structure/documentation registrations are reused; fixed 45 X11, 107 Clipboard, 23 Graphics DVC and 29 x264 sanitizer inventories are unchanged. Source/full-blob preservation review PASS; local canonical CTest/sanitizers/benchmark NOT RUN; exact-publication hosted CI PENDING; physical Microsoft-client/native acceptance NOT RUN.
+
 ## R8 P1 exact-descendant hosted Clipboard qualification — 2026-11-01
 
 **Review baseline:** `c178bc98288e20b6c4d01369fa2806d85b00d0c0` on shared main; the R8 production bridge `src/server/clipboard/r3_clipboard_transfer_bridge.cpp` and prepared Linux owner `linux_prepared_clipboard_owner.h` have not changed since `ff75c65c8d3f7ecc08d4eda3a1a6455868eff2a3`. The receipt/source-contract and GraphicsReady View|Input-only denials authored in `c8510284251d5b273654909f5c26c3599745b93f` remain on main.

@@ -18,6 +18,12 @@ HEADINGS = (TITLE, "## Milestone gates",
             "## Shared-main Git coordination contract",
             "## Decision ledger (current only)")
 
+# Status sections are intentionally prependable, but a language/runtime object
+# serialization token immediately before a Markdown heading is never valid prose.
+OBJECT_SERIALIZATION_HEADING_PREFIX = re.compile(
+    r"(?m)^\\s*\\[object Object\\](?=#{1,6}\\s)"
+)
+
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise RoadmapIntegrityError(message)
@@ -25,6 +31,10 @@ def require(condition: bool, message: str) -> None:
 def validate(contents: str) -> None:
     """Validate current meaning without pinning historic byte size."""
     require(bool(contents.strip()) and "\x00" not in contents, "empty/NUL roadmap")
+    require(
+        OBJECT_SERIALIZATION_HEADING_PREFIX.search(contents) is None,
+        "roadmap contains object-serialization heading prefix",
+    )
     lines = contents.splitlines()
     require(sum(bool(line.strip()) for line in lines) >= 120, "roadmap truncated")
     require(len(contents.split()) >= 900, "roadmap lost substantive content")
@@ -58,6 +68,7 @@ def self_test(contents: str) -> None:
     validate(contents)
     damaged = {
         "empty": "",
+        "object-serialization-prefix": "[object Object]" + contents,
         "25-line": "\n".join(contents.splitlines()[:25]),
         "no-board": contents.replace("## Parallel R1–R10 work board", "", 1),
         "no-policy": contents.replace("## Shared-main Git coordination contract", "", 1),

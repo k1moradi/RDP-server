@@ -1,3 +1,7 @@
+## Canonical roadmap object-serialization prefixes are invalid syntax (2026-11-01)
+
+The canonical roadmap may legitimately accumulate prepend-only status sections before its stable authoritative core, so integrity tests must preserve that flexibility while rejecting serialization debris. The existing `verify_canonical_roadmap.py` gate must fail when a literal `[object Object]` is directly serialized before a Markdown heading, and its negative self-test must construct that mutation from the current valid document. Do not reject ordinary prose mentions of the token, require the canonical title to be the first heading, or pin a historical byte count. Reuse the ordinary `project.canonical-roadmap-integrity-and-truncation-denials` registration and existing CI invocations instead of adding duplicate tests.
+
 ## R4 delayed frame abort remains Closed (2026-11-01)
 
 Ordinary `graphics.frame-abort-after-session-retirement-closed` reuses the existing Graphics DVC protocol runner outside the fixed 171 MCS and 23 Graphics DVC sanitizer selections. A real prepared ClearCodec frame gets a positive one-byte R3 DATA receipt and zero ACK membership, closes, then repeatedly rejects delayed abort and stale write receipts while staying Closed; also cover an unwritten frame retired before abort, and an invalid live abort staying terminal Failed. Existing late ACK and successor-generation tests are distinct. Source/registry PASS, local CTest/ASan/UBSan NOT RUN, exact-head CI pending.

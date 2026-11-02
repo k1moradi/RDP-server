@@ -1,3 +1,7 @@
+## R1 returned peer observations are join-scoped (2026-11-02)
+
+The production-backed generation-isolation fixture may use a release/acquire signal to prove that its worker has received and decrypted Type 2 while the original R1 connection remains held. That signal does **not** publish the caller's returned `PeerResult`: `runDirectTypeTwoThenClosePeer` returns only after its release gate, so the caller-side assignment happens after the worker is allowed to finish. Keep current server-side connection/generation assertions before release, then release and join the worker before reading returned client certificate/challenge observations. Do not weaken this sequencing by adding a second socket/TLS reader or by treating server-side `SSL_write_ex` acceptance as physical-client receipt.
+
 ## R2 Windows first-publication race denial (2026-11-02)
 
 Register ordinary Windows-only `runtime.user-preferences-windows-first-publication-race-denial` in the existing `test_runtime_user_preferences` executable. Use the internal no-authority hook at the exact post-absence-preflight/post-flush boundary to create `preferences.bin` immediately before production's non-replacing `MoveFileExW`. Require `Unavailable`, exact raced-target byte retention, and exactly one directory entry afterward so the private temporary file is proven cleaned up. The hook is null for every production/R7 call and must not touch LocalAppData, credentials, consent, listener/native state, Graphics or Clipboard. Keep the existing hard-link SKIP 77 rule and both active-reader replacement tests unchanged.

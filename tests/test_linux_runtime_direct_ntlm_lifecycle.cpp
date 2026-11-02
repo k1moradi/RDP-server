@@ -2181,7 +2181,6 @@ int main(int argc, char** argv)
         assert(firstWaiting.acceptedClientPreauthDiagnostics
                    .standaloneCredentialGeneration == credential.generation);
         assertPostTypeTwoSilence(firstWaiting);
-        assert(firstPeerResult.peerCertificateSha256 == firstCertificate);
 
         // Stop while the first peer is still connected. Its original
         // TLS/Type-2 writer and every pending receipt are terminal before
@@ -2194,6 +2193,9 @@ int main(int argc, char** argv)
         releaseFirstPeer.store(true, std::memory_order_release);
         firstPeer.join();
         assert(firstPeerResult.passed && firstPeerResult.directTypeTwoReceived);
+        // The ready signal fires inside the worker before this returned result
+        // is assigned. Inspect client observations only after joining it.
+        assert(firstPeerResult.peerCertificateSha256 == firstCertificate);
 
         std::array<char16_t, kMaximumStandalonePasswordCodeUnits>
             replacementPasswordStorage{};
@@ -2245,9 +2247,6 @@ int main(int argc, char** argv)
         assert(secondDiagnostics.tlsConnection.certificateEndpointGeneration ==
                restarted.listenerGeneration);
         assert(secondDiagnostics.directNtlmTypeTwoDelivered);
-        assert(secondPeerResult.peerCertificateSha256 == secondCertificate);
-        assert(challengesDiffer(
-            firstPeerResult.serverChallenge, secondPeerResult.serverChallenge));
         assertPostTypeTwoSilence(secondWaiting);
         assert(!secondDiagnostics.standaloneCredentialsRejected);
         assert(!secondDiagnostics.mcsSessionAdvanced);
@@ -2259,6 +2258,9 @@ int main(int argc, char** argv)
         assert(pumpUntilClientRetired(control));
         secondPeer.join();
         assert(secondPeerResult.passed && secondPeerResult.directTypeTwoReceived);
+        assert(secondPeerResult.peerCertificateSha256 == secondCertificate);
+        assert(challengesDiffer(
+            firstPeerResult.serverChallenge, secondPeerResult.serverChallenge));
         const RuntimeHostStatus terminal = control.status();
         assert(terminal.acceptedClientPreauthDiagnostics.acceptedClientId ==
                secondDiagnostics.acceptedClientId);

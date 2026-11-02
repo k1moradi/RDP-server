@@ -1,3 +1,9 @@
+## R5 tests-off -> normal-test cache restoration (2026-11-01)
+
+At source SHA `ecf4ddd1bdd9ae1afd4a6a9f8ec4ec3c0bc4ace0`, Actions `41380857506` / Ubuntu protocol job `125071178503` first proved the R5 tests-disabled `rdp-server-linux-x11-desktop` target, then failed the same build root's normal Debug configure because `RDP_SERVER_BUILD_TESTING` remained cached OFF while Linux PAM/GSSAPI tests were requested. CMake correctly rejected that contradictory state.
+
+The workflow now restores `-DRDP_SERVER_BUILD_TESTING=ON` alongside `-DBUILD_TESTING=ON`, and `scripts/validate_ci_workflow.py` pins that exact post-tests-off reconfigure boundary. No production C++ or test semantics change. Source/log diagnosis **PASS**; local execution **NOT RUN**; exact corrective-SHA hosted structure/full Debug+Release/sanitizer qualification **PENDING**. R1 Type-2/FIN code remains unchanged and physical client evidence remains separately blocked.
+
 ## R10 P1 native observation through protected segmented TLS/ACK qualification (2026-11-01)
 
 **Authoring parent:** `f55ad153ebcfc6aeacd692a5d7dd4dbb187677ee`. Refreshed main and re-audited the Linux post-Type-2 owner plus the current macOS GraphicsReady frame pump. Track A still shows no server-side scheduler/transport defect: the single R1 writer releases Type 2 only after complete positive receipt, the same R1 reader remains armed for the next TSRequest, NeedRead/NeedWrite feeds zero-time readiness, and peer EOF is terminal without an admission verdict. The physical missing observation remains first-party Type-2 TLS receipt/decryption, CredSSP acceptance and Type-3 construction/submission; no NTLM/TLS/certificate/credential change is justified.

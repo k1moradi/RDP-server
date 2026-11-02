@@ -200,6 +200,7 @@ jobs:
             linux_pam_tests=ON
           fi
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+            -DRDP_SERVER_BUILD_TESTING=ON \
             -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF \
             -DRDP_SERVER_TEST_LINUX_GSSAPI="$linux_gssapi_tests" \
             -DRDP_SERVER_TEST_LINUX_PAM="$linux_pam_tests"

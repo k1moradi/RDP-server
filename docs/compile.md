@@ -46,7 +46,7 @@ cmake --build build --config Release \
   --target rdp-server-linux-x11-desktop --parallel 2
 ```
 
-Then reconfigure the **same** `build/` root with the normal owner Debug command and run full CTest. This proves only dependency composition; it never starts R10, acquires R2 authority or touches seat0. Authoring parent `c22da1f00871cbfc8dbebecfc362494484dd1f03`; connector-local execution **NOT RUN**, hosted publication-SHA proof **PENDING**.
+Then reconfigure the **same** `build/` root with both test switches explicitly restored, for example `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DRDP_SERVER_BUILD_TESTING=ON` plus the normal platform options, and run full CTest. Do not rely on the cached project test switch returning to its default after the tests-off proof. This proves only dependency composition; it never starts R10, acquires R2 authority or touches seat0. Authoring parent `c22da1f00871cbfc8dbebecfc362494484dd1f03`; connector-local execution **NOT RUN**, hosted publication-SHA proof **PENDING**.
 
 ## R10 authenticated idle-owner scheduler test (2026-11-01)
 

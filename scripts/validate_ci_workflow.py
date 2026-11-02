@@ -656,6 +656,25 @@ def validate(path: Path, full: bool) -> tuple[str, int]:
             text.count("-DRDP_SERVER_BUILD_DESKTOP_GUI=OFF") >= 9,
             "all 9 Qt-free protocol/security/native configurations must opt out explicitly",
         )
+        tests_off_step = text.find(
+            "      - name: Prove R5 native desktop target with tests disabled"
+        )
+        debug_protocol_step = text.find(
+            "      - name: Configure Debug protocol and tests"
+        )
+        require(
+            0 <= tests_off_step < debug_protocol_step,
+            "R5 tests-off proof must precede the protocol Debug reconfigure",
+        )
+        next_protocol_step = text.find("\n      - name:", debug_protocol_step + 1)
+        debug_protocol_block = text[
+            debug_protocol_step:
+            (next_protocol_step if next_protocol_step >= 0 else len(text))
+        ]
+        require(
+            "-DRDP_SERVER_BUILD_TESTING=ON" in debug_protocol_block,
+            "protocol Debug reconfigure must restore project tests after R5 tests-off proof",
+        )
         r6_start = next(
             line for job, line in found_jobs if job == "r6-windows-clang23"
         ) - 1

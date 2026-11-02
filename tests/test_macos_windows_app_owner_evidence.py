@@ -832,6 +832,57 @@ class OwnerEvidenceTests(unittest.TestCase):
                     "NOT_OBSERVED",
                 )
 
+    def test_paired_provenance_macos_four_stages_require_original_client_event(self):
+        # Each macOS stage is independently observable as PASS or FAIL.
+        # Neither a server-local record nor a neighboring attempt is a
+        # client-origin event, even when the server's Type 2 was committed.
+        manifest = evidence.build_manifest(self.options)
+        for stage in ab_evidence.CLIENT_SECURITY_STAGES:
+            for observed_state in ("PASS", "FAIL"):
+                with self.subTest(stage=stage, state=observed_state):
+                    pair = self._paired_record(manifest)
+                    macos_row = pair["macos"]
+                    macos_row["client_security_stages"][stage] = observed_state
+                    original_event = self._client_event(pair, "macos")
+                    macos_row["client_stage_evidence"][stage] = original_event
+
+                    valid = ab_evidence.validate_pair(manifest, pair)
+                    self.assertEqual(valid["evidence_status"], "PASS")
+                    self.assertEqual(
+                        valid["macos"]["client_security_stages"][stage],
+                        observed_state,
+                    )
+                    self.assertTrue(all(
+                        state == "NOT_OBSERVED"
+                        for state in valid["windows"]["client_security_stages"].values()
+                    ))
+
+                    original_event["source_kind"] = "server-transport"
+                    server_substitution = ab_evidence.validate_pair(manifest, pair)
+                    self.assertEqual(server_substitution["evidence_status"], "FAIL")
+                    self.assertIn(
+                        f"MACOS_CLIENT_{stage.upper()}_SOURCE_UNSUPPORTED",
+                        server_substitution["evidence_failures"],
+                    )
+                    self.assertTrue(all(
+                        state == "NOT_OBSERVED"
+                        for state in server_substitution["macos"]["client_security_stages"].values()
+                    ))
+
+                    original_event["source_kind"] = "client-provider-event"
+                    original_event["attempt_id_exact"] = pair["windows"]["attempt_id_exact"]
+                    neighboring_attempt = ab_evidence.validate_pair(manifest, pair)
+                    self.assertEqual(neighboring_attempt["evidence_status"], "FAIL")
+                    self.assertIn(
+                        f"MACOS_CLIENT_{stage.upper()}_ATTEMPT_MISMATCH",
+                        neighboring_attempt["evidence_failures"],
+                    )
+                    self.assertTrue(all(
+                        state == "NOT_OBSERVED"
+                        for state in neighboring_attempt["macos"]["client_security_stages"].values()
+                    ))
+                    self.assertNotIn("attempt-windows", json.dumps(neighboring_attempt))
+
     def test_paired_provenance_type3_source_from_neighboring_attempt_is_denied(self):
         manifest = evidence.build_manifest(self.options)
         pair = self._paired_record(manifest)

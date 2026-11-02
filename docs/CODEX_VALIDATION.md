@@ -1,3 +1,41 @@
+## R6 P0 — macOS four-stage client provenance negative parity (2026-11-01)
+
+**Reviewed parent:** `28eac2cde4556f37c47bd93448bcd01b14011cec`. The closed private A/B v3 schema already
+supports four separate client-origin observations: Type-2 TLS
+receipt/decryption, CredSSP/provider acceptance or typed first failure,
+Type-3 construction and Type-3-bearing client TLS submission. The
+macOS row previously lacked the full PASS/FAIL plus negative-origin fixture
+coverage already exercised for Windows. Extend the existing
+`paired_provenance_` test selector for **each** macOS stage and both
+observed states. A source-bound, same-attempt original client record
+is accepted as *evidence input*; relabeling it as `server-transport` or
+using the neighboring mstsc attempt ID must produce a fixed typed FAIL
+and mask all four macOS stages to `NOT_OBSERVED` in the public result.
+The Windows row remains independently unobserved and private attempt IDs
+never enter shared JSON. No collector invocation or external client occurs;
+original digest metadata still does not attest its content.
+
+The 8.956 ms physical macOS Windows App row remains distinct from the
+older 34.7 ms attempt and hosted Microsoft SSPI. Server-local TLS 1.3,
+Type-2 flags `0xe08a8235`, zero later observed client TLS bytes, no
+Type 3/alert and peer FIN **cannot establish client receipt**. Per-attempt
+AV IDs, 126-byte Type-2 length, cipher, SNI/IP target, exact-IP-SAN
+certificate fingerprint, credential choice and server SHA must come from
+original records of **that same attempt**, not a neighboring trace.
+
+**Verification:** source/CTest-selector review PASS; local canonical
+Python, CMake full Debug/Release CTest, sanitizers and benchmark NOT RUN
+(no mounted checkout/GitHub DNS). Exact-publication-SHA hosted Microsoft
+SSPI and general CI PENDING independently; neither qualifies physical
+Windows App. Next gate: R9 nominates an exact-SHA candidate, then the
+owner separately authorizes macOS Windows App and Windows 11 mstsc
+attempts **and** read-only inspection of existing first-party diagnostics.
+Keep attempt/connection IDs, original-record digests, UTC windows and
+the first typed error private. Never access Keychain, collect secrets,
+change certificate trust, launch clients or enable capture here.
+If no original Type-2 client receipt/decryption exists, physical A/B is
+BLOCKED / INCONCLUSIVE.
+
 ## R9 in-progress workflow evidence-state correction (2026-11-01)
 
 Reviewed exact shared-main Actions dependencies after the earlier queued-run

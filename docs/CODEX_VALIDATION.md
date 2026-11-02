@@ -1,3 +1,11 @@
+## R8 P1 supplemental sanitizer selection for initial response retirement (2026-11-01)
+
+Reviewed current-main parent `0124236b5558b5bbca59040055ce866d87c56e6f`, the unchanged R8 bridge/prepared owner/R1 writer/R10 scheduler, Linux R2 `View | Clipboard` reauthorization path, centralized CTest registry and R9 sanitizer workflow. The previously published `runtime.clipboard-initial-response-pre-publication-receipt-denials` is an ordinary production-backed R8/R3 static-route test and its target is already compiled by `r9-security-protocol-sanitizers`, but the test itself was not selected under ASan/UBSan.
+
+This follow-up adds only that exact CTest to the existing bounded focused exact-HEAD sanitizer loop and makes the CI structure validator require its token. The **107-case** Clipboard label census is unchanged; there is no production C++, CTest label/count, R1/R2/R3/R10 ownership or native permission change.
+
+Source/dependency/CI-structure review PASS. Local build/full CTest/sanitizer/benchmark NOT RUN in this connector environment; exact publication-SHA hosted structure/full/sanitizer evidence PENDING. Genuine native Clipboard permission and physical Microsoft-client Type-3/video/input/Stop/reconnect remain BLOCKED/NOT RUN, and production Clipboard remains OFF.
+
 ## R2 Windows native preference-root ancestry check (2026-11-01)
 
 Authored on current parent `ffec26d50c0e1b63fff2f30eb8fb4af1662f61da`. The existing non-secret R2 storage owner now walks the OS-returned Windows LocalAppData absolute local-drive directory ancestry with no-follow reparse opens, refusing device/UNC, dot-dot, intermediary file and reparse substitutions; the strict final current-user SID/ACL and atomic file contract is unchanged. New ordinary Windows CTest `runtime.user-preferences-windows-localappdata-ancestor-denial` runs the same production predicate against unsupported and intervening-file ancestry. No credential, permission, socket or Clipboard code changed. Source/dependency/CTest-registry review PASS. Local Debug/Release builds, focused/full CTests, sanitizers and benchmark NOT RUN (no mounted checkout; direct GitHub DNS unavailable); exact publishing-SHA hosted Windows/Ubuntu/macOS qualification PENDING. Physical-client evidence remains separately unauthorized.

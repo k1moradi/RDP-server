@@ -412,6 +412,7 @@ REQUIRED_TOKENS = (
     "clipboard.route-bridge-old-route-generation-retirement",
     "clipboard.route-bridge-partial-positive-receipt-retirement",
     "clipboard.route-bridge-filecontents-request-receipt",
+    "runtime.clipboard-initial-response-pre-publication-receipt-denials",
     "runtime.linux-host-control-direct-ntlm-reconnect-stop-start-lifecycle",
     "direct-ntlm-type2-peer-eof-pre-admission-diagnostics",
     "ntlmssp-challenge-portable-target-name",

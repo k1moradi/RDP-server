@@ -1582,6 +1582,7 @@ jobs:
             security.ipv4-mapped-ipv6-peer-quota-identity \
             graphics.surface-resize-revocation \
             graphics.x264-native-bgra-resize-recovery \
+            runtime.clipboard-initial-response-pre-publication-receipt-denials \
             runtime.clipboard-stable-scalar-write-receipt \
             runtime.clipboard-retired-route-positive-receipt-isolation; do
             exact_test_selection="^${required_test_name//./[.]}$"

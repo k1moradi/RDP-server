@@ -1,3 +1,9 @@
+## R8 initial response retirement must run separately under sanitizers (2026-11-01)
+
+Keep ordinary `runtime.clipboard-initial-response-pre-publication-receipt-denials` outside the fixed **107-case** `clipboard` label census, but run that exact production-backed R8/R3 receipt case separately under the existing `r9-security-protocol-sanitizers` ASan/UBSan build. The sanitizer job already compiles `test_r8_r3_clipboard_bridge`; add this behavior to the bounded `Pin focused exact-HEAD sanitizer inventory` loop, require exactly one registered CTest match, and preserve its current halt-on-error sanitizer environment. The CI structure validator must require the exact test token so a later workflow edit cannot silently drop this supplemental execution.
+
+This supplemental sanitizer selection changes no CLIPRDR state machine, R1/R2/R3/R10 owner, native Clipboard permission, X11 adapter, CTest label or fixed sanitizer census. It remains offline and cannot prove a genuine native R2/OS Clipboard grant. Production activation stays hard-disabled.
+
 ## Windows LocalAppData ancestor substitution denial (2026-11-01)
 
 Keep ordinary Windows-only `runtime.user-preferences-windows-localappdata-ancestor-denial` inside the existing strict preference fixture. Invoke the production ancestry predicate via its internal test seam and reject relative, dot-dot and intermediate regular-file components, without requiring junction privileges or touching the current user's real LocalAppData. The real store still checks current-user DACL, final reparse and atomic replacement. No test may manufacture authority, start a listener or persist credentials. Qualify on hosted Windows Debug/Release plus the normal full CTest.

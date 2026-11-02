@@ -604,6 +604,115 @@ void initialHandshakeExactReceiptDenials()
 }
 
 
+
+void initialResponsePrePublicationReceiptDenials()
+{
+    using Stage = R3ClipboardTransferBridge::ServerInitializationStage;
+    constexpr RdpClipboardStaticChannelView zeroWriteView{1008U, 409U};
+    constexpr RdpClipboardStaticChannelView stoppedView{1008U, 410U};
+    constexpr RdpClipboardStaticChannelView reconnectView{1008U, 411U};
+    constexpr std::array<R3ClipboardTransferBridge::OutboundFormat, 1>
+        textFormats{{{rdp_server::clipboard::kFormatUnicodeText, u""}}};
+
+    R3ClipboardTransferBridge bridge(0U, true);
+    auto visitor = bridge.channelVisitor();
+    auto sink = bridge.completePduSink();
+
+    // A queued response and R1's TLS WANT/zero-byte attempts provide no
+    // receipt. An invalid zero-byte R3 acceptance retires only this route.
+    RdpClipboardStaticChannelRoute zeroWriteRoute;
+    assert(zeroWriteRoute.start(
+        1005U, zeroWriteView.channelId, zeroWriteView.generation, 1600U));
+    deliverServerInitializationPrelude(bridge, zeroWriteRoute, zeroWriteView);
+    assert(!bridge.observeServerClipboardGeneration(1U));
+    assert(visitor.visit(visitor.context, zeroWriteView));
+    assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    assert(zeroWriteRoute.queue(bridge.pendingApplicationPdu()));
+    const auto zeroWrite = zeroWriteRoute.pending();
+    assert(zeroWrite && bridge.bindQueuedWrite(zeroWrite));
+    const auto zeroOfferedBytes = zeroWrite.wireBytes.size();
+    const auto zeroRouteGeneration = zeroWrite.routeGeneration;
+    const auto zeroReplySequence = zeroWrite.replySequence;
+    const auto zeroWriteSliceSequence = zeroWrite.writeSliceSequence;
+    assert(zeroWriteRoute.pending());
+    assert(bridge.serverInitializationStage() ==
+           Stage::AwaitClientInitialization);
+    assert(!bridge.serverInitializationReady());
+    assert(!bridge.observeServerClipboardGeneration(1U));
+    const auto zeroOutcome = zeroWriteRoute.onAcceptedBytes(
+        zeroRouteGeneration, zeroReplySequence,
+        zeroWriteSliceSequence, 0U);
+    assert(zeroOutcome == RdpClipboardWriteOutcome::Rejected);
+    assert(!bridge.recordAcceptedWriteReceipt(
+        zeroRouteGeneration, zeroReplySequence, zeroWriteSliceSequence,
+        zeroOfferedBytes, 0U, zeroOutcome));
+    assert(!bridge.active() && !bridge.serverInitializationReady());
+    zeroWriteRoute.close();
+
+    // One real, R3-committed positive byte is not a complete initial
+    // FORMAT_LIST_RESPONSE. Stop retires that write and its source.
+    RdpClipboardStaticChannelRoute stoppedRoute;
+    assert(stoppedRoute.start(
+        1005U, stoppedView.channelId, stoppedView.generation, 1600U));
+    deliverServerInitializationPrelude(bridge, stoppedRoute, stoppedView);
+    assert(visitor.visit(visitor.context, stoppedView));
+    assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    assert(stoppedRoute.queue(bridge.pendingApplicationPdu()));
+    const auto stoppedWrite = stoppedRoute.pending();
+    assert(stoppedWrite && bridge.bindQueuedWrite(stoppedWrite));
+    const auto stoppedRouteGeneration = stoppedWrite.routeGeneration;
+    const auto stoppedReplySequence = stoppedWrite.replySequence;
+    const auto stoppedWriteSliceSequence = stoppedWrite.writeSliceSequence;
+    const auto stoppedOfferedBytes = stoppedWrite.wireBytes.size();
+    assert(stoppedOfferedBytes > 1U);
+    const auto partial = stoppedRoute.onAcceptedBytes(
+        stoppedRouteGeneration, stoppedReplySequence,
+        stoppedWriteSliceSequence, 1U);
+    assert(partial == RdpClipboardWriteOutcome::Pending);
+    assert(bridge.recordAcceptedWriteReceipt(
+        stoppedRouteGeneration, stoppedReplySequence,
+        stoppedWriteSliceSequence, stoppedOfferedBytes, 1U, partial));
+    assert(!bridge.serverInitializationReady());
+    assert(!bridge.observeServerClipboardGeneration(2U));
+    bridge.retireR3ChannelState();
+    stoppedRoute.close();
+    assert(!bridge.active() && !bridge.serverInitializationReady());
+
+    // Numeric channel reuse starts from Dormant. An old partial receipt
+    // cannot open the new route or authorize local publication.
+    RdpClipboardStaticChannelRoute reconnectRoute;
+    assert(reconnectRoute.start(
+        1005U, reconnectView.channelId, reconnectView.generation, 1600U));
+    deliverServerInitializationPrelude(bridge, reconnectRoute, reconnectView);
+    assert(!bridge.recordAcceptedWriteReceipt(
+        stoppedRouteGeneration, stoppedReplySequence,
+        stoppedWriteSliceSequence, stoppedOfferedBytes, 1U, partial));
+    assert(bridge.active() && bridge.routeGeneration() ==
+           reconnectView.generation);
+    assert(bridge.serverInitializationStage() ==
+           Stage::AwaitClientInitialization);
+    assert(!bridge.observeServerClipboardGeneration(3U));
+    assert(visitor.visit(visitor.context, reconnectView));
+    assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    assert(!bridge.serverInitializationReady());
+    deliverPendingSinglePacketWithFraming(bridge, reconnectRoute);
+    assert(bridge.serverInitializationReady());
+
+    // This is R8's one-shot route precondition, not an R2 native grant.
+    // The production Linux owner independently re-enters R2 Clipboard scope.
+    assert(bridge.observeServerClipboardGeneration(3U));
+    assert(!bridge.beginServerFormatList(3U, textFormats));
+    assert(visitor.visit(visitor.context, reconnectView));
+    bridge.discardRouteObservation();
+    assert(!bridge.beginServerFormatList(3U, textFormats));
+    assert(visitor.visit(visitor.context, reconnectView));
+    assert(bridge.beginServerFormatList(3U, textFormats));
+    assert(!bridge.pendingApplicationPdu().empty());
+    bridge.retireR3ChannelState();
+    reconnectRoute.close();
+    assert(!bridge.active() && !bridge.serverInitializationReady());
+}
+
 void clientOriginatedMonitorReadyRouteRetirement()
 {
     using namespace rdp_server::clipboard;
@@ -1584,6 +1693,8 @@ int main(int argc, char **argv)
         serverInitializationOrdering();
     else if (behavior == "initial-handshake-exact-receipt-denials")
         initialHandshakeExactReceiptDenials();
+    else if (behavior == "initial-response-pre-publication-receipt-denials")
+        initialResponsePrePublicationReceiptDenials();
     else if (behavior == "permission-only-route-observation-consumption")
         permissionOnlyRouteObservationConsumption();
     else if (behavior == "client-originated-monitor-ready-route-retirement")

@@ -1,3 +1,11 @@
+## R8 P1 initial Format List Response pre-publication denial (2026-11-01)
+
+Reviewed shared-main parent 6f12e72a201b34ef26909ee24edfa260f5186e09 and the original R8/R3/R1/R2/R10 path. Existing production state already gates native X11 publication on a fully Delivered initial Format List Response, no pending writer and a fresh R2 Clipboard scope, with kLinuxProductionClipboardActivationApproved = false. No production correction or secondary packet scheduler was justified.
+
+New ordinary runtime.clipboard-initial-response-pre-publication-receipt-denials compiles against the original R8 bridge and R3 static channel. It exercises queued/zero-byte rejection, one-byte Pending, Stop, stale-generation receipt isolation, replayed exact Delivered response, and consumed vs fresh R3 route observations; it does not forge an OS grant. Existing source-contract R2 native-scope, three macOS scope-denial regressions, GraphicsReady View|Input-only denial, CLIPRDR static, X11 INCR/callback and fixed 107 Clipboard sanitizer census remain unchanged.
+
+Source/CTest/permission-boundary review PASS. Local canonical build and focused/full Debug/Release CTest, ASan/UBSan and benchmarks NOT RUN because the owner checkout cannot be cloned into this isolated container (GitHub DNS unavailable). Exact-publication hosted CI PENDING. Independent real-client handshake/R2 native Clipboard grant, physical Type-3/video/input/Stop/reconnect and production Clipboard activation BLOCKED/NOT RUN. R10 retains the original accepted-client qualification boundary.
+
 ## R2 P0 no-follow preference ancestry and explicit-interface intent (2026-11-01)
 
 Authoring parent: `c1bb91e688bf2cc143e06f0dc52d7f2384e1b9f1`.

@@ -3079,6 +3079,16 @@ add_test(NAME runtime.clipboard-initial-handshake-exact-receipt-denials
 set_tests_properties(runtime.clipboard-initial-handshake-exact-receipt-denials
     PROPERTIES LABELS "runtime;security;offline")
 
+# R8 zero-byte / partial initial response, Stop and stale reconnect
+# receipts cannot create native publication eligibility. The source gate
+# separately enforces a fresh real R2 Clipboard-scope visit.
+add_test(NAME runtime.clipboard-initial-response-pre-publication-receipt-denials
+    COMMAND test_r8_r3_clipboard_bridge
+        initial-response-pre-publication-receipt-denials)
+set_tests_properties(
+    runtime.clipboard-initial-response-pre-publication-receipt-denials
+    PROPERTIES LABELS "runtime;security;offline")
+
 # Permission-only native R2 visits must not leave one-shot route authority
 # armed for a later R8 PDU. Outside the fixed 107-case Clipboard selector.
 add_test(NAME runtime.clipboard-permission-only-route-observation-consumption

@@ -1,3 +1,9 @@
+## R8 P1 exact-publication qualification — malformed late Format List Response (2026-11-02)
+
+Implementation `01ceffc3450cc2a0f2f67109c97f3b360a0dec57`: **PASS for the requested hosted offline R8 gate**. Structure Actions `41470308800` PASS. Primary Actions `41470308547`, Ubuntu protocol job `125361893574`: ordinary full Debug **1144/1144 PASS** and Release **1144/1144 PASS**; `runtime.clipboard-post-initialization-malformed-format-list-response-pending-response-retirement` is test #452 and PASSes in both. Sanitizer job `125361893216`: fixed Clipboard **107/107 PASS**, static CLIPRDR **9/9 PASS**, X11 callback retirement **3/3 PASS**, plus the separately pinned receipt/isolation selections all PASS.
+
+The descendant R7 commit `22f6c44846ddbea29c5de9b9400c449d4943fac1` does not modify the R8 bridge, `RemoteTransfer`, R3 static-channel owner or `test_r8_r3_clipboard_bridge.cpp`; its only shared registry change is an unrelated GUI CTest addition. Therefore the R8 source/test semantics remain byte-identical to the qualified publication. Broader Windows/macOS/clean-Windows workflow completion is not claimed here. Production Clipboard remains disabled by `kLinuxProductionClipboardActivationApproved = false`; no physical Clipboard, X11 paste, real file transfer or owner credential activity occurred.
+
 ## R7 restored stable-interface activation provenance (2026-11-02)
 
 - Audited parent `5cb16be342fc71d3f25964061364884851bea0f0`. Source found a deterministic R7 persistence-intent leak: after restoration from an approved R2 stable ID, `manualInterfaceOverride_` was true, and an unrelated Port save used the current combo index even when programmatically changed without `activated`.

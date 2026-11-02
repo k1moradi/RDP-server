@@ -1,3 +1,7 @@
+## R1 pre-TLS byte-accounting nonblocking handshake fairness (2026-11-01)
+
+Use only `~/rdp-server/build/` (or the hosted job's single `build/` root). After canonical Debug configure/build, run `ctest --test-dir build -C Debug -R '^transport[.]tcp-owned-pre-tls-transport-byte-accounting$' --output-on-failure`, followed by full Debug CTest. Reconfigure the same root for Release and repeat both. Exact-SHA hosted macOS Release is required for the formerly failing handshake; also inspect the R10 native-observation/ACK and consent-revocation CTests and the ordinary cross-platform full CTest. No new binary, dependency, test selector or build root is introduced. Local tests/benchmarks are NOT RUN in this connector environment.
+
 ## R7 maximum redirected password CRLF qualification (2026-11-01)
 
 Reuse only `~/rdp-server/build/`; after the canonical Debug build run

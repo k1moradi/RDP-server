@@ -2624,6 +2624,8 @@ function(add_rdp_test source_file suite behavior)
                 TIMEOUT 20)
 
         # R1 pre-TLS byte accounting is a focused diagnostic regression.
+        # Its nonblocking TLS pair is advanced with a bounded scheduling
+        # deadline: never interpret a tight WANT retry count as a timeout.
         # Keep it outside R9's fixed-count generic transport sanitizer
         # inventory until that lane explicitly enrolls this behavior.
         add_test(NAME transport.tcp-owned-pre-tls-transport-byte-accounting

@@ -6210,9 +6210,15 @@ void testOwnedPreTlsTransportByteAccounting()
     bool serverEstablished = false;
     bool observedTlsClientBytes = false;
     bool observedTlsServerBytes = false;
-    for (std::size_t attempt = 0U;
-         attempt < 256U && (!clientEstablished || !serverEstablished);
-         ++attempt)
+    // Socket-backed nonblocking TLS may legitimately return WANT before the
+    // peer's next record is schedulable. A tight fixed-iteration spin is not a
+    // handshake deadline (and can exhaust itself on macOS Release runners).
+    // Give the native loopback pair bounded scheduling time while retaining
+    // the exact original R1 transport-byte observations on every owner step.
+    const auto handshakeDeadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds{5};
+    while (std::chrono::steady_clock::now() < handshakeDeadline &&
+           (!clientEstablished || !serverEstablished))
     {
         if (!clientEstablished)
         {
@@ -6246,6 +6252,9 @@ void testOwnedPreTlsTransportByteAccounting()
             serverEstablished =
                 status == TlsHandshakeStatus::Established;
         }
+
+        if (!clientEstablished || !serverEstablished)
+            std::this_thread::sleep_for(std::chrono::milliseconds{1});
     }
 
     assert(clientEstablished);

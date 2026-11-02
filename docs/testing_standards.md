@@ -1,3 +1,7 @@
+## R1 pre-TLS byte-accounting nonblocking handshake fairness (2026-11-01)
+
+Keep `transport.tcp-owned-pre-tls-transport-byte-accounting` as the existing production-backed R1 socket/TLS receipt fixture. A nonblocking `SSL_do_handshake` / `onTlsIoReady` WANT outcome cannot be treated as failure from a tight iteration count: use a bounded monotonic deadline with a scheduler yield between incomplete peer steps, without changing TLS transport counters, byte assertions, production reader/writer or the CTest taxonomy. The hosted macOS Release 256-spin failure at `clientEstablished` on `4728faea8f20` is a fixture scheduling issue, not independently evidenced server TLS closure. Ordinary full Debug and Release CTest and the existing transport sanitizer selector must qualify the publication SHA; physical client acceptance remains a separate gate.
+
 ## Full-frame X11 borrow fixtures must provision the full synthetic surface (2026-11-01)
 
 A test that calls production `X11DesktopResources::consumeR4Frame()` must provision an XShm capture arena large enough for the complete current synthetic surface because that API borrows the full frame, not the test's damage rectangle. Small-arena fixtures may still be used for teardown/input-only behavior. A callback-count assertion is valid only after satisfying this capture precondition; do not weaken production bounds or change `consumeR4Frame()` to accommodate an undersized fixture.

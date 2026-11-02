@@ -1,3 +1,7 @@
+## R1 pre-TLS byte-accounting nonblocking handshake fairness (2026-11-01)
+
+This change is test-harness scheduling only. The bounded pause occurs only while a nonblocking loopback TLS handshake fixture has not finished; the production R1 transport hot path, handshake deadlines, allocations and accepted-byte accounting are unchanged. No benchmark is required and none was run. The previously observed ~0.06 s spin exhaustion is not a production latency metric.
+
 ## R8 pre-Monitor client initialization denial is correctness, not throughput (2026-11-01)
 
 Rejecting client Capabilities, Temporary Directory and Format List until the original server Monitor Ready is fully delivered changes only protocol sequencing and fail-closed state ownership. It adds no allocation, copy, packet loop, TLS writer, native Clipboard access or benchmarkable data path. No performance result is claimed and no benchmark is required for this correction. Future Clipboard latency measurement still begins from valid client Format List arrival after protocol initialization and genuine native authorization.

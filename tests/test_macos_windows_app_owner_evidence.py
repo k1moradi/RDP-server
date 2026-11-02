@@ -858,6 +858,36 @@ class OwnerEvidenceTests(unittest.TestCase):
         failures = ab_evidence.validate_pair(manifest, pair)["evidence_failures"]
         self.assertNotIn("AB_SERVER_TYPE3_SOURCE_RECORD_REUSED", failures)
 
+    def test_paired_provenance_client_record_cannot_substitute_server_type3_record(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        pair["windows"]["client_security_stages"]["type2_received"] = "PASS"
+        pair["windows"]["client_stage_evidence"]["type2_received"] = self._client_event(
+            pair, "windows")
+        pair["windows"]["server_stage_matrix"].update(
+            post_type2_client_bytes=128, type3_received="PASS")
+        pair["windows"]["server_type3_evidence"] = self._server_type3_event(
+            pair, "windows")
+
+        # A client diagnostic and a server transcript are independent original
+        # records even when both describe the same accepted connection.
+        pair["windows"]["server_type3_evidence"]["source_record_sha256"] = "F" * 64
+        summary = ab_evidence.validate_pair(manifest, pair)
+        self.assertEqual(summary["evidence_status"], "FAIL")
+        self.assertIn(
+            "AB_CLIENT_SERVER_SOURCE_RECORD_REUSED",
+            summary["evidence_failures"])
+        self.assertEqual(summary["comparison"], "INCONCLUSIVE")
+        self.assertNotIn("F" * 64, json.dumps(summary))
+
+        # Independent original records remain valid for the same attempt.
+        pair["windows"]["server_type3_evidence"]["source_record_sha256"] = "e" * 64
+        independent_records = ab_evidence.validate_pair(manifest, pair)
+        self.assertEqual(independent_records["evidence_status"], "PASS")
+        self.assertNotIn(
+            "AB_CLIENT_SERVER_SOURCE_RECORD_REUSED",
+            independent_records["evidence_failures"])
+
     def test_paired_provenance_client_type3_from_neighboring_attempt_is_denied(self):
         manifest = evidence.build_manifest(self.options)
         pair = self._paired_record(manifest)

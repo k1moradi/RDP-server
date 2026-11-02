@@ -1,3 +1,49 @@
+## R6 P0 — client/server original-record namespaces are disjoint (2026-11-01)
+
+**Authoring parent:** `8c26d4d1fef1b4af995ae38d9ac6ac472e1118c2`. Re-review of the closed
+`rdp-server.windows-client-ab-pair.v3` validator found one remaining
+anti-splice gap: client-stage evidence and server-Type-3 evidence each pinned
+their own original record digest, but the same SHA-256 could be cited once as
+an original client event and again as an original server transcript. Those are
+independent evidence owners. The validator now caches the four-stage client
+digest sets, normalizes each server-Type-3 digest once, preserves the existing
+cross-attempt client/client and server/server denials, and emits fixed
+`AB_CLIENT_SERVER_SOURCE_RECORD_REUSED` when those namespaces overlap.
+No digest, timestamp, attempt ID, provider text or credential is projected.
+
+The existing
+`interop.windows-client-ab-stage-provenance-splice-denials` CTest gains a
+negative that reuses one digest across a Windows client Type-2 receipt record
+and the same-attempt server Type-3 record, including alternate hex case, plus
+a positive control with independent records. A same original **client** record
+may still support several stages of its one attempt when source kind and
+UTC-normalized event instant are consistent. The private/public v3 schemas,
+production TLS/NTLM/CredSSP, credential policy and native admission remain
+unchanged.
+
+Prior R6 publication `0a53ff3251346759cd38084560a7bbe422eb999c`
+has structure Actions `41381985675` **PASS**. In primary Actions
+`41381985615`, the named R6 provenance CTest **PASS** on Ubuntu Debug,
+macOS Debug/Release, Windows MSVC Debug/Release and Windows Clang 23
+Debug/Release; complete macOS is **898/898** twice, Windows MSVC
+**934/934** twice and Windows Clang 23 **1004/1004** twice. The
+security/protocol sanitizer job is **PASS**. Ubuntu Debug is **FAIL** only at
+the unrelated R5
+`x11.desktop-resource-inflight-held-input-borrow-revocation` assertion, so
+Ubuntu Release was not reached and this exact SHA is not a general-CI PASS.
+That R5 fixture blocker is source-resolved by another agent at
+`d6c5d90cd3981a0f5931319ef4c4fcec84eeb6ce`; later R1/R9/R2/R8 commits
+do not modify the R6 paired-evidence source or fixture audited here.
+
+Connector-local Python/CTest/build/sanitizers/benchmarks are **NOT RUN**.
+The physical 8.956-ms Windows App attempt remains **BLOCKED / INCONCLUSIVE**
+at original client Type-2 TLS receipt/decryption. R9 manual owner-candidate
+dispatch/nomination and explicit separate owner consent for each physical
+attempt and reading existing first-party diagnostics remain required. Do not
+access Keychain, secrets or trust policy, launch clients, enable packet
+capture, or conflate the older ~34.7-ms attempt or hosted SSPI with this
+physical attempt.
+
 ## R8 P1 initial Format List Response pre-publication denial (2026-11-01)
 
 Reviewed shared-main parent 6f12e72a201b34ef26909ee24edfa260f5186e09 and the original R8/R3/R1/R2/R10 path. Existing production state already gates native X11 publication on a fully Delivered initial Format List Response, no pending writer and a fresh R2 Clipboard scope, with kLinuxProductionClipboardActivationApproved = false. No production correction or secondary packet scheduler was justified.

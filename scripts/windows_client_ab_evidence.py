@@ -330,6 +330,16 @@ def _client_source_digests(stages: object, evidence: object) -> set[str]:
     return digests
 
 
+def _server_type3_source_digest(evidence: object) -> str | None:
+    """Return the normalized digest for one original server Type-3 record."""
+    if not isinstance(evidence, dict):
+        return None
+    digest = evidence.get("source_record_sha256")
+    if not isinstance(digest, str) or not SHA256.fullmatch(digest):
+        return None
+    return digest.lower()
+
+
 def _server_type3_failures(stage: object, evidence: object, binding: object,
                            prefix: str) -> list[str]:
     """Server Type 3 must be pinned to its originating attempt, not a neighbor."""
@@ -591,12 +601,15 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
     failures.extend(macos_event_failures)
     failures.extend(windows_event_failures)
     # A digest of one original client event is not two independent attempts.
-    # No private digest or source text is included in the public denial.
-    if (_client_source_digests(
-            macos_row["client_security_stages"], macos_row["client_stage_evidence"]) &
-            _client_source_digests(
-                windows["client_security_stages"], windows["client_stage_evidence"])):
+    # Cache the fixed-stage sets because the same values also enforce the
+    # client/server original-record ownership boundary below.
+    macos_client_source_digests = _client_source_digests(
+        macos_row["client_security_stages"], macos_row["client_stage_evidence"])
+    windows_client_source_digests = _client_source_digests(
+        windows["client_security_stages"], windows["client_stage_evidence"])
+    if macos_client_source_digests & windows_client_source_digests:
         failures.append("AB_CLIENT_SOURCE_RECORD_REUSED")
+    client_source_digests = macos_client_source_digests | windows_client_source_digests
     failures.extend(_server_type3_failures(
         macos_manifest.get("server_stage_matrix"),
         macos_row["server_type3_evidence"], macos_row["source_binding"], "MACOS"))
@@ -605,17 +618,21 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         windows["server_type3_evidence"], windows["source_binding"], "WINDOWS"))
 
     # One server Type-3 source record cannot represent two different attempts.
-    # This digest is correlation metadata, not client-receipt attestation.
-    macos_type3_source = macos_row["server_type3_evidence"]
-    windows_type3_source = windows["server_type3_evidence"]
-    if isinstance(macos_type3_source, dict) and isinstance(windows_type3_source, dict):
-        macos_type3_digest = macos_type3_source.get("source_record_sha256")
-        windows_type3_digest = windows_type3_source.get("source_record_sha256")
-        if (isinstance(macos_type3_digest, str) and SHA256.fullmatch(macos_type3_digest)
-                and isinstance(windows_type3_digest, str)
-                and SHA256.fullmatch(windows_type3_digest)
-                and macos_type3_digest.lower() == windows_type3_digest.lower()):
-            failures.append("AB_SERVER_TYPE3_SOURCE_RECORD_REUSED")
+    # Client-origin and server-origin records are independent evidence owners:
+    # one original record digest cannot substitute for both.
+    macos_type3_digest = _server_type3_source_digest(
+        macos_row["server_type3_evidence"])
+    windows_type3_digest = _server_type3_source_digest(
+        windows["server_type3_evidence"])
+    if (macos_type3_digest is not None and windows_type3_digest is not None
+            and macos_type3_digest == windows_type3_digest):
+        failures.append("AB_SERVER_TYPE3_SOURCE_RECORD_REUSED")
+    server_type3_source_digests = {
+        digest for digest in (macos_type3_digest, windows_type3_digest)
+        if digest is not None
+    }
+    if client_source_digests & server_type3_source_digests:
+        failures.append("AB_CLIENT_SERVER_SOURCE_RECORD_REUSED")
 
     windows_stage = windows["server_stage_matrix"]
     failures.extend(_stage_failures(

@@ -713,6 +713,81 @@ void initialResponsePrePublicationReceiptDenials()
     assert(!bridge.active() && !bridge.serverInitializationReady());
 }
 
+
+ // This is a later client Format List, not the initial Format List response.
+ // Ready remains a protocol stage; R10 must still block native Clipboard
+ // while the original R3/R1 write is pending and recheck R2 Clipboard scope.
+void postInitializationPartialResponseStopReconnectDenials()
+{
+    using namespace rdp_server::clipboard;
+    constexpr RdpClipboardStaticChannelView originalView{1008U, 412U};
+    constexpr RdpClipboardStaticChannelView replacementView{1008U, 413U};
+    R3ClipboardTransferBridge bridge(0U, true);
+    auto visitor = bridge.channelVisitor();
+    auto sink = bridge.completePduSink();
+    RdpClipboardStaticChannelRoute originalRoute;
+    assert(originalRoute.start(
+        1005U, originalView.channelId, originalView.generation, 1600U));
+    completeServerInitialization(bridge, originalRoute, originalView, 0U);
+    assert(bridge.serverInitializationReady());
+
+    assert(visitor.visit(visitor.context, originalView));
+    assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    PduView response{};
+    assert(decodePdu(bridge.pendingApplicationPdu(), response));
+    assert(response.type == kFormatListResponse);
+    assert(originalRoute.queue(bridge.pendingApplicationPdu()));
+    const auto pending = originalRoute.pending();
+    assert(pending && bridge.bindQueuedWrite(pending));
+    const std::uint64_t oldRouteGeneration = pending.routeGeneration;
+    const std::uint64_t oldReplySequence = pending.replySequence;
+    const std::uint64_t oldSliceSequence = pending.writeSliceSequence;
+    const std::size_t oldOfferedBytes = pending.wireBytes.size();
+    assert(oldOfferedBytes > 1U);
+    const auto partial = originalRoute.onAcceptedBytes(
+        oldRouteGeneration, oldReplySequence, oldSliceSequence, 1U);
+    assert(partial == RdpClipboardWriteOutcome::Pending);
+    assert(bridge.recordAcceptedWriteReceipt(
+        oldRouteGeneration, oldReplySequence, oldSliceSequence,
+        oldOfferedBytes, 1U, partial));
+    assert(bridge.serverInitializationReady());
+    assert(!bridge.pendingApplicationPdu().empty());
+
+    // Stop (or R10's retirement after fresh R2 permission loss) discards
+    // the original partial reply and every native publication capability.
+    bridge.retireR3ChannelState();
+    originalRoute.close();
+    assert(!bridge.active() && !bridge.serverInitializationReady());
+    assert(bridge.pendingApplicationPdu().empty());
+    assert(!bridge.recordAcceptedWriteReceipt(
+        oldRouteGeneration, oldReplySequence, oldSliceSequence,
+        oldOfferedBytes, 1U, partial));
+
+    // Channel ID reuse never permits original-generation receipt reuse.
+    RdpClipboardStaticChannelRoute replacementRoute;
+    assert(replacementRoute.start(
+        1005U, replacementView.channelId,
+        replacementView.generation, 1600U));
+    completeServerInitialization(
+        bridge, replacementRoute, replacementView, 0U);
+    assert(bridge.active() && bridge.serverInitializationReady());
+    assert(visitor.visit(visitor.context, replacementView));
+    assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    const std::size_t pendingBytes = bridge.pendingApplicationPdu().size();
+    assert(pendingBytes != 0U);
+    assert(!bridge.recordAcceptedWriteReceipt(
+        oldRouteGeneration, oldReplySequence, oldSliceSequence,
+        oldOfferedBytes, 1U, partial));
+    assert(bridge.active() && bridge.serverInitializationReady());
+    assert(bridge.routeGeneration() == replacementView.generation);
+    assert(bridge.pendingApplicationPdu().size() == pendingBytes);
+    deliverPendingSinglePacketWithFraming(bridge, replacementRoute);
+    assert(bridge.serverInitializationReady());
+    assert(bridge.pendingApplicationPdu().empty());
+    bridge.retireR3ChannelState();
+    replacementRoute.close();
+}
+
 void clientOriginatedMonitorReadyRouteRetirement()
 {
     using namespace rdp_server::clipboard;
@@ -1697,6 +1772,8 @@ int main(int argc, char **argv)
         initialResponsePrePublicationReceiptDenials();
     else if (behavior == "permission-only-route-observation-consumption")
         permissionOnlyRouteObservationConsumption();
+    else if (behavior == "post-initialization-partial-response-stop-reconnect-denials")
+        postInitializationPartialResponseStopReconnectDenials();
     else if (behavior == "client-originated-monitor-ready-route-retirement")
         clientOriginatedMonitorReadyRouteRetirement();
     else if (behavior == "client-initialization-requires-monitor-delivery")

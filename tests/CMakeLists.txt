@@ -3126,6 +3126,15 @@ set_tests_properties(
     runtime.clipboard-initial-response-pre-publication-receipt-denials
     PROPERTIES LABELS "runtime;security;offline")
 
+# Later client Format List positive-partial response, Stop and reconnect.
+# Distinct offline test, excluded from the fixed 107 Clipboard sanitizer cases.
+add_test(NAME runtime.clipboard-post-initialization-partial-response-stop-reconnect-denials
+    COMMAND test_r8_r3_clipboard_bridge
+        post-initialization-partial-response-stop-reconnect-denials)
+set_tests_properties(
+    runtime.clipboard-post-initialization-partial-response-stop-reconnect-denials
+    PROPERTIES LABELS "runtime;security;offline")
+
 # Permission-only native R2 visits must not leave one-shot route authority
 # armed for a later R8 PDU. Outside the fixed 107-case Clipboard selector.
 add_test(NAME runtime.clipboard-permission-only-route-observation-consumption

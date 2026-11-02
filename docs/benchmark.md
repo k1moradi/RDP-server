@@ -1,3 +1,7 @@
+## R8 later Format List response retirement has no hot-path change (2026-11-01)
+
+This change adds only an offline production-backed test and canonical documentation. No production allocation, queue, TLS writer, R8 owner, R2 permission or X11 callback changes; the fixed 107-case Clipboard sanitizer selector is preserved. No benchmark was run, and real Clipboard latency/paste/INCR require separate owner authorization.
+
 ## R7 offline GUI LAN activation is correctness-only (2026-11-01)
 
 The missing-preference-callback `activated` refresh and offscreen fixture corrections do not add protocol/graphics/clipboard hot-path work, network I/O, native session activity or new storage. They require correctness/negative CTests, not a throughput benchmark. Benchmark NOT RUN; no performance or live-listener qualification is inferred.

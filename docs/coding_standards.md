@@ -1,3 +1,37 @@
+## R6 original-record timestamp anti-splice invariant (2026-11-01)
+
+Review parent `9c71295082b1a7369056109a1d872fddaccb62a9` found one private provenance inconsistency:
+the v3 validator checked source-kind consistency for repeated client
+`source_record_sha256` values, but did not reject two different event instants
+for the very same original record. Keep the closed schema and public summary.
+Within one physical attempt, a digest reused for multiple independent client
+stages now must have the same UTC-normalized event instant as well as the
+same supported source kind. Different offsets encoding the same instant remain
+valid; distinct digests may use distinct timestamps within the existing
+bounded attempt window. On disagreement emit only the fixed
+`WINDOWS_CLIENT_SOURCE_EVENT_TIME_CONFLICT` or
+`MACOS_CLIENT_SOURCE_EVENT_TIME_CONFLICT` denial, never a digest, timestamp,
+provider text, path, credential, token, or raw event.
+
+The new `paired_provenance_original_record_timestamp_splice_is_denied`
+negative/positive controls run in the existing ordinary
+`interop.windows-client-ab-stage-provenance-splice-denials` CTest, without a
+new executable, test registration, dependency, or production TLS/NTLM change.
+The read-only owner evidence contract and all existing first-error Unicode,
+closed category, digest uniqueness and cross-attempt denials remain intact.
+A digest is provenance correlation, not an attestation of a physical event.
+Local Python, focused/full Debug/Release CTest, sanitizers and benchmarks
+**NOT RUN** in this GitHub-connector environment; exact-publication hosted
+CI **PENDING**.
+
+The reported 8.956 ms physical Windows App Type-2-to-FIN attempt still lacks
+the earliest original client TLS receipt/decryption observation. Keep its
+metadata and attempt ID separate from the older ~34.7 ms attempt and hosted
+SSPI; no password rejection or Type-3 production fix is inferred. Future
+owner A/B requires exact-SHA R9 nomination and explicit separate consent
+for the actual client attempts and reading existing first-party diagnostics;
+no Keychain, trust, credential, client launch, packet capture or native access.
+
 ## R8 client initialization stage ownership after Monitor Ready (2026-11-01)
 
 Treat client `CB_CLIP_CAPS`, `CB_TEMP_DIRECTORY` and `CB_FORMAT_LIST` as initialization/data traffic that is valid only after the server's original Monitor Ready has been fully delivered. Centralize this in one allocation-free bridge predicate instead of duplicating stage expressions. The allowed states are `AwaitClientInitialization` and `Ready`; `Dormant`, server-Capabilities pending, `AwaitMonitorReady` and Monitor-Ready pending fail closed and retire the route. A queued or partially accepted Monitor Ready is not delivery. Preserve R10 as the sole scheduler, R3 as the static-channel/receipt owner, R1 as the sole TLS writer and a separate fresh R2 Clipboard grant for native publication. Never convert offline route observations into native authority.

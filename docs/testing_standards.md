@@ -1,3 +1,37 @@
+## R6 original-record timestamp anti-splice invariant (2026-11-01)
+
+Review parent `9c71295082b1a7369056109a1d872fddaccb62a9` found one private provenance inconsistency:
+the v3 validator checked source-kind consistency for repeated client
+`source_record_sha256` values, but did not reject two different event instants
+for the very same original record. Keep the closed schema and public summary.
+Within one physical attempt, a digest reused for multiple independent client
+stages now must have the same UTC-normalized event instant as well as the
+same supported source kind. Different offsets encoding the same instant remain
+valid; distinct digests may use distinct timestamps within the existing
+bounded attempt window. On disagreement emit only the fixed
+`WINDOWS_CLIENT_SOURCE_EVENT_TIME_CONFLICT` or
+`MACOS_CLIENT_SOURCE_EVENT_TIME_CONFLICT` denial, never a digest, timestamp,
+provider text, path, credential, token, or raw event.
+
+The new `paired_provenance_original_record_timestamp_splice_is_denied`
+negative/positive controls run in the existing ordinary
+`interop.windows-client-ab-stage-provenance-splice-denials` CTest, without a
+new executable, test registration, dependency, or production TLS/NTLM change.
+The read-only owner evidence contract and all existing first-error Unicode,
+closed category, digest uniqueness and cross-attempt denials remain intact.
+A digest is provenance correlation, not an attestation of a physical event.
+Local Python, focused/full Debug/Release CTest, sanitizers and benchmarks
+**NOT RUN** in this GitHub-connector environment; exact-publication hosted
+CI **PENDING**.
+
+The reported 8.956 ms physical Windows App Type-2-to-FIN attempt still lacks
+the earliest original client TLS receipt/decryption observation. Keep its
+metadata and attempt ID separate from the older ~34.7 ms attempt and hosted
+SSPI; no password rejection or Type-3 production fix is inferred. Future
+owner A/B requires exact-SHA R9 nomination and explicit separate consent
+for the actual client attempts and reading existing first-party diagnostics;
+no Keychain, trust, credential, client launch, packet capture or native access.
+
 ## R8 client initialization requires full Monitor Ready delivery (2026-11-01)
 
 Keep ordinary `runtime.clipboard-client-initialization-requires-monitor-delivery` outside the fixed 107-case Clipboard sanitizer label census. Use the production `R3ClipboardTransferBridge` and `RdpClipboardStaticChannelRoute`: client Capabilities while Dormant must retire; Temporary Directory after fully delivered server Capabilities but before Monitor Ready must retire; a client Format List after a positive partial Monitor Ready receipt must retire; only the fully Delivered original Monitor Ready may admit client initialization traffic, and Ready still requires full delivery of the initial server Format List Response. Existing direct transfer/reconnect fixtures must traverse the same CAPS/Monitor prelude instead of relying on pre-initialization client traffic. Preserve the earlier wrong-direction client Monitor Ready denial, zero/WANT/partial/Stop/stale-generation coverage, static-channel tests, X11 callback/INCR retirement and all macOS Clipboard-scope denials. These offline tests never prove a genuine native Clipboard grant.

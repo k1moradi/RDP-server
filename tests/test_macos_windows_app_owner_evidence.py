@@ -748,6 +748,46 @@ class OwnerEvidenceTests(unittest.TestCase):
         failures = ab_evidence.validate_pair(manifest, pair)["evidence_failures"]
         self.assertNotIn("WINDOWS_CLIENT_SOURCE_KIND_CONFLICT", failures)
 
+    def test_paired_provenance_original_record_timestamp_splice_is_denied(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+
+        # A single original record may establish multiple stages, but must
+        # have one event instant regardless of which UTC offset writes it.
+        for stage in ("type2_received", "type2_accepted_by_credssp"):
+            pair["windows"]["client_security_stages"][stage] = "PASS"
+            pair["windows"]["client_stage_evidence"][stage] = self._client_event(
+                pair, "windows")
+
+        second_event = pair["windows"]["client_stage_evidence"][
+            "type2_accepted_by_credssp"]
+        second_event["source_record_sha256"] = "F" * 64
+        second_event["event_time_utc"] = "2026-10-27T12:32:01+00:00"
+        summary = ab_evidence.validate_pair(manifest, pair)
+        self.assertEqual(summary["evidence_status"], "FAIL")
+        self.assertIn(
+            "WINDOWS_CLIENT_SOURCE_EVENT_TIME_CONFLICT",
+            summary["evidence_failures"])
+        for stage in ("type2_received", "type2_accepted_by_credssp"):
+            self.assertEqual(
+                summary["windows"]["client_security_stages"][stage],
+                "NOT_OBSERVED")
+        self.assertNotIn("F" * 64, json.dumps(summary))
+
+        # Different textual offsets identifying the same UTC instant are valid.
+        second_event["event_time_utc"] = "2026-10-27T05:32:00-07:00"
+        same_instant = ab_evidence.validate_pair(manifest, pair)
+        self.assertEqual(same_instant["evidence_status"], "PASS")
+        self.assertNotIn(
+            "WINDOWS_CLIENT_SOURCE_EVENT_TIME_CONFLICT",
+            same_instant["evidence_failures"])
+
+        # Distinct original client records can truthfully have distinct times.
+        second_event["source_record_sha256"] = "a" * 64
+        second_event["event_time_utc"] = "2026-10-27T12:32:01+00:00"
+        independent_record = ab_evidence.validate_pair(manifest, pair)
+        self.assertEqual(independent_record["evidence_status"], "PASS")
+
     def test_paired_provenance_local_type2_commit_cannot_substitute_client_event(self):
         manifest = evidence.build_manifest(self.options)
         pair = self._paired_record(manifest)

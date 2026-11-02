@@ -251,6 +251,7 @@ def _client_event_failures(stages: object, evidence: object, binding: object,
 
     failures: list[str] = []
     record_source_kinds: dict[str, str] = {}
+    record_event_times: dict[str, datetime] = {}
     for stage in CLIENT_SECURITY_STAGES:
         state = stages.get(stage)
         event = evidence[stage]
@@ -266,6 +267,7 @@ def _client_event_failures(stages: object, evidence: object, binding: object,
             continue
         if not _is_allowed(event["source_kind"], CLIENT_EVENT_SOURCES):
             failures.append(f"{label}_SOURCE_UNSUPPORTED")
+        record_digest: str | None = None
         if not isinstance(event["source_record_sha256"], str) or not SHA256.fullmatch(
                 event["source_record_sha256"]):
             failures.append(f"{label}_SOURCE_DIGEST_INVALID")
@@ -295,6 +297,14 @@ def _client_event_failures(stages: object, evidence: object, binding: object,
             end = _utc(binding.get("observation_window_end_utc"), f"{label} end")
             if not start <= event_time <= end:
                 failures.append(f"{label}_EVENT_OUTSIDE_ATTEMPT")
+            if record_digest is not None:
+                # One original client record may support several stages, but
+                # its UTC event instant cannot change between those stages.
+                previous_event_time = record_event_times.get(record_digest)
+                if previous_event_time is not None and previous_event_time != event_time:
+                    failures.append(f"{prefix}_CLIENT_SOURCE_EVENT_TIME_CONFLICT")
+                else:
+                    record_event_times[record_digest] = event_time
         except ValueError:
             failures.append(f"{label}_EVENT_TIME_INVALID")
     return failures

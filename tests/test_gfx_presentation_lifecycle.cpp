@@ -549,6 +549,92 @@ void backpressure()
 }
 
 
+void frameAckUnmatchedAtCapacityFirstFreshFrame()
+{
+    constexpr std::uint64_t generation = 505U;
+    constexpr std::uint32_t capacity =
+        static_cast<std::uint32_t>(GfxFrameAckWindow::kMaximumPendingFrames);
+    constexpr std::uint32_t newFrameId = capacity + 1U;
+    GfxPresentationLifecycle lifecycle;
+    mapped(lifecycle, generation, {1U, 1U});
+    for (std::uint32_t frameId = 1U; frameId <= capacity; ++frameId)
+        delivered(lifecycle, generation, frameId);
+
+    const std::array<std::byte, 4U> pixels{
+        std::byte{0x11}, std::byte{0x22},
+        std::byte{0x33}, std::byte{0xFF}};
+    const GfxClearCodecFrameRequest request{
+        7U, newFrameId, FramebufferView{pixels, 1U, 1U, 4U}};
+    std::array<std::byte, 96U> output{};
+    output.fill(std::byte{0xA5});
+    GfxFrameDeliveryReceipt receipt{9U, 8U, 7U, 6U};
+    const auto originalReceipt = receipt;
+
+    const auto assertRefused = [&]
+    {
+        assert(lifecycle.outstandingFrames() == capacity);
+        assert(!lifecycle.canSubmitFrame(generation));
+        assert(!lifecycle.canReserveFrame(generation, newFrameId));
+        assert(lifecycle.framePublicationReadiness(generation, newFrameId) ==
+               GfxFramePublicationReadiness::DeferredForFrameAcknowledge);
+        assert(!lifecycle.hasOutstandingFrame(generation, newFrameId));
+        assert(!lifecycle.beginFrameDelivery(generation, newFrameId, 71U, receipt));
+        assert(!lifecycle.prepareClearCodecFrame(
+            generation, request, output, receipt));
+        assert(receipt == originalReceipt);
+        for (const std::byte value : output)
+            assert(value == std::byte{0xA5});
+        assert(!lifecycle.acceptanceStatus().firstClearCodecFramePrepared);
+    };
+    assertRefused();
+
+    // A well-formed unrelated same-generation ACK can update telemetry but
+    // must not create frame credit or initiate output/reservation.
+    GfxFrameAckWindowResult result = GfxFrameAckWindowResult::InvalidPdu;
+    assert(lifecycle.onFrameAcknowledge(
+        generation, ack(900U, 4096U, 7U), result));
+    assert(result == GfxFrameAckWindowResult::Unmatched);
+    assert(lifecycle.clientQueueDepthBytes() == 4096U);
+    assert(lifecycle.clientTotalFramesDecoded() == 7U);
+    assert(!lifecycle.acceptanceStatus().firstGenuineFrameAcknowledge);
+    assertRefused();
+
+    assert(lifecycle.onFrameAcknowledge(
+        generation, ack(1U, 4096U, 8U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+    assert(lifecycle.outstandingFrames() == capacity - 1U);
+    assert(lifecycle.framePublicationReadiness(generation, newFrameId) ==
+           GfxFramePublicationReadiness::Ready);
+    assert(lifecycle.prepareClearCodecFrame(
+        generation, request, output, receipt));
+    assert(receipt.frameId == newFrameId && receipt.bytes == 71U);
+    assert(output[42U] == std::byte{0}); // Initial ClearCodec sequence.
+    assert(!lifecycle.hasOutstandingFrame(generation, newFrameId));
+    assert(lifecycle.outstandingFrames() == capacity - 1U);
+    assert(!lifecycle.completeFrameDelivery(receipt, receipt.bytes - 1U));
+    assert(lifecycle.onFrameAcknowledge(
+        generation, ack(newFrameId, 4096U, 9U), result));
+    assert(result == GfxFrameAckWindowResult::Unmatched);
+    assert(lifecycle.outstandingFrames() == capacity - 1U);
+
+    // Full delivery, not preparation/partial receipt, enters the R4 ACK set.
+    assert(lifecycle.completeFrameDelivery(receipt, receipt.bytes));
+    assert(lifecycle.outstandingFrames() == capacity);
+    assert(lifecycle.hasOutstandingFrame(generation, newFrameId));
+    assert(lifecycle.framePublicationReadiness(generation, newFrameId + 1U) ==
+           GfxFramePublicationReadiness::DeferredForFrameAcknowledge);
+    assert(lifecycle.onFrameAcknowledge(
+        generation, ack(newFrameId, 4096U, 10U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+    assert(lifecycle.outstandingFrames() == capacity - 1U);
+    assert(lifecycle.framePublicationReadiness(generation, newFrameId + 1U) ==
+           GfxFramePublicationReadiness::Ready);
+    const auto status = lifecycle.acceptanceStatus();
+    assert(status.firstClearCodecFramePrepared);
+    assert(status.firstExactFrameWriteCommitted);
+    assert(status.firstGenuineFrameAcknowledge);
+}
+
 void frameAckDeferredRevocationGenerationReset()
 {
     constexpr std::uint64_t retiredGeneration = 503U;
@@ -1084,6 +1170,7 @@ int main(int argc, char **argv)
     if (mode == "channel-lifecycle-denials") { denials(); return 0; }
     if (mode == "surface-resize-revocation") { revocation(); return 0; }
     if (mode == "frame-publication-backpressure") { backpressure(); return 0; }
+    if (mode == "frame-ack-unmatched-at-capacity-first-fresh-frame") { frameAckUnmatchedAtCapacityFirstFreshFrame(); return 0; }
     if (mode == "frame-ack-deferred-revocation-generation-reset") { frameAckDeferredRevocationGenerationReset(); return 0; }
     if (mode == "frame-ack-backpressure-observation") { backpressureObservation(); return 0; }
     if (mode == "frame-ack-decode-progress-observation") { decodeProgressObservation(); return 0; }

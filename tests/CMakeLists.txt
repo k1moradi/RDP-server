@@ -944,6 +944,18 @@ if(TARGET rdp-server-linux-host-control)
             LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;linux;native-environment"
             SKIP_RETURN_CODE 77)
 
+    # Original R10 aggregate lifetime, not a second R1 FIN/TLS parser.
+    add_test(
+        NAME runtime.linux-host-control-peer-eof-owner-cancel-new-session-isolation
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-peer-eof-then-owner-cancel-aggregate-lifecycle)
+    set_tests_properties(
+        runtime.linux-host-control-peer-eof-owner-cancel-new-session-isolation
+        PROPERTIES
+            LABELS "runtime;security;host-control;lifecycle;tls;authentication;linux;native-environment"
+            SKIP_RETURN_CODE 77
+            TIMEOUT 30)
+
     add_test(
         NAME runtime.linux-direct-ntlm-type2-waits-for-preauth-timeout
         COMMAND test_linux_runtime_direct_ntlm_lifecycle

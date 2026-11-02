@@ -1987,6 +1987,8 @@ int main(int argc, char** argv)
     const bool typeTwoPeerEofOnly =
         testCase ==
             "direct-ntlm-type2-peer-eof-pre-admission-diagnostics";
+    const bool peerEofOwnerCancelOnly =
+        testCase == "direct-ntlm-peer-eof-then-owner-cancel-aggregate-lifecycle";
     const bool stageTimelineDiagnosticsOnly =
         testCase == "direct-ntlm-preauth-stage-timeline-lifecycle" ||
         testCase ==
@@ -2053,6 +2055,7 @@ int main(int argc, char** argv)
         testCase ==
             "connection-target-identity-retained-across-peer-retry";
     if (!fullLifecycle && !admissionRetryOnly && !typeTwoPeerEofOnly &&
+        !peerEofOwnerCancelOnly &&
         !typeTwoTimingDiagnosticsOnly && !serviceNoStarvationOnly &&
         !stopQueuedAuthInfoRetirementOnly &&
         !authInfoDiagnosticReplacementOnly &&
@@ -2265,6 +2268,188 @@ int main(int argc, char** argv)
                RuntimeHostError::AuthenticationIncompletePeerClosed);
         assert(control.stopSharing().succeeded());
         assert(control.revokeSharing().succeeded());
+        return 0;
+    }
+
+
+    if (peerEofOwnerCancelOnly)
+    {
+        // Connection A: original R1/TLS peer receives Type 2 then closes.
+        std::atomic<bool> firstTypeTwoReceived{false};
+        std::atomic<bool> releaseFirst{false};
+        std::atomic<bool> firstFinished{false};
+        PeerResult firstResult;
+        std::thread firstPeer([&] {
+            firstResult = runDirectTypeTwoThenClosePeer(
+                recommendation.address, selectedPort,
+                firstTypeTwoReceived, releaseFirst);
+            firstFinished.store(true, std::memory_order_release);
+        });
+        assert(pumpUntilPeerSignal(control, firstTypeTwoReceived, firstFinished));
+        const RuntimeHostStatus firstWaiting = control.status();
+        assert(firstWaiting.activeClients.size() == 1U);
+        const std::uint64_t firstId = firstWaiting.activeClients.front().opaqueId;
+        assert(firstId != 0U);
+        assert(firstWaiting.acceptedClientPreauthDiagnostics.acceptedClientId == firstId);
+        assertPreAdmissionNativeIsolation(firstWaiting);
+        releaseFirst.store(true, std::memory_order_release);
+        assert(pumpUntilClientRetired(control));
+        firstPeer.join();
+        assert(firstResult.passed && firstResult.directTypeTwoReceived);
+        assert(!firstResult.authInfoSent);
+        const RuntimeHostStatus firstTerminal = control.status();
+        assert(directTypeTwoPeerEofRemainsPreAdmission(firstTerminal));
+        assert(firstTerminal.acceptedClientPreauthDiagnostics.acceptedClientId == firstId);
+        assert(!firstTerminal.acceptedClientPreauthDiagnostics.standaloneCredentialsRejected);
+        assert(firstTerminal.product.state == RuntimeProductHostState::Listening);
+        assert(firstTerminal.product.clientCount == 0U);
+        assert(firstTerminal.product.activeClientIds.empty());
+        assertGraphicsDormant(firstTerminal);
+        assertClipboardDormant(firstTerminal);
+
+        // Connection B: R1's same listener accepts TLS with no NTLM Type 1.
+        // Owner cancellation must not mislabel its terminal diagnostic as Open.
+        std::atomic<bool> secondConnected{false};
+        std::atomic<bool> secondReady{false};
+        std::atomic<bool> releaseSecond{false};
+        std::atomic<bool> secondFinished{false};
+        std::thread secondPeer([&] {
+            NetworkTlsClient client;
+            const bool connected =
+                client.connectHybrid(recommendation.address, selectedPort);
+            secondConnected.store(connected, std::memory_order_release);
+            secondReady.store(true, std::memory_order_release);
+            if (connected)
+                (void)waitForRelease(releaseSecond);
+            secondFinished.store(true, std::memory_order_release);
+        });
+        assert(pumpUntilPeerSignal(control, secondReady, secondFinished));
+        assert(secondConnected.load(std::memory_order_acquire));
+        const RuntimeHostStatus secondWaiting = control.status();
+        assert(secondWaiting.listenerGeneration == firstListenerGeneration);
+        assert(secondWaiting.activeClients.size() == 1U);
+        const std::uint64_t secondId = secondWaiting.activeClients.front().opaqueId;
+        assert(secondId != 0U && secondId != firstId);
+        assert(secondWaiting.acceptedClientPreauthDiagnostics.acceptedClientId == secondId);
+        assert(secondWaiting.acceptedClientPreauthDiagnostics.termination ==
+               RuntimeAcceptedClientTermination::Open);
+        assert(!secondWaiting.acceptedClientPreauthDiagnostics.directNtlmTypeTwoDelivered);
+        assertPreAdmissionNativeIsolation(secondWaiting);
+        assert(control.disconnectClient(secondId).succeeded());
+        const RuntimeHostStatus cancelled = control.status();
+        assert(cancelled.lastError == RuntimeHostError::None);
+        assert(cancelled.listenerAvailable && cancelled.clientDisconnected);
+        assert(cancelled.listenerGeneration == firstListenerGeneration);
+        assert(cancelled.activeClients.empty());
+        assert(cancelled.product.state == RuntimeProductHostState::Listening);
+        assert(cancelled.product.clientCount == 0U);
+        assert(cancelled.product.activeClientIds.empty());
+        assert(cancelled.acceptedClientPreauthDiagnostics.acceptedClientId == secondId);
+        assert(cancelled.acceptedClientPreauthDiagnostics.termination ==
+               RuntimeAcceptedClientTermination::Cancelled);
+        assert(!cancelled.acceptedClientPreauthDiagnostics.directNtlmTypeTwoDelivered);
+        assert(!cancelled.acceptedClientPreauthDiagnostics.standaloneCredentialsRejected);
+        assert(cancelled.acceptedClientPreauthDiagnostics.admissionFailureReason ==
+               RuntimeAcceptedClientAdmissionFailureReason::None);
+        assert(cancelled.acceptedClientPreauthDiagnostics.protocolStage ==
+               RuntimeAcceptedClientProtocolStage::PreAdmission);
+        assert(!cancelled.acceptedClientPreauthDiagnostics.mcsSessionAdvanced);
+        assert(!cancelled.acceptedClientPreauthDiagnostics.shareActivated);
+        assertGraphicsDormant(cancelled);
+        assertClipboardDormant(cancelled);
+        releaseSecond.store(true, std::memory_order_release);
+        secondPeer.join();
+
+        // Ordinary Stop is idempotent and clears client/listener/ACK evidence,
+        // but retains only the exact original session-bound memory credential.
+        assert(control.stopSharing().succeeded());
+        assert(control.stopSharing().succeeded());
+        const RuntimeHostStatus stopped = control.status();
+        assert(stopped.stage == RuntimeHostStage::Stopped);
+        assert(!stopped.listenerAvailable && stopped.listenerGeneration == 0U);
+        assert(stopped.boundEndpoint.empty() && !stopped.hostOwnerAuthorized);
+        assert(stopped.activeClients.empty() && stopped.product.clientCount == 0U);
+        assert(stopped.product.activeClientIds.empty());
+        assert(!stopped.acceptedClientPreauthDiagnostics.available);
+        assert(!stopped.connectionTargetIdentity.valid());
+        assert(!stopped.tlsIdentityReady);
+        assertGraphicsDormant(stopped);
+        assertClipboardDormant(stopped);
+        const auto retained = control.standaloneApplicationPasswordObservation();
+        assert(retained.configured && retained.generation == credential.generation);
+
+        // The native session fingerprint changes: old credentials and consent
+        // cannot revive, even after an ordinary Stop.
+        evidence.switchDesktopSession();
+        assert(control.startSharing().error == RuntimeHostError::CredentialNotConfigured);
+        const auto retired = control.standaloneApplicationPasswordObservation();
+        assert(!retired.configured && retired.generation > credential.generation);
+        assert(!control.status().hostOwnerAuthorized);
+        assert(!control.status().listenerAvailable);
+        assert(!control.status().acceptedClientPreauthDiagnostics.available);
+
+        // Fresh explicit credential, grant, listener and accepted connection.
+        std::array<char16_t, kMaximumStandalonePasswordCodeUnits> freshStorage{};
+        auto freshPassword = copyCredentialPassword(kDefaultCredentialFixture, freshStorage);
+        assert(control.configureStandaloneApplicationPassword(
+            kDefaultCredentialFixture.username, freshPassword));
+        assert(std::ranges::all_of(
+            freshStorage, [](char16_t value) { return value == u'\0'; }));
+        const auto freshCredential = control.standaloneApplicationPasswordObservation();
+        assert(freshCredential.configured && freshCredential.generation > retired.generation);
+        assert(control.requestHostPermissionSetup(permission).succeeded());
+        assert(startSharingOnPort(control, recommendation, selectedPort));
+        const RuntimeHostStatus restarted = control.status();
+        assert(restarted.listenerAvailable);
+        assert(restarted.listenerGeneration != firstListenerGeneration);
+        assert(restarted.activeClients.empty() && restarted.product.activeClientIds.empty());
+        assert(!restarted.acceptedClientPreauthDiagnostics.available);
+        assertGraphicsDormant(restarted);
+        assertClipboardDormant(restarted);
+
+        std::atomic<bool> freshTypeTwoReceived{false};
+        std::atomic<bool> releaseFresh{false};
+        std::atomic<bool> freshFinished{false};
+        PeerResult freshResult;
+        std::thread freshPeer([&] {
+            freshResult = runDirectTypeTwoThenClosePeer(
+                recommendation.address, selectedPort,
+                freshTypeTwoReceived, releaseFresh);
+            freshFinished.store(true, std::memory_order_release);
+        });
+        assert(pumpUntilPeerSignal(control, freshTypeTwoReceived, freshFinished));
+        const RuntimeHostStatus freshWaiting = control.status();
+        assert(freshWaiting.activeClients.size() == 1U);
+        const std::uint64_t freshId = freshWaiting.activeClients.front().opaqueId;
+        assert(freshId != firstId && freshId != secondId);
+        assert(freshWaiting.acceptedClientPreauthDiagnostics.acceptedClientId == freshId);
+        assert(freshWaiting.acceptedClientPreauthDiagnostics.standaloneCredentialGeneration ==
+               freshCredential.generation);
+        assert(freshWaiting.acceptedClientPreauthDiagnostics.directNtlmTypeTwoDelivered);
+        assert(freshWaiting.acceptedClientPreauthDiagnostics.termination ==
+               RuntimeAcceptedClientTermination::Open);
+        assert(freshWaiting.product.clientCount == 1U);
+        assert(freshWaiting.product.activeClientIds.size() == 1U);
+        assert(freshWaiting.product.activeClientIds.front() == freshId);
+        assert(!freshWaiting.clientDisconnected);
+        assertPreAdmissionNativeIsolation(freshWaiting);
+        assertGraphicsDormant(freshWaiting);
+        assertClipboardDormant(freshWaiting);
+        releaseFresh.store(true, std::memory_order_release);
+        assert(pumpUntilClientRetired(control));
+        freshPeer.join();
+        assert(freshResult.passed && freshResult.directTypeTwoReceived);
+        assert(!freshResult.authInfoSent);
+        assert(challengesDiffer(firstResult.serverChallenge, freshResult.serverChallenge));
+
+        assert(control.stopSharing().succeeded());
+        assert(control.revokeSharing().succeeded());
+        const RuntimeHostStatus revoked = control.status();
+        assert(revoked.stage == RuntimeHostStage::Revoked);
+        assert(!revoked.listenerAvailable && revoked.activeClients.empty());
+        assert(!revoked.credentialsConfigured);
+        assert(!control.standaloneApplicationPasswordObservation().configured);
+        assert(control.startSharing().error == RuntimeHostError::AccessRevoked);
         return 0;
     }
 

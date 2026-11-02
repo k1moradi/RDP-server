@@ -3065,6 +3065,15 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
             acceptedClientPreauthDiagnostics_);
         applyConnectionCertificateDiagnostics(
             acceptedClientPreauthDiagnostics_);
+        // Preserve prior R1 peer endings, but a current owner Disconnect of an
+        // otherwise-open connection must project a terminal cancellation.
+        if (error == RuntimeHostError::None &&
+            diagnostics.termination ==
+                rdp_server::server::transport::TcpConnectionTermination::Open)
+        {
+            acceptedClientPreauthDiagnostics_.termination =
+                RuntimeAcceptedClientTermination::Cancelled;
+        }
         if (error == RuntimeHostError::AuthenticationRejected &&
             peerAuthenticationIncompleteAfterDeliveredTypeTwo(
                 acceptedClientPreauthDiagnostics_))

@@ -1,3 +1,7 @@
+## Partial outbound Join Confirm does not block legitimate inbound joins (2026-11-01)
+
+A later client may supply complete assigned Join Requests after some bytes of the first server Join Confirm were accepted, while its R3 reply/slice suffix is still pending. Retain the sole original R1 TLS reader/writer, bounded fixed R3 join queue and receipt-owned ordered replies. Never mark joined on a prepared/zero/partial reply; Client Info requires every confirmed user/I/O/static membership. R2 native owner-thread proof, immutable policy, borrowed credentials and original connection generation are revalidated for every protected visit. Fail closed on malformed/early traffic or revocation, with no new state owner or CAL/native-admission shortcut.
+
 ## Windows non-secret preference store must reject reparse ancestry (2026-11-01)
 
 The current-user protected-DACL application directory and file are insufficient if an earlier Windows LocalAppData ancestor is a junction. Validate each component of the OS-returned absolute local-drive configuration path with a handle opened using `FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS`; reject device/UNC/relative/parent-traversal, reparse and non-directory components before creating or reading the app store. Do not require root/system directories to be owned by the current SID; retain strict effective current-user ownership and protected DACL for the final app/file objects. An unverifiable root fails closed with no alternate path. Preserve the v1 fixed non-secret record and independent R2/native/Sharing boundary.

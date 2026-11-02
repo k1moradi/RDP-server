@@ -2357,6 +2357,17 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "protocol;security;transport;tls;mcs;admission;offline"
                 TIMEOUT 30)
 
+        # Legal later client joins while an original R1 server Join Confirm
+        # has only one accepted TLS byte; ordered R3 replies precede Client Info.
+        add_test(NAME security.macos-protected-partial-join-confirm-interleaved-client-joins
+            COMMAND "${test_target}"
+                "macos-protected-partial-join-confirm-interleaved-client-joins")
+        set_tests_properties(
+            security.macos-protected-partial-join-confirm-interleaved-client-joins
+            PROPERTIES
+                LABELS "protocol;security;transport;tls;mcs;admission;offline"
+                TIMEOUT 30)
+
         # Valid Client Info cannot overtake a partial Join Confirm sent
         # through the sole original R1 TLS writer.
         add_test(NAME security.macos-protected-client-info-during-partial-join-confirm-denial

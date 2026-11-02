@@ -1,3 +1,14 @@
+## R5 native XShm callback and held-input authority (2026-11-01)
+
+The original R5 aggregate alone owns its XCB/XShm/XDamage and XTEST input
+bookkeeping. A synchronous pixel consumer that revokes authority during a
+borrow cannot return a successful publication merely by returning true: the
+original post-callback valid/capture-generation/geometry fence must reject.
+Never dereference the borrowed span after callback-owned retirement. Both
+held input classes retire without cleanup XTEST posts. R10 still owns the
+accepted-client scheduler/R2 admission and R4 still owns frame credit/ACK.
+This is test-only cross-boundary coverage, not a new native behavior path.
+
 ## R8 CLIPRDR initial PDU direction (2026-11-01)
 
 CB_MONITOR_READY is server-to-client throughout the MS-RDPECLIP handshake. An inbound client Monitor Ready must retire the original R8 route even in Dormant; never treat it as server CAPS/Monitor delivery. Native publication requires the original R3/R1 committed initial Format List Response, no pending write and a separate fresh R2 Clipboard authorization. Never let synthetic protocol tests mint native authority. Preserve a single R10 scheduler/R1 TLS writer and the disabled production gate.

@@ -5203,6 +5203,19 @@ if(TARGET rdp-server-linux-x11-desktop)
             PROPERTIES
                 LABELS "x11;linux-adapter;native;synthetic-display;security;generation"
                 TIMEOUT 20)
+        # Combine an original R5 XShm borrow callback revocation with a held
+        # key and button; verify zero terminal XTEST releases and successor
+        # isolation. Ordinary full CTest, not the fixed 45-case sanitizer set.
+        add_test(NAME x11.desktop-resource-inflight-held-input-borrow-revocation
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_desktop_resources>
+                inflight-held-input-borrow-revocation)
+        set_tests_properties(
+            x11.desktop-resource-inflight-held-input-borrow-revocation
+            PROPERTIES
+                LABELS "x11;linux-adapter;native;synthetic-display;security;generation"
+                TIMEOUT 20)
         # Keep full RandR event-drain coverage separate from the aggregate
         # both-held destructor proof. Exact b93a54b5 Ubuntu CI showed the
         # synthetic combined sequence can terminally retire before rebuild;

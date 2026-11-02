@@ -1,3 +1,11 @@
+## R5 in-flight held-input revocation is not a benchmark (2026-11-01)
+
+The new Xvfb correctness test adds no native production hot-path work or
+performance measurements. No CPU, frame-rate, bandwidth or client-visibility
+claim follows from it. Genuine first-frame evidence still requires original
+R5 capture, R4/R3 publication, complete original R1 accepted-byte receipts
+and a separately received matching client FRAME_ACK.
+
 ## R4/R10 exact native-frame boundary benchmark status (2026-11-01)
 
 This is a correctness/fencing increment, not a throughput change. Tightening the callback to the exact R7 tight-BGRA stride adds no new allocation, copy, queue, encoder or transport owner. The 64-outstanding-frame path remains a preflight fast refusal: when credit is unavailable R10 must not borrow native pixels, encode ClearCodec, reserve a frame or initiate a new TLS frame write.

@@ -1,3 +1,37 @@
+## R5 P1 native XShm callback retirement with held input (2026-11-01)
+
+**Authoring parent:** `0c3f8da9db0d888ba5e6df273bc12f7cbfa4c50b`. The requested original combined
+held-key and held-button *implicit destructor* is already an independent
+production-backed Xvfb CTest, qualified on a recorded ancestor. This new,
+distinct first-frame lifetime case holds both input classes while the
+production R5 `consumeR4Frame()` XShm callback itself invokes
+`retireAfterAuthorizationLoss()` and returns true. R5 must reject publication
+after the callback, post zero unauthorized native key/button releases, close
+the original XCB and retire XShm/XDamage/capture generations. The disposable
+Xvfb fixture performs cleanup outside the counted lifetime; a fresh aggregate
+must have no inherited held state or stale queued Damage and must capture
+fresh pixels. An Xvfb test does not mint R2 proof.
+
+New ordinary `x11.desktop-resource-inflight-held-input-borrow-revocation` reuses the existing
+`test_x11_desktop_resources` executable and shared CTest registry. No
+production R5/XTEST/capture/RandR behavior, Clipboard activation, independent
+XCB authority, R4 layout/ACK credit or R10 scheduler is changed. The fixed
+45-case native X11 sanitizer selection and independent 2-case destructor
+selection remain unchanged. RandR keeps original input held bookkeeping during
+geometry-only child rebuild; terminal authority loss clears it without posts.
+
+**Evidence:** source/CTest/owner-path review PASS; local canonical
+configure/build, Debug/Release CTest, Xvfb, sanitizers and benchmarks
+**NOT RUN** (no mounted checkout; GitHub DNS unavailable); current
+publication-SHA hosted qualification **PENDING**. The owner physical Windows
+App attempt still stops after Type 2 before Type 3. R9 Linux original accepted
+connection, authenticated R2 View/Input, native seat0, first frame, complete
+R1 frame receipts, actual inbound client FRAME_ACK, keyboard/mouse,
+resize, Stop and fresh reconnect each remain **NOT RUN** and require separate
+authorization and upstream R1/R6 evidence. R4 owns layout/credit/ACK;
+R10 alone composes the original R1/R2/R3/R5 lifetime.
+**Next:** exact-publication Ubuntu Debug/Release/full CTest and existing sanitizer lanes; then separately authorized R9 physical qualification. No synthetic frame is DesktopVisible.
+
 ## R6 P0 four-stage original-client provenance audit (2026-11-01)
 
 Reviewed refreshed `main` parent `4728faea8f207ed0f760192d311fc3d603ee3ffc`, the read-only macOS

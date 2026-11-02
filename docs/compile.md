@@ -1,3 +1,12 @@
+## R5 in-flight borrow and held-input focused build (2026-11-01)
+
+Reuse only `~/rdp-server/build/` after fresh `git switch main && git pull --ff-only origin main`.
+After canonical Debug configure/build, run:
+`ctest --test-dir build -C Debug -R '^x11[.]desktop-resource-(inflight-held-input-borrow-revocation|implicit-held-key-button-no-xtest|authority-loss-held-key-button-no-xtest|inflight-frame-borrow-authority-retirement)$' --output-on-failure`.
+Then full Debug/Release CTest and unchanged 45-case X11 and independent
+2-case implicit-destructor sanitizer suites on the exact published SHA.
+No live seat0 XTEST/XShm usage. Local execution NOT RUN here.
+
 ## R6 four-stage client-provenance focused qualification (2026-11-01)
 
 Reuse only the canonical `~/rdp-server/build/`. After the normal Debug

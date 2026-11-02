@@ -1734,6 +1734,44 @@ enum class AggregateHeldInputRetirement : std::uint8_t
 {
     ImplicitDestruction,
     AuthorizationLoss,
+    InFlightFrameBorrowAuthorizationLoss,
+};
+
+// A positive XShm consumer return cannot republish after authority is lost.
+// Do not dereference the borrowed pixels after native child retirement.
+struct HeldInputFrameBorrowRevocation final
+{
+    X11DesktopResources &owner;
+    X11NativeGeometryObservation observation;
+    std::uint32_t callbackCount{};
+
+    static bool consume(void *rawContext, const FramebufferView &frame,
+                        std::uint64_t captureGeneration) noexcept
+    {
+        auto &self = *static_cast<HeldInputFrameBorrowRevocation *>(rawContext);
+        ++self.callbackCount;
+        assert(captureGeneration == self.observation.captureGeneration);
+        assert(frame.valid());
+        assert(frame.widthPixels ==
+               self.observation.pixelGeometry.widthPixels);
+        assert(frame.heightPixels ==
+               self.observation.pixelGeometry.heightPixels);
+        assert(frame.strideBytes == frame.widthPixels * 4U);
+        assert(frame.pixels.size() ==
+               frame.strideBytes * frame.heightPixels);
+        assert(observedXtestRequests.keyPresses == 1U);
+        assert(observedXtestRequests.buttonPresses == 1U);
+        self.owner.retireAfterAuthorizationLoss();
+        assert(!self.owner.valid());
+        assert(observedXtestRequests.keyReleases == 0U);
+        assert(observedXtestRequests.buttonReleases == 0U);
+        return true; // The original R5 post-callback fence must deny.
+    }
+
+    [[nodiscard]] X11R4BgraFrameConsumer callback() noexcept
+    {
+        return {this, &consume};
+    }
 };
 
 void
@@ -1799,12 +1837,26 @@ syntheticXvfbHeldKeyboardAndButtonTerminalRetirement(
         drawSyntheticPattern(
             *helper, screen->root, damageRectangle, kFirstPixelPattern);
         synchronizeXcbConnection(*originalConnection);
-        if (retirement == AggregateHeldInputRetirement::AuthorizationLoss)
+        if (retirement != AggregateHeldInputRetirement::ImplicitDestruction)
         {
             // This is R10's terminal native-owner path after authority loss.
             // It must clear held bookkeeping before any child or XCB owner
             // disappears, without posting compensating native releases.
-            originalOwner.retireAfterAuthorizationLoss();
+            // The in-flight variant revokes inside its R4 pixel callback.
+            if (retirement ==
+                AggregateHeldInputRetirement::InFlightFrameBorrowAuthorizationLoss)
+            {
+                HeldInputFrameBorrowRevocation consumer{
+                    originalOwner, retiredGeometry};
+                assert(!originalOwner.consumeR4Frame(
+                    retiredGeometry, nativeSessionGeneration,
+                    consumer.callback()));
+                assert(consumer.callbackCount == 1U);
+            }
+            else
+            {
+                originalOwner.retireAfterAuthorizationLoss();
+            }
             assert(!originalOwner.valid());
             assert(originalOwner.nativeConnection() == nullptr);
             assert(originalOwner.fileDescriptor() == -1);
@@ -1934,6 +1986,13 @@ syntheticXvfbAuthorityLossHeldKeyboardAndButtonRetirement()
 {
     syntheticXvfbHeldKeyboardAndButtonTerminalRetirement(
         AggregateHeldInputRetirement::AuthorizationLoss);
+}
+
+void
+syntheticXvfbInFlightHeldInputFrameBorrowRevocation()
+{
+    syntheticXvfbHeldKeyboardAndButtonTerminalRetirement(
+        AggregateHeldInputRetirement::InFlightFrameBorrowAuthorizationLoss);
 }
 
 void
@@ -2955,6 +3014,11 @@ main(int argc, char **argv)
     if (behavior == "authority-loss-held-key-button-no-xtest")
     {
         syntheticXvfbAuthorityLossHeldKeyboardAndButtonRetirement();
+        return 0;
+    }
+    if (behavior == "inflight-held-input-borrow-revocation")
+    {
+        syntheticXvfbInFlightHeldInputFrameBorrowRevocation();
         return 0;
     }
     if (behavior == "authority-retirement-queued-damage-isolation")

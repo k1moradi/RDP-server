@@ -1,3 +1,15 @@
+## R5 combined held input and in-flight XShm borrow regression (2026-11-01)
+
+The ordinary `x11.desktop-resource-inflight-held-input-borrow-revocation` Xvfb test enters the original
+R5 aggregate's `consumeR4Frame` after a held keyboard key and mouse button.
+The callback invokes terminal native retirement while its XShm pixel span is
+borrowed, returns true, and must not cause R5 frame publication or any XTEST
+release. It requires one callback, closed original XCB, fresh native capture
+provenance, no inherited held state/Damage and successful replacement capture.
+Fixture cleanup runs outside the measured teardown. Keep independent implicit
+and explicit held-state tests and separate 45 native / 2 destructor sanitizer
+selectors. Physical seat0 remains unauthorized/NOT RUN.
+
 ## R6 four independent client-boundary provenance fixture (2026-11-01)
 
 The closed `rdp-server.windows-client-ab-pair.v3` schema is sufficient for

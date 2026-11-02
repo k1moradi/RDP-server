@@ -1,3 +1,9 @@
+## 2026-11-02 — R5 typed geometry observation hosted closure
+
+Publication SHA `0055c715eaaaa65dec6359229c91289d01c98fba` is hosted-qualified for the R5 increment. Structure run `41411712705` PASS. Protocol run `41411712627`: Ubuntu `125166058575` tests-disabled native desktop target PASS, full Debug **1137/1137 PASS**, full Release **1137/1137 PASS**, with `x11.native-geometry-observation-pixel-geometry-mismatch-denial` PASS in both. Sanitizer `125166058636` PASS with unchanged fixed native X11 **45/45**, separate implicit destructor **2/2**, and authority-loss held-input **1/1**. R5 Linux GUI ZIP `125166058422` PASS.
+
+Source result remains test-only: `src/x11/**` production stayed identical to qualified baseline `d6c5d90cd3981a0f5931319ef4c4fcec84eeb6ce`; the new case pins an existing exact pixel-geometry equality fence when capture/session generations remain current. No production fix, sanitizer census change, benchmark, physical seat0, real R2 admission, native input or client-visible-frame claim.
+
 ## R10 P0 original Linux peer EOF / owner-cancelled aggregate status (2026-11-02)
 
 **Inspected current-main parent** is recorded in the R10 publication commit parent. Original `LinuxRuntimeHostControl::startSharing` still validates the retained standalone credential/session binding before native denial; keeps early denial-side owner consent invalidation distinct from credential-guarded admitting R2 consent, then exact current LAN endpoint and TLS-bound listener publication. Corrected source contract `fedd528a2ca58f98177ff71b509983d687d10667` has hosted Ubuntu protocol `125136400230`, macOS protocol `125136400112`, Linux security `125136400054` and R9 sanitizer `125136400055` PASS. Descendant `dc707faa0214da592ae500ae2c1f99d16a2e96df` has hosted Ubuntu `125150012397`, macOS `125150012508`, Windows MSVC `125150012378` and Windows CLANG64 `125150012448` full protocol PASS. The prior Windows preference replacement failure is unrelated.

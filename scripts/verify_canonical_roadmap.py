@@ -21,7 +21,7 @@ HEADINGS = (TITLE, "## Milestone gates",
 # Status sections are intentionally prependable, but a language/runtime object
 # serialization token immediately before a Markdown heading is never valid prose.
 OBJECT_SERIALIZATION_HEADING_PREFIX = re.compile(
-    r"(?m)^\\s*\\[object Object\\](?=#{1,6}\\s)"
+    r"(?m)^\s*\[object Object\](?=#{1,6}\s)"
 )
 
 def require(condition: bool, message: str) -> None:

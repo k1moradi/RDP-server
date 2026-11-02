@@ -1,3 +1,9 @@
+## R9 P0 correction — roadmap serialization guard matches syntax, not backslashes (2026-11-01)
+
+Exact parent `3b32593d3bb1bc9b996bd9fca4f20d8c60a48850` failed its fast hosted structure gate, Actions `41378573254`, job `125064128420`: the new negative self-test correctly injected `[object Object]` before the current first heading, but the authored Python raw regex contained doubled backslashes and therefore matched literal backslash characters rather than whitespace/brackets. The failure was caught before protocol/platform qualification; downstream protocol, sanitizer, packaging, documentation and owner-candidate jobs were skipped or remained non-qualifying. No PASS is claimed for that SHA.
+
+Correct only the regex escaping so the intended narrow syntax `^[object Object]## ...` is rejected while legitimate prepend-only sections and ordinary prose remain accepted. The existing self-test, ordinary CTest and CI invocations are unchanged. No protocol, GUI, preference, credential, listener, native authority or fixed 45/107/23/29 sanitizer inventory changes.
+
 ## R9 P0 — serialized-object roadmap heading prefixes fail closed (2026-11-01)
 
 Reviewed exact parent `46393a11f5be815fb1f78233c7f063f268ad1b6e` after the concurrent R3 documentation repair removed the single accidental `[object Object]` token from the first prepended ROADMAP heading without truncating the canonical million-byte-plus document. The existing integrity validator still had a reproducible blind spot: it intentionally permits legitimate prepend-only status sections, so its core-title/order checks would also accept that runtime-object serialization token if it appeared immediately before another Markdown heading.

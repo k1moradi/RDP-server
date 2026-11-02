@@ -1,3 +1,7 @@
+## Roadmap serialization-prefix negative must exercise the actual regex (2026-11-01)
+
+A negative self-test that injects `[object Object]` directly before a Markdown heading must fail the validator itself. In Python raw regex strings use single regex escapes (`\s`, `\[`, `\]`); doubled backslashes instead match literal backslash characters and make the negative case pass unexpectedly. Hosted structure failure on `3b32593d3bb1bc9b996bd9fca4f20d8c60a48850` is a test-authoring failure, not project qualification. Preserve the same ordinary CTest registration and fail closed before downstream evidence.
+
 ## Canonical roadmap object-serialization prefixes are invalid syntax (2026-11-01)
 
 The canonical roadmap may legitimately accumulate prepend-only status sections before its stable authoritative core, so integrity tests must preserve that flexibility while rejecting serialization debris. The existing `verify_canonical_roadmap.py` gate must fail when a literal `[object Object]` is directly serialized before a Markdown heading, and its negative self-test must construct that mutation from the current valid document. Do not reject ordinary prose mentions of the token, require the canonical title to be the first heading, or pin a historical byte count. Reuse the ordinary `project.canonical-roadmap-integrity-and-truncation-denials` registration and existing CI invocations instead of adding duplicate tests.

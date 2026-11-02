@@ -493,10 +493,14 @@ else()
     add_test(NAME runtime.user-preferences-windows-hard-link-substitution-denial
         COMMAND test_runtime_user_preferences
             windows-file-hard-link-denial)
+    add_test(NAME runtime.user-preferences-windows-active-reader-atomic-replacement
+        COMMAND test_runtime_user_preferences
+            windows-active-reader-atomic-replacement)
     set_tests_properties(
         runtime.user-preferences-windows-inaccessible-directory-not-missing
         runtime.user-preferences-windows-localappdata-ancestor-denial
         runtime.user-preferences-windows-hard-link-substitution-denial
+        runtime.user-preferences-windows-active-reader-atomic-replacement
         PROPERTIES LABELS "runtime;preferences;security;offline;windows")
     set_tests_properties(
         runtime.user-preferences-windows-hard-link-substitution-denial

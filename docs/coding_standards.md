@@ -1,3 +1,7 @@
+## R2 Windows read/delete sharing and atomic private preferences replacement (2026-11-01)
+
+The validated Windows fixed-v1 preferences read handle may share `FILE_SHARE_DELETE` in addition to `FILE_SHARE_READ`, but never `FILE_SHARE_WRITE`. This lets a separate saver atomically replace the pathname while the reader finishes on its original immutable file object. Keep strict user SID, protected owner-only DACL, unique-link, regular non-reparse type and bounded decode validation. No new locks, settings schema, credential storage or R2 consent/Clipboard/listener authority.
+
 ## R10 Start must validate retained standalone credential session before native-desktop denial (2026-11-01)
 
 A memory-only standalone Session Password is bound to the exact native session fingerprint at configuration. On every explicit Start, validate that binding **before** any early X11/native-desktop eligibility return. Lock, logout, user switch, display/session-generation replacement or unavailable bound evidence is terminal for the retained credential and consent epoch; ordinary Stop remains the only retention exception. When native desktop eligibility itself fails, still visit the existing `CurrentOwnerSharingAuthority::authorizes(View)` fence so a stale consent grant cannot become usable again after an unlock/session recovery. Reuse the existing R10 owner and retirement path; do not add a credential cache, permission shortcut, listener owner or native-session controller.

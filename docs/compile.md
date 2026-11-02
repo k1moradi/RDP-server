@@ -1,3 +1,7 @@
+## R2 Windows active-reader atomic save qualification (2026-11-01)
+
+Reuse only `~/rdp-server/build/` or the hosted job's sole checkout `build/`. After Debug configure/build run `ctest --test-dir build -C Debug -R '^runtime[.]user-preferences-windows-(active-reader-atomic-replacement|hard-link-substitution-denial|localappdata-ancestor-denial|inaccessible-directory-not-missing)$' --output-on-failure` and full CTest. Repeat Release in the same build root with `-C Release`; require Windows MSVC and CLANG64 exact-SHA evidence. This fixture has no live native settings or RDP authority. Local focused/full build, CTest and benchmark NOT RUN.
+
 ## R10 Start-time standalone session-binding correction (2026-11-01)
 
 Reuse only the canonical `~/rdp-server/build/` root. After Debug configure/build, run `ctest --test-dir build -C Debug -R '^runtime[.]linux-host-control-(original-owner-changed-after-configure-denial|start-lock-retires-standalone-credential|retained-credential-lock-session-loss|fresh-native-authorization-every-start)$' --output-on-failure`, then full Debug CTest. Repeat focused/full Release in the same root and the existing R9 security/runtime sanitizer selections on the exact publication SHA. Native-environment cases may skip 77 when prerequisites are absent; that is not owner-native acceptance. Connector-only local build/CTest/sanitizers are NOT RUN.

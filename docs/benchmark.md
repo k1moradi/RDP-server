@@ -1,3 +1,7 @@
+## R2 Windows private preferences reader sharing (2026-11-01)
+
+Adding Windows delete sharing to a cold-path private file read changes no RDP hot loop, allocation, socket, native frame/input or Clipboard operation. No throughput benchmark run or needed for this correctness increment. Validate through Windows Debug/Release CTest.
+
 ## R10 Start-time session retirement is correctness-only (2026-11-01)
 
 The correction adds one credential/session validation only to the cold explicit Start path and one existing consent revalidation on a native-desktop failure path. It changes no per-packet, frame, input, Clipboard or steady-state scheduler hot loop and allocates no new state. No benchmark is required for this security/lifecycle correction; benchmark NOT RUN.

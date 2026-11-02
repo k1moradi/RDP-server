@@ -2,7 +2,9 @@
 #include "server/runtime/runtime_user_preferences_internal.h"
 #include "server/runtime/runtime_host_control.h"
 
+#include <array>
 #include <cassert>
+#include <memory>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -158,6 +160,78 @@ int runWindowsPreferenceHardLinkDenialTest()
     assert(detail::loadRuntimeUserPreferencesFromDirectory(
                directory, loaded) == Status::Loaded);
     assert(loaded.lastExplicitUsername == original.lastExplicitUsername);
+    assert(std::filesystem::remove(file));
+    assert(std::filesystem::remove(directory));
+    return 0;
+}
+
+int runWindowsActiveReaderAtomicReplacementTest()
+{
+    using Status = RuntimeUserPreferencesStorageStatus;
+    const auto directory = std::filesystem::current_path() /
+        ("runtime-user-preferences-windows-reader-" +
+         std::to_string(::GetCurrentProcessId()));
+    assert(createPrivateDirectory(directory));
+    RuntimeUserPreferences original;
+    original.lastExplicitUsername = "original-owner";
+    original.preferredStableLanInterfaceId = "{ABC-123}_Ethernet";
+    original.port = 3394U;
+    original.preferRemoteInput = false;
+    assert(detail::saveRuntimeUserPreferencesToDirectory(
+               directory, original) == Status::Stored);
+    const auto file = directory / L"preferences.bin";
+
+    // The old object remains readable with DELETE sharing, but no writer
+    // may change it in place while the new pathname is atomically published.
+    struct WindowsHandleCloser final
+    {
+        void operator()(HANDLE handle) const noexcept
+        {
+            (void)::CloseHandle(handle);
+        }
+    };
+    {
+        const HANDLE originalHandle = ::CreateFileW(
+            file.c_str(), GENERIC_READ | READ_CONTROL,
+            FILE_SHARE_READ | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+            FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+        assert(originalHandle != INVALID_HANDLE_VALUE);
+        const std::unique_ptr<void, WindowsHandleCloser> pinnedReader{
+            originalHandle};
+
+        RuntimeUserPreferences replacement = original;
+        replacement.lastExplicitUsername = "replacement-owner";
+        replacement.port = 3395U;
+        assert(detail::saveRuntimeUserPreferencesToDirectory(
+                   directory, replacement) == Status::Stored);
+
+        LARGE_INTEGER previousSize{};
+        assert(::GetFileSizeEx(pinnedReader.get(), &previousSize) != 0);
+        std::array<std::byte, 512U> previousBytes{};
+        assert(previousSize.QuadPart > 0 &&
+               previousSize.QuadPart <=
+                   static_cast<LONGLONG>(previousBytes.size()));
+        DWORD received = 0U;
+        assert(::ReadFile(pinnedReader.get(), previousBytes.data(),
+                          static_cast<DWORD>(previousSize.QuadPart),
+                          &received, nullptr) != 0);
+        assert(received == static_cast<DWORD>(previousSize.QuadPart));
+        RuntimeUserPreferences previous;
+        assert(decodeRuntimeUserPreferences(
+            std::span{previousBytes}.first(received), previous));
+        assert(previous.lastExplicitUsername ==
+               original.lastExplicitUsername);
+        assert(previous.port == original.port);
+
+        RuntimeUserPreferences loaded;
+        assert(detail::loadRuntimeUserPreferencesFromDirectory(
+                   directory, loaded) == Status::Loaded);
+        assert(loaded.lastExplicitUsername ==
+               replacement.lastExplicitUsername);
+        assert(loaded.port == replacement.port);
+        assert(loaded.preferredStableLanInterfaceId ==
+               replacement.preferredStableLanInterfaceId);
+    }
     assert(std::filesystem::remove(file));
     assert(std::filesystem::remove(directory));
     return 0;
@@ -380,6 +454,9 @@ int main(int argc, char** argv)
     if (argc == 2 &&
         std::string_view{argv[1]} == "windows-file-hard-link-denial")
         return runWindowsPreferenceHardLinkDenialTest();
+    if (argc == 2 &&
+        std::string_view{argv[1]} == "windows-active-reader-atomic-replacement")
+        return runWindowsActiveReaderAtomicReplacementTest();
 #endif
 #if !defined(_WIN32)
     if (argc == 2 &&

@@ -625,8 +625,12 @@ struct LocalMemoryCloser final
     PSID sid, RuntimeUserPreferences& preferences)
 {
     const auto filename = directory / L"preferences.bin";
+    // Let an independent atomic saver replace the pathname while this
+    // validated reader finishes on the original immutable file object.
+    // Sharing deletion/rename never permits in-place writes.
     NativeHandle file{::CreateFileW(
-        filename.c_str(), GENERIC_READ | READ_CONTROL, FILE_SHARE_READ,
+        filename.c_str(), GENERIC_READ | READ_CONTROL,
+        FILE_SHARE_READ | FILE_SHARE_DELETE,
         nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, nullptr)};
     if (!file)
         return ::GetLastError() == ERROR_FILE_NOT_FOUND

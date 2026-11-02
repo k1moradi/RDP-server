@@ -2332,6 +2332,14 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "protocol;security;transport;tls;mcs;admission;offline"
                 TIMEOUT 30)
 
+        # Valid Client Info cannot overtake a partial Join Confirm sent
+        # through the sole original R1 TLS writer.
+        add_test(NAME security.macos-protected-client-info-during-partial-join-confirm-denial
+            COMMAND "${test_target}" "macos-protected-client-info-during-partial-join-confirm-denial")
+        set_tests_properties(security.macos-protected-client-info-during-partial-join-confirm-denial PROPERTIES
+            LABELS "protocol;security;transport;tls;mcs;admission;offline"
+            TIMEOUT 30)
+
         # R10 protected PersonalDesktop licensing through original R1 TLS.
         # Genuine native admission is never synthesized by the offline fixture.
         foreach(licensing_case IN ITEMS receipts denials)

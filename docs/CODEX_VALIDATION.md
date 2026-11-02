@@ -1,3 +1,7 @@
+## R2 Windows native preference-root ancestry check (2026-11-01)
+
+Authored on current parent `ffec26d50c0e1b63fff2f30eb8fb4af1662f61da`. The existing non-secret R2 storage owner now walks the OS-returned Windows LocalAppData absolute local-drive directory ancestry with no-follow reparse opens, refusing device/UNC, dot-dot, intermediary file and reparse substitutions; the strict final current-user SID/ACL and atomic file contract is unchanged. New ordinary Windows CTest `runtime.user-preferences-windows-localappdata-ancestor-denial` runs the same production predicate against unsupported and intervening-file ancestry. No credential, permission, socket or Clipboard code changed. Source/dependency/CTest-registry review PASS. Local Debug/Release builds, focused/full CTests, sanitizers and benchmark NOT RUN (no mounted checkout; direct GitHub DNS unavailable); exact publishing-SHA hosted Windows/Ubuntu/macOS qualification PENDING. Physical-client evidence remains separately unauthorized.
+
 ## R6 P0 — macOS four-stage client provenance negative parity (2026-11-01)
 
 **Reviewed parent:** `28eac2cde4556f37c47bd93448bcd01b14011cec`. The closed private A/B v3 schema already

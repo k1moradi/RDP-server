@@ -16,6 +16,11 @@ namespace detail
 [[nodiscard]] RuntimeUserPreferencesStorageStatus
 classifyWindowsApplicationDirectoryOpenFailure(
     bool create, std::uint32_t errorCode) noexcept;
+
+// Production LocalAppData ancestor-walk predicate, exposed only to the
+// isolated offline Windows test. The public API still accepts no paths.
+[[nodiscard]] bool windowsDirectoryHasNoReparseAncestorsForTesting(
+    const std::filesystem::path& directory) noexcept;
 #else
 // POSIX-only resolver seam for the focused unsafe-ancestor CTest. It uses the
 // same no-follow ownership/mode checks as production but starts from an

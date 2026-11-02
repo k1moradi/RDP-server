@@ -457,6 +457,54 @@ private:
     HANDLE value_{INVALID_HANDLE_VALUE};
 };
 
+[[nodiscard]] bool windowsDirectoryHasNoReparseAncestors(
+    const std::filesystem::path& directory)
+{
+    const std::filesystem::path root = directory.root_path();
+    const std::wstring& rootText = root.native();
+    // A redirected UNC/device namespace is not a local per-user store.
+    // Fail safely instead of following a share or device alias.
+    if (rootText.size() != 3U ||
+        !((rootText[0] >= L'A' && rootText[0] <= L'Z') ||
+          (rootText[0] >= L'a' && rootText[0] <= L'z')) ||
+        rootText[1] != L':' ||
+        (rootText[2] != L'\\' && rootText[2] != L'/'))
+        return false;
+
+    const auto isUnreparsedDirectory =
+        [](const std::filesystem::path& candidate) {
+            NativeHandle opened{::CreateFileW(
+                candidate.c_str(), FILE_READ_ATTRIBUTES,
+                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                nullptr, OPEN_EXISTING,
+                FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+                nullptr)};
+            if (!opened || ::GetFileType(opened.get()) != FILE_TYPE_DISK)
+                return false;
+            FILE_ATTRIBUTE_TAG_INFO attributes{};
+            return ::GetFileInformationByHandleEx(
+                       opened.get(), FileAttributeTagInfo, &attributes,
+                       sizeof(attributes)) != FALSE &&
+                   (attributes.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0U &&
+                   (attributes.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0U;
+        };
+
+    std::filesystem::path current = root;
+    if (!isUnreparsedDirectory(current))
+        return false;
+    for (const auto& component : directory.relative_path())
+    {
+        if (component.empty() || component == L"." || component == L"..")
+            return false;
+        current /= component;
+        // OPEN_REPARSE_POINT inspects the named component itself, rather than
+        // accepting a junction/symlink that resolves to a different store.
+        if (!isUnreparsedDirectory(current))
+            return false;
+    }
+    return true;
+}
+
 struct LocalMemoryCloser final
 {
     void operator()(void* pointer) const noexcept
@@ -655,6 +703,12 @@ struct LocalMemoryCloser final
         return RuntimeUserPreferencesStorageStatus::Unavailable;
     const std::filesystem::path root{rawPath};
     ::CoTaskMemFree(rawPath);
+    // The app/file handles themselves reject reparse points, but an
+    // intermediate LocalAppData junction could redirect both pathnames.
+    // Check the complete OS-provided local root before any application I/O.
+    if (!windowsDirectoryHasNoReparseAncestors(root))
+        return create ? RuntimeUserPreferencesStorageStatus::Unavailable
+                      : RuntimeUserPreferencesStorageStatus::Invalid;
     directory = root / L"RDP-server";
     std::vector<std::byte> userStorage;
     PSID userSid = nullptr;
@@ -775,6 +829,19 @@ namespace detail
 {
 
 #if defined(_WIN32)
+bool windowsDirectoryHasNoReparseAncestorsForTesting(
+    const std::filesystem::path& directory) noexcept
+{
+    try
+    {
+        return windowsDirectoryHasNoReparseAncestors(directory);
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
 RuntimeUserPreferencesStorageStatus
 classifyWindowsApplicationDirectoryOpenFailure(
     const bool create, const std::uint32_t errorCode) noexcept

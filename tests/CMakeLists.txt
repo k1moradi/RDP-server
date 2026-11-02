@@ -480,8 +480,12 @@ else()
     add_test(NAME runtime.user-preferences-windows-inaccessible-directory-not-missing
         COMMAND test_runtime_user_preferences
             windows-directory-access-denial-status)
+    add_test(NAME runtime.user-preferences-windows-localappdata-ancestor-denial
+        COMMAND test_runtime_user_preferences
+            windows-localappdata-ancestry-denial)
     set_tests_properties(
         runtime.user-preferences-windows-inaccessible-directory-not-missing
+        runtime.user-preferences-windows-localappdata-ancestor-denial
         PROPERTIES LABELS "runtime;preferences;security;offline;windows")
 endif()
 

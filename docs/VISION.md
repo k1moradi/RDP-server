@@ -1,3 +1,7 @@
+## Windows preference location must not traverse redirected ancestry (2026-11-01)
+
+Resolve the current user's LocalAppData through a local absolute OS-known-folder path; refuse an intermediate Windows junction/reparse component before private application-directory access. An unavailable or redirected secure location must fail closed, never fall back to UNC, ZIP, cwd or a shared directory. Final private SID/DACL checks and atomic replacement remain mandatory. Non-secret preferences never restore a native R2 grant, credential or Sharing.
+
 ## R7 CLI Username preference-bound parity (2026-11-01)
 
 The temporary non-authorizing `--username` override accepts the same maximum

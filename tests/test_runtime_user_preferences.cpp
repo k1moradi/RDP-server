@@ -78,6 +78,28 @@ void writeEncoded(const std::filesystem::path& path,
 }
 
 #if defined(_WIN32)
+int runWindowsApplicationDirectoryAncestryDenialTest()
+{
+    const auto isUnreparsed =
+        &detail::windowsDirectoryHasNoReparseAncestorsForTesting;
+    assert(!isUnreparsed(std::filesystem::path{L"relative\\AppData"}));
+    assert(!isUnreparsed(std::filesystem::path{L"C:\\Users\\..\\AppData"}));
+
+    const auto unsafeAncestor = std::filesystem::current_path() /
+        ("runtime-user-preferences-windows-ancestor-" +
+         std::to_string(::GetCurrentProcessId()));
+    {
+        std::ofstream file(unsafeAncestor);
+        assert(file.good());
+    }
+    // A non-directory intermediate component must not be traversed to
+    // manufacture a per-user application root. No privileged link creation
+    // or live OS profile mutation is needed for this offline denial.
+    assert(!isUnreparsed(unsafeAncestor / L"RDP-server"));
+    assert(std::filesystem::remove(unsafeAncestor));
+    return 0;
+}
+
 int runWindowsApplicationDirectoryAccessDenialTest()
 {
     using Status = RuntimeUserPreferencesStorageStatus;
@@ -261,6 +283,9 @@ int main(int argc, char** argv)
     if (argc == 2 &&
         std::string_view{argv[1]} == "windows-directory-access-denial-status")
         return runWindowsApplicationDirectoryAccessDenialTest();
+    if (argc == 2 &&
+        std::string_view{argv[1]} == "windows-localappdata-ancestry-denial")
+        return runWindowsApplicationDirectoryAncestryDenialTest();
 #endif
     if (argc == 2 &&
         std::string_view{argv[1]} == "unsafe-config-ancestor-status")

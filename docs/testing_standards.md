@@ -1,3 +1,7 @@
+## Windows LocalAppData ancestor substitution denial (2026-11-01)
+
+Keep ordinary Windows-only `runtime.user-preferences-windows-localappdata-ancestor-denial` inside the existing strict preference fixture. Invoke the production ancestry predicate via its internal test seam and reject relative, dot-dot and intermediate regular-file components, without requiring junction privileges or touching the current user's real LocalAppData. The real store still checks current-user DACL, final reparse and atomic replacement. No test may manufacture authority, start a listener or persist credentials. Qualify on hosted Windows Debug/Release plus the normal full CTest.
+
 ## R6 P0 — macOS four-stage client provenance negative parity (2026-11-01)
 
 **Reviewed parent:** `28eac2cde4556f37c47bd93448bcd01b14011cec`. The closed private A/B v3 schema already

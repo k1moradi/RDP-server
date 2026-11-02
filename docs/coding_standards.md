@@ -1,3 +1,7 @@
+## Windows non-secret preference store must reject reparse ancestry (2026-11-01)
+
+The current-user protected-DACL application directory and file are insufficient if an earlier Windows LocalAppData ancestor is a junction. Validate each component of the OS-returned absolute local-drive configuration path with a handle opened using `FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS`; reject device/UNC/relative/parent-traversal, reparse and non-directory components before creating or reading the app store. Do not require root/system directories to be owned by the current SID; retain strict effective current-user ownership and protected DACL for the final app/file objects. An unverifiable root fails closed with no alternate path. Preserve the v1 fixed non-secret record and independent R2/native/Sharing boundary.
+
 ## R7 CLI Username uses the complete R2 non-secret byte range (2026-11-01)
 
 Keep the process-only `--username` ceiling at 256 UTF-8 bytes, matching the

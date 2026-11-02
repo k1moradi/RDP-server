@@ -955,6 +955,27 @@ class OwnerEvidenceTests(unittest.TestCase):
                 ))
                 self.assertNotIn(private_provider, json.dumps(mismatch))
 
+            with self.subTest(platform=platform, case="invalid-first-error-denied"):
+                if platform == "macos":
+                    first_error["event_time_local"] = "2026-10-27T05:30:00-07:00"
+                    first_error["event_time_utc"] = stage_event["event_time_utc"]
+                else:
+                    first_error["event_time_utc"] = stage_event["event_time_utc"]
+                first_error["normalized_category"] = "private-invalid-category"
+
+                invalid = ab_evidence.validate_pair(manifest, pair)
+                self.assertEqual(invalid["evidence_status"], "FAIL")
+                self.assertIn(
+                    f"{platform.upper()}_CREDSSP_FAILURE_TYPED_ERROR_INVALID",
+                    invalid["evidence_failures"],
+                )
+                self.assertTrue(all(
+                    state == "NOT_OBSERVED"
+                    for state in invalid[platform]["client_security_stages"].values()
+                ))
+                self.assertNotIn("private-invalid-category", json.dumps(invalid))
+                self.assertNotIn(private_provider, json.dumps(invalid))
+
     def test_paired_provenance_type3_source_from_neighboring_attempt_is_denied(self):
         manifest = evidence.build_manifest(self.options)
         pair = self._paired_record(manifest)

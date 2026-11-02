@@ -1,3 +1,24 @@
+## R6 corrective — invalid typed-error records cannot preserve a stage-2 FAIL (2026-11-01)
+
+**Authoring parent:** `c4bacd427f37cffbe639106da0f8fe2fe2c4a38b`. Immediate review of the new same-event
+CredSSP failure linkage found one fail-closed projection edge: an invalid
+`first_client_error` category/source/shape could still contain a bounded
+provider category and matching timestamp, allowing the helper-specific check
+to pass even though the existing first-error validator had rejected the
+private record. For a claimed `type2_accepted_by_credssp=FAIL`, the typed
+first-error record must now also have passed its complete existing validation
+(including closed category/source schema, structure, UTF-8 and attempt window)
+before the provider-category/same-event check can qualify it.
+
+The existing provenance fixture now mutates the normalized category to a
+private unapproved value for both macOS Windows App and mstsc. Validation must
+emit the fixed `*_CREDSSP_FAILURE_TYPED_ERROR_INVALID` denial, mask all four
+public client stages to `NOT_OBSERVED`, and disclose neither the invalid
+category nor private provider text. No schema, production protocol, collector,
+credential, trust or client behavior changes. Exact corrective-SHA hosted
+general CI and Microsoft SSPI remain separate PENDING gates; the physical
+8.956 ms attempt remains BLOCKED at original client Type-2 receipt/decryption.
+
 ## R6 P0 — bind CredSSP failure to the same typed first-error event (2026-11-01)
 
 **Authoring parent:** `8a2aff2c6a94abd9c68d3aaa36ba966904ac4d46`. Review of the closed v3 physical-client

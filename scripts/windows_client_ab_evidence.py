@@ -430,7 +430,8 @@ def _first_error_attempt_failures(first_error: object, binding: object,
 
 
 def _credssp_failure_first_error_failures(
-        stages: object, evidence: object, first_error: object, prefix: str) -> list[str]:
+        stages: object, evidence: object, first_error: object,
+        first_error_valid: bool, prefix: str) -> list[str]:
     """A claimed provider rejection needs the typed original client event.
 
     The client-stage event already owns the private source-record digest and
@@ -449,6 +450,8 @@ def _credssp_failure_first_error_failures(
     )
     if not isinstance(stage_event, dict) or not isinstance(first_error, dict):
         return [f"{prefix}_CREDSSP_FAILURE_TYPED_ERROR_MISSING"]
+    if not first_error_valid:
+        return [f"{prefix}_CREDSSP_FAILURE_TYPED_ERROR_INVALID"]
 
     provider_category = first_error.get("provider_category_exact")
     error_time = first_error.get("event_time_utc")
@@ -588,6 +591,7 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
             windows["client_security_stages"],
             windows["client_stage_evidence"],
             first_error_record,
+            not first_error_failures,
             "WINDOWS",
         )
     )
@@ -766,6 +770,7 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
             macos_row["client_security_stages"],
             macos_row["client_stage_evidence"],
             macos_first_error,
+            not macos_first_error_failures,
             "MACOS",
         )
     )

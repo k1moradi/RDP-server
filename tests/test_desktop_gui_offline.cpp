@@ -2998,6 +2998,36 @@ int main(int argc, char** argv)
             QStringLiteral("Microsoft error 0x204 is a generic client code")));
         assert(!advanced->text().contains(
             QStringLiteral("server unreachable"), Qt::CaseInsensitive));
+
+        // Owner cancellation of the next connection supersedes every
+        // earlier peer FIN, credential rejection and native-denial report.
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        diagnostics = {};
+        diagnostics.available = true;
+        diagnostics.acceptedClientId = 52U;
+        diagnostics.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::NtlmChallenge;
+        diagnostics.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::Closed;
+        diagnostics.termination =
+            RuntimeAcceptedClientTermination::OwnerCancellation;
+        diagnostics.preType3Termination =
+            RuntimeAcceptedClientPreType3Termination::LocalClose;
+        window.refresh();
+        const HostStatus cancelled = host.status();
+        assert(!cancelled.remoteAuthenticationFailed);
+        assert(!cancelled.remoteAuthenticationIncomplete);
+        assert(!cancelled.remoteAuthenticationInvalidCredentials);
+        assert(!cancelled.localDesktopAuthorizationFailed);
+        assert(availability->text().isEmpty());
+        assert(advanced->text().contains(
+            QStringLiteral("Connection ID: 52")));
+        assert(advanced->text().contains(
+            QStringLiteral("Peer close: local close before Type 3")));
+        assert(advanced->text().contains(
+            QStringLiteral("First failure: No typed authentication failure observed.")));
+        assert(!advanced->text().contains(
+            QStringLiteral("Connection ID: 51")));
         return 0;
     }
 
@@ -3412,6 +3442,114 @@ int main(int argc, char** argv)
         assert(exportText.contains(QStringLiteral("Connection ID: 62")));
         assert(!exportText.contains(QStringLiteral("Connection ID: 61")));
         assert(!exportText.contains(QStringLiteral("6111 us")));
+        return 0;
+    }
+
+    if (mode == "authentication-peer-close-then-owner-cancellation")
+    {
+        // Production GUI, fake R10: no native/network/permission activity.
+        runtime.snapshot.lastError =
+            RuntimeHostError::AuthenticationIncompletePeerClosed;
+        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
+        runtime.snapshot.listenerAvailable = true;
+        runtime.snapshot.credentialsConfigured = true;
+        runtime.snapshot.hostOwnerAuthorized = true;
+        runtime.snapshot.product.configuredStandaloneUsername =
+            u"PRIVATE_ACCOUNT_Z8";
+        auto& diagnostics = runtime.snapshot.acceptedClientPreauthDiagnostics;
+        diagnostics.available = true;
+        diagnostics.acceptedClientId = 874'101U;
+        diagnostics.ntlmEnvelope =
+            RuntimeAcceptedClientNtlmEnvelope::DirectNtlm;
+        diagnostics.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::NtlmChallenge;
+        diagnostics.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::Closed;
+        diagnostics.standaloneFailureStage =
+            RuntimeAcceptedClientStandaloneFailureStage::NtlmNegotiation;
+        diagnostics.directNtlmTypeTwoDelivered = true;
+        diagnostics.termination =
+            RuntimeAcceptedClientTermination::PeerEof;
+        diagnostics.preType3Termination =
+            RuntimeAcceptedClientPreType3Termination::PeerEof;
+        diagnostics.directNtlmTypeTwoToPeerEofAvailable = true;
+        diagnostics.directNtlmTypeTwoToPeerEofMicroseconds = 874'111U;
+
+        DesktopWindow window(host);
+        auto* availability =
+            requiredLabel(window, "sharingAvailabilityStatus");
+        auto* activity = requiredLabel(window, "clientStatus");
+        auto* mainDiagnostic = requiredLabel(window, "hostErrorExplanation");
+        auto* advanced =
+            requiredLabel(window, "authenticationDiagnosticsStatus");
+        const QString privateMarker = QStringLiteral("PRIVATE_ACCOUNT_Z8");
+        assert(host.status().remoteAuthenticationIncomplete);
+        assert(availability->text() == QStringLiteral(
+            "Client disconnected before completing authentication."));
+        assert(mainDiagnostic->text().contains(
+            QStringLiteral("Type 3 was not observed.")));
+        assert(advanced->text().contains(
+            QStringLiteral("Connection ID: 874101")));
+        assert(advanced->text().contains(
+            QStringLiteral("Type 2 commit -> peer EOF: 874111 us")));
+
+        // A later connection was cancelled by the owner, not the peer.
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        diagnostics = {};
+        diagnostics.available = true;
+        diagnostics.acceptedClientId = 874'202U;
+        diagnostics.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::NtlmChallenge;
+        diagnostics.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::Closed;
+        diagnostics.termination =
+            RuntimeAcceptedClientTermination::OwnerCancellation;
+        diagnostics.preType3Termination =
+            RuntimeAcceptedClientPreType3Termination::LocalClose;
+        window.refresh();
+        const HostStatus cancelled = host.status();
+        assert(!cancelled.remoteAuthenticationFailed);
+        assert(!cancelled.remoteAuthenticationIncomplete);
+        assert(!cancelled.remoteAuthenticationInvalidCredentials);
+        assert(!cancelled.localDesktopAuthorizationFailed);
+        assert(availability->text().isEmpty());
+        assert(activity->text() == QStringLiteral("No connected devices"));
+        assert(mainDiagnostic->text() ==
+               QStringLiteral("Diagnostics: no host error reported."));
+        for (const QString& current :
+             {advanced->text(), window.diagnosticExportText()})
+        {
+            assert(current.contains(QStringLiteral("Connection ID: 874202")));
+            assert(current.contains(
+                QStringLiteral("Peer close: local close before Type 3")));
+            assert(current.contains(QStringLiteral(
+                "First failure: No typed authentication failure observed.")));
+            assert(!current.contains(QStringLiteral("874101")));
+            assert(!current.contains(QStringLiteral("874111")));
+            assert(!current.contains(QStringLiteral("Invalid credentials.")));
+            assert(!current.contains(privateMarker));
+        }
+
+        // A contradictory incomplete error with a cancelled latest peer
+        // is unconfirmed rather than evidence of a wrong password or FIN.
+        runtime.snapshot.lastError =
+            RuntimeHostError::AuthenticationIncompletePeerClosed;
+        window.refresh();
+        const HostStatus unconfirmed = host.status();
+        assert(!unconfirmed.remoteAuthenticationFailed);
+        assert(!unconfirmed.remoteAuthenticationIncomplete);
+        assert(unconfirmed.authenticationDiagnostic.isEmpty());
+        assert(availability->text().isEmpty());
+        assert(activity->text() == QStringLiteral("No connected devices"));
+        assert(mainDiagnostic->text() == QStringLiteral(
+            "Diagnostics: Authentication outcome unavailable."));
+        assert(!window.diagnosticExportText().contains(privateMarker));
+        assert(runtime.credentialSetupCalls == 0);
+        assert(runtime.standaloneCredentialCalls == 0);
+        assert(runtime.permissionSetupCalls == 0);
+        assert(runtime.configureCalls == 0);
+        assert(runtime.startCalls == 0);
+        assert(runtime.disconnectCalls == 0);
         return 0;
     }
 

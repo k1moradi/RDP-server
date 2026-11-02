@@ -6512,6 +6512,15 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         LABELS "gui;offline;security;authentication;diagnostics;lifecycle"
         TIMEOUT 30)
 
+    add_test(NAME gui.offscreen-peer-close-owner-cancellation-terminal-isolation
+        COMMAND test_desktop_gui_offline
+            authentication-peer-close-then-owner-cancellation)
+    set_tests_properties(
+        gui.offscreen-peer-close-owner-cancellation-terminal-isolation
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;security;authentication;diagnostics;lifecycle"
+        TIMEOUT 30)
+
     add_test(NAME gui.offscreen-authentication-incomplete-before-native-admission
         COMMAND test_desktop_gui_offline
             authentication-incomplete-before-native-admission)

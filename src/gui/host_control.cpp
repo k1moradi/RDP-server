@@ -406,14 +406,15 @@ HostStatus HostControl::status() const
         view.tlsConnection = authenticationDiagnostics.tlsConnection;
         view.ntlmTypeOne = authenticationDiagnostics.ntlmTypeOne;
     }
+    const bool authenticationRejected =
+        runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected;
     const bool localDesktopAuthorizationFailed =
-        runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected &&
+        authenticationRejected &&
         isConfirmedLocalDesktopAuthorizationFailure(authenticationDiagnostics);
     view.localDesktopAuthorizationFailed =
         localDesktopAuthorizationFailed;
     view.remoteAuthenticationInvalidCredentials =
-        runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected &&
-        !localDesktopAuthorizationFailed &&
+        authenticationRejected && !localDesktopAuthorizationFailed &&
         isConfirmedInvalidStandaloneCredentials(authenticationDiagnostics);
     view.remoteAuthenticationIncomplete =
         runtimeStatus.lastError ==
@@ -423,9 +424,9 @@ HostStatus HostControl::status() const
         isRemoteAuthenticationIncompleteBeforeAdmission(
             authenticationDiagnostics);
 
-    if ((runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected ||
-         runtimeStatus.lastError ==
-             RuntimeHostError::AuthenticationIncompletePeerClosed ||
+    // Incomplete authentication needs a matching current R10 peer-close
+    // observation. An owner-cancelled/replaced peer is not a remote failure.
+    if ((authenticationRejected || view.remoteAuthenticationIncomplete ||
          runtimeStatus.lastError == RuntimeHostError::AuthenticationRateLimited) &&
         !localDesktopAuthorizationFailed)
     {
@@ -440,19 +441,33 @@ HostStatus HostControl::status() const
                           "Remote client authentication failed.")));
     }
 
+    // Never retain detailed first-failure text after R10 clears or replaces
+    // the corresponding terminal error with another connection.
     view.authenticationDiagnostic =
         localDesktopAuthorizationFailed
             ? localDesktopAuthorizationDiagnosticText(
                   authenticationDiagnostics.admissionFailureReason)
-            : authenticationDiagnosticText(authenticationDiagnostics);
+            : ((authenticationRejected || view.remoteAuthenticationIncomplete)
+                ? authenticationDiagnosticText(authenticationDiagnostics)
+                : QString{});
     if (view.clientDisconnected)
         view.disconnected.push_back(
             QStringLiteral("Client disconnected; listener remains active"));
     if (runtimeStatus.stage == RuntimeHostStage::Revoked ||
         runtimeStatus.lastError == RuntimeHostError::AccessRevoked)
         view.revoked.push_back(QStringLiteral("Sharing access revoked"));
-    if (!runtimeStatus.product.lastErrorMessage.empty())
+    if (runtimeStatus.lastError ==
+            RuntimeHostError::AuthenticationIncompletePeerClosed &&
+        !view.remoteAuthenticationIncomplete)
+    {
+        // An unconfirmed current record cannot attribute an old peer's FIN
+        // or credential outcome to the latest connection.
+        view.failure = QStringLiteral("Authentication outcome unavailable.");
+    }
+    else if (!runtimeStatus.product.lastErrorMessage.empty())
+    {
         view.failure = toQString(runtimeStatus.product.lastErrorMessage);
+    }
     return view;
 }
 

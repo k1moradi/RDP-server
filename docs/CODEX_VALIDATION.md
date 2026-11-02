@@ -1,3 +1,43 @@
+## R6 P0 — bind CredSSP failure to the same typed first-error event (2026-11-01)
+
+**Authoring parent:** `8a2aff2c6a94abd9c68d3aaa36ba966904ac4d46`. Review of the closed v3 physical-client
+differential found a validation gap without a schema gap: the four client
+stages already carry same-attempt original-record digests, but
+`type2_accepted_by_credssp=FAIL` could pass while the separate
+`first_client_error` was only a generic, untimed UI observation. That did
+not establish the requested CredSSP/provider parsing **and typed first error**
+boundary.
+
+Keep the existing private/public v3 schemas. A claimed stage-2 FAIL now
+requires a bounded private `provider_category_exact` and first-error UTC
+timestamp at the exact UTC instant of that source-bound
+`type2_accepted_by_credssp` client event. The stage event remains the owner
+of the original-record SHA-256, attempt ID, connection ID, client version and
+observation-window provenance. A generic/untimed error or a different event
+instant fails with fixed redacted categories and masks all four public client
+stages to `NOT_OBSERVED`. The digest is still correlation metadata, not an
+attestation of the private record contents. Existing UTF-8/lone-surrogate,
+closed-category, digest-uniqueness, client/server namespace and cross-attempt
+anti-splice rules are unchanged.
+
+The dedicated
+`paired_provenance_credssp_failure_requires_same_typed_first_error_event`
+negative/positive fixture runs under the existing
+`interop.windows-client-ab-stage-provenance-splice-denials` CTest for both
+macOS Windows App and Windows 11 mstsc rows. No production TLS/NTLM/CredSSP,
+collector, secret, trust, listener, native admission or client-launch behavior
+changes.
+
+Dependency review: exact-SHA R1/R10 hosted qualification at
+`beda2c08f02752d3235d0731afa4a69b552b88bc` closes the prior internal
+transport/scheduler software blocker. The remaining R6 gate is external:
+an R9-nominated exact-SHA owner candidate plus separately authorized original
+first-party client evidence. The 8.956 ms physical Windows App attempt still
+has no original client Type-2 TLS receipt/decryption record; do not splice the
+older 34.7 ms attempt or hosted SSPI. General CI and hosted Microsoft SSPI for
+this publication SHA remain separate **PENDING** gates; physical A/B remains
+**BLOCKED / INCONCLUSIVE** until owner authorization and evidence exist.
+
 ## R9 queued-run structure-guard NameError correction (2026-11-01)
 
 On authoring parent `a5a9dd07246beec3cb28f7c29ef1f4ccf781d132`, the exact ancestor structure run [41389622652](https://github.com/k1moradi/RDP-server/actions/runs/41389622652) failed in `verify_r9_qualification_matrix.py --self-test` at line 362: an undefined `expected` symbol in the queued-workflow case raises `NameError`; the surrounding tuple already binds `expected_lane`. Correct only that reference. Existing negative queued-run current-HEAD/SHA checks, R9 script self-test, CI structure guard and registered CTest remain the executable gates; no new test executable, CI job, product permission, or TLS/Clipboard production behavior changes.

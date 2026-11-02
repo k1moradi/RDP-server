@@ -883,6 +883,78 @@ class OwnerEvidenceTests(unittest.TestCase):
                     ))
                     self.assertNotIn("attempt-windows", json.dumps(neighboring_attempt))
 
+    def test_paired_provenance_credssp_failure_requires_same_typed_first_error_event(self):
+        private_provider = "private-provider-first-error"
+        for platform in ("macos", "windows"):
+            with self.subTest(platform=platform, case="generic-error-denied"):
+                manifest = evidence.build_manifest(self.options)
+                pair = self._paired_record(manifest)
+                row = pair[platform]
+                row["client_security_stages"]["type2_accepted_by_credssp"] = "FAIL"
+                stage_event = self._client_event(pair, platform)
+                row["client_stage_evidence"]["type2_accepted_by_credssp"] = stage_event
+
+                generic = ab_evidence.validate_pair(manifest, pair)
+                self.assertEqual(generic["evidence_status"], "FAIL")
+                self.assertIn(
+                    f"{platform.upper()}_CREDSSP_FAILURE_TYPED_ERROR_MISSING",
+                    generic["evidence_failures"],
+                )
+                self.assertTrue(all(
+                    state == "NOT_OBSERVED"
+                    for state in generic[platform]["client_security_stages"].values()
+                ))
+
+            with self.subTest(platform=platform, case="same-event-valid"):
+                if platform == "macos":
+                    first_error = manifest["first_client_error"]
+                    first_error.update({
+                        "normalized_category": "negotiation",
+                        "source": "core",
+                        "provider_category_exact": private_provider,
+                        "provider_code_exact": None,
+                        "event_time_local": "2026-10-27T05:30:00-07:00",
+                        "event_time_utc": stage_event["event_time_utc"],
+                    })
+                else:
+                    first_error = pair["windows"]["first_client_error"]
+                    first_error.update({
+                        "normalized_category": "negotiation",
+                        "source": "owner-approved-diagnostic",
+                        "provider_category_exact": private_provider,
+                        "provider_code_exact": None,
+                        "event_time_utc": stage_event["event_time_utc"],
+                    })
+
+                valid = ab_evidence.validate_pair(manifest, pair)
+                self.assertEqual(valid["evidence_status"], "PASS")
+                self.assertEqual(
+                    valid[platform]["client_security_stages"][
+                        "type2_accepted_by_credssp"
+                    ],
+                    "FAIL",
+                )
+                self.assertNotIn(private_provider, json.dumps(valid))
+
+            with self.subTest(platform=platform, case="different-event-denied"):
+                if platform == "macos":
+                    first_error["event_time_local"] = "2026-10-27T05:30:01-07:00"
+                    first_error["event_time_utc"] = "2026-10-27T12:30:01+00:00"
+                else:
+                    first_error["event_time_utc"] = "2026-10-27T12:32:01+00:00"
+
+                mismatch = ab_evidence.validate_pair(manifest, pair)
+                self.assertEqual(mismatch["evidence_status"], "FAIL")
+                self.assertIn(
+                    f"{platform.upper()}_CREDSSP_FAILURE_EVENT_TIME_MISMATCH",
+                    mismatch["evidence_failures"],
+                )
+                self.assertTrue(all(
+                    state == "NOT_OBSERVED"
+                    for state in mismatch[platform]["client_security_stages"].values()
+                ))
+                self.assertNotIn(private_provider, json.dumps(mismatch))
+
     def test_paired_provenance_type3_source_from_neighboring_attempt_is_denied(self):
         manifest = evidence.build_manifest(self.options)
         pair = self._paired_record(manifest)

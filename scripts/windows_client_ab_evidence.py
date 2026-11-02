@@ -429,6 +429,50 @@ def _first_error_attempt_failures(first_error: object, binding: object,
     return []
 
 
+def _credssp_failure_first_error_failures(
+        stages: object, evidence: object, first_error: object, prefix: str) -> list[str]:
+    """A claimed provider rejection needs the typed original client event.
+
+    The client-stage event already owns the private source-record digest and
+    same-attempt binding. When CredSSP/Type-2 acceptance is reported as FAIL,
+    require the separately parsed first-error details to identify a provider
+    category at the exact UTC instant of that same source-bound event. The
+    digest remains correlation metadata, not an attestation of record content.
+    """
+    if (not isinstance(stages, dict)
+            or stages.get("type2_accepted_by_credssp") != "FAIL"):
+        return []
+
+    stage_event = (
+        evidence.get("type2_accepted_by_credssp")
+        if isinstance(evidence, dict) else None
+    )
+    if not isinstance(stage_event, dict) or not isinstance(first_error, dict):
+        return [f"{prefix}_CREDSSP_FAILURE_TYPED_ERROR_MISSING"]
+
+    provider_category = first_error.get("provider_category_exact")
+    error_time = first_error.get("event_time_utc")
+    if (first_error.get("normalized_category") == "not-observed"
+            or first_error.get("source") == "not-observed"
+            or provider_category is None
+            or error_time is None):
+        return [f"{prefix}_CREDSSP_FAILURE_TYPED_ERROR_MISSING"]
+
+    try:
+        _text(provider_category, f"{prefix} CredSSP failure provider category", 128)
+        parsed_error_time = _utc(error_time, f"{prefix} CredSSP failure first error")
+        parsed_stage_time = _utc(
+            stage_event.get("event_time_utc"),
+            f"{prefix} CredSSP failure client-stage event",
+        )
+    except ValueError:
+        return [f"{prefix}_CREDSSP_FAILURE_TYPED_ERROR_INVALID"]
+
+    if parsed_error_time != parsed_stage_time:
+        return [f"{prefix}_CREDSSP_FAILURE_EVENT_TIME_MISMATCH"]
+    return []
+
+
 def validate_pair(macos_manifest: dict, pair: dict) -> dict:
     """Validate evidence, never infer server/client event ordering or cause."""
     failures: list[str] = []
@@ -539,6 +583,15 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         first_error_failures.extend(_first_error_attempt_failures(
             first_error_record, windows["source_binding"], "WINDOWS"))
     failures.extend(first_error_failures)
+    windows_credssp_failure_first_error_failures = (
+        _credssp_failure_first_error_failures(
+            windows["client_security_stages"],
+            windows["client_stage_evidence"],
+            first_error_record,
+            "WINDOWS",
+        )
+    )
+    failures.extend(windows_credssp_failure_first_error_failures)
 
     macos_correlation = _private_mapping(macos_manifest.get("linux_correlation"))
     macos_application = _private_mapping(macos_manifest.get("windows_app"))
@@ -708,6 +761,15 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         macos_first_error_failures.extend(_first_error_attempt_failures(
             macos_first_error, macos_row["source_binding"], "MACOS"))
     failures.extend(macos_first_error_failures)
+    macos_credssp_failure_first_error_failures = (
+        _credssp_failure_first_error_failures(
+            macos_row["client_security_stages"],
+            macos_row["client_stage_evidence"],
+            macos_first_error,
+            "MACOS",
+        )
+    )
+    failures.extend(macos_credssp_failure_first_error_failures)
 
     # Treat every input string as private. Only enumerated, redacted facts enter stdout.
     macos_type3 = _redacted_stage(
@@ -745,7 +807,8 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
             "client_security_stages": _redacted_client_stages(
                 macos_row["client_security_stages"],
                 qualified=not (macos_source_failures or macos_stage_failures
-                               or macos_event_failures)),
+                               or macos_event_failures
+                               or macos_credssp_failure_first_error_failures)),
             "native_admission": _redacted_stage(
                 macos_row["native_admission"], STAGE_STATES, "NOT_REACHED"),
         },
@@ -763,7 +826,8 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
             "client_security_stages": _redacted_client_stages(
                 windows["client_security_stages"],
                 qualified=not (windows_source_failures or windows_stage_failures
-                               or windows_event_failures)),
+                               or windows_event_failures
+                               or windows_credssp_failure_first_error_failures)),
             "native_admission": _redacted_stage(
                 windows["native_admission"], STAGE_STATES, "NOT_REACHED"),
         },

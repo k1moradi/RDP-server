@@ -1,3 +1,39 @@
+## R6 P0 four-stage original-client provenance audit (2026-11-01)
+
+Reviewed refreshed `main` parent `4728faea8f207ed0f760192d311fc3d603ee3ffc`, the read-only macOS
+collector, closed v3 Windows App/mstsc validator, existing first-error
+redaction/UTF-8/anti-splice regressions, and Microsoft NTLM/CredSSP SSPI
+fixtures. All four requested client boundaries are already independently
+representable; no production or evidence-schema change is warranted. The
+existing `paired_provenance_` fixture now proves each stage independently
+accepts only supported same-attempt client-origin evidence and rejects
+`server-transport` with a fixed stage-specific denial and redacted
+`NOT_OBSERVED` public projection.
+
+The reported 8.956 ms physical attempt remains blocked at the earliest missing
+fact: original first-party evidence that the physical Windows App received and
+decrypted its exact Type 2. No provider/password cause, Type-3 construction or
+Type-3-bearing TLS submission is inferred from FIN or server silence, and no
+earlier ~34.7 ms/hosted artifact is spliced into the row. Trace metadata such
+as AV IDs/challenge length, cipher/SNI, exact-IP SAN/fingerprint, credential
+source and server SHA is attributable only from original same-attempt evidence.
+
+**Hosted Microsoft SSPI remains separate:** exact descendant
+`54ea7726bea07b8b3fe0b33004c4df8fac4c5289`, Actions `41351062984`,
+reported `interop-matrix-final=COMPLETE_PASS`, including TLS 1.3 Type 3,
+pubKeyAuth, authInfo and `credentials-verified=yes`. General CI at that same
+SHA was separately **FAIL** (Ubuntu Debug 1103/1106 on unrelated R7/R9/R3
+failures; the security-protocol sanitizer and documentation-policy lanes
+passed). Those historical receipts do not qualify this publication SHA or the
+physical client.
+
+Source/registry/privacy review for this increment: **PASS**. Connector-local
+Python, configure/build, focused/full CTest, sanitizers and benchmark:
+**NOT RUN**. The immediately preceding roadmap-repair parent has a successful
+structure guard, but exact-publication hosted CI for this change remains
+**PENDING**. No physical client, Keychain, trust policy, password/token,
+certificate key, native desktop or packet capture was accessed.
+
 ## R5 tests-off -> normal-test cache restoration (2026-11-01)
 
 At source SHA `ecf4ddd1bdd9ae1afd4a6a9f8ec4ec3c0bc4ace0`, Actions `41380857506` / Ubuntu protocol job `125071178503` first proved the R5 tests-disabled `rdp-server-linux-x11-desktop` target, then failed the same build root's normal Debug configure because `RDP_SERVER_BUILD_TESTING` remained cached OFF while Linux PAM/GSSAPI tests were requested. CMake correctly rejected that contradictory state.

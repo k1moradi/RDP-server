@@ -1,3 +1,31 @@
+## R6 four independent client-boundary provenance fixture (2026-11-01)
+
+The closed `rdp-server.windows-client-ab-pair.v3` schema is sufficient for
+the four independently observable physical-client boundaries:
+`type2_received` (client TLS receipt/decryption),
+`type2_accepted_by_credssp` (CredSSP/provider parse result and its separately
+typed first error), `type3_generated` (client token construction), and
+`type3_delivered` (Type-3-bearing submission to client TLS). Do not add a
+duplicate schema field merely to restate the stage key.
+
+Keep the existing ordinary
+`interop.windows-client-ab-stage-provenance-splice-denials` selector. Its
+`paired_provenance_` fixture must exercise each stage alone with a
+same-attempt client-origin source while the other three remain
+`NOT_OBSERVED`, then replay that stage with `source_kind=server-transport`
+and require the fixed stage-specific `*_SOURCE_UNSUPPORTED` denial plus a
+public `NOT_OBSERVED` fallback. This proves representability and provenance
+plumbing only; it does not attest that a physical client event occurred.
+Retain the closed first-error category schema, UTF-8/lone-surrogate denials,
+source-digest uniqueness, cross-attempt anti-splice checks and fail-only
+non-disclosure. No server FIN, local Type-2 commit, hosted SSPI token or
+server-side byte count may populate any client stage.
+
+Authoring parent: `4728faea8f207ed0f760192d311fc3d603ee3ffc`. Connector-local Python/CTest execution is
+**NOT RUN**; exact-publication hosted CI is required. No client was launched,
+no Keychain/trust/credential state was read or changed, and no packet capture
+or native authority was enabled.
+
 ## Same-build-root tests-off proof must restore both test switches (2026-11-01)
 
 When a hosted or owner qualification deliberately configures the canonical `build/` with `BUILD_TESTING=OFF` and `RDP_SERVER_BUILD_TESTING=OFF`, any later test-enabled reconfigure of that same root must explicitly set **both** switches ON. Do not rely on the project option's default after it has been cached OFF. CI structure validation must pin the tests-off step before the normal Debug configure and require `-DRDP_SERVER_BUILD_TESTING=ON` in that reconfigure. This is build-state hygiene only; never weaken PAM/GSSAPI consistency checks to accommodate stale cache state.

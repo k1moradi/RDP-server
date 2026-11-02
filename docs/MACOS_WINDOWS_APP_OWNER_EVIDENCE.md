@@ -1,3 +1,35 @@
+## R6 independent four-stage audit for the 8.956 ms attempt (2026-11-01)
+
+Review at parent `4728faea8f207ed0f760192d311fc3d603ee3ffc` found no representability gap in the closed
+private v3 pair: client Type-2 TLS receipt/decryption, CredSSP/provider parsing
+and typed first error, Type-3 construction, and Type-3-bearing TLS submission
+are already four independent source-bound stages. The existing provenance
+fixture is strengthened so every stage can stand alone with client-origin
+evidence and every one fails closed when the same record is labeled
+`server-transport`. No schema bump or production TLS/NTLM change is justified.
+
+Keep the latest reported physical row separate: TLS 1.3, direct NTLM Type 2
+`0xe08a8235`, zero later server-observed client TLS bytes, no Type 3 or TLS
+alert, and peer FIN after 8.956 ms. Those server facts do **not** prove client
+receipt/decryption, a provider parse result or password rejection. Do not
+attach the earlier ~34.7 ms row or hosted SSPI material to this connection.
+Likewise, Type-2 AV IDs/126-byte length, negotiated cipher, SNI versus numeric
+IP target, exact-IP-SAN certificate fingerprint, app credential-source choice
+and server SHA belong to this attempt only when the original same-attempt
+source actually records them; otherwise they remain uncorrelated rather than
+being copied from a neighboring attempt.
+
+**Future owner A/B, still NOT RUN:** first obtain an R9-nominated exact-SHA
+candidate and explicit owner authorization for each macOS Windows App and
+Windows 11 mstsc attempt **and** permission to read already-existing
+first-party diagnostics. Preserve separate attempt/connection IDs and private
+source digests; verify the same server SHA/certificate/endpoint/target and
+deliberate credential source; then record the first actually observed client
+boundary and typed provider error, if any. This checklist never accesses
+Keychain, collects secrets, changes trust policy, launches a client or enables
+packet capture. If first-party client evidence is absent, the differential is
+**BLOCKED / INCONCLUSIVE**.
+
 ## R6 reported 8.956 ms Type-2/FIN: first missing client observation (2026-11-01)
 
 **New owner-reported case (original files not supplied):** Linux TLS 1.3,

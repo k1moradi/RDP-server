@@ -1,3 +1,45 @@
+## R6 P0 — four original-client boundaries are independently representable (2026-11-01)
+
+**Authoring parent:** `4728faea8f207ed0f760192d311fc3d603ee3ffc`. Refreshed audit of the read-only
+owner-evidence path finds no missing v3 stage: `type2_received`,
+`type2_accepted_by_credssp`, `type3_generated` and `type3_delivered`
+already represent client TLS receipt/decryption, provider parse/typed-error
+boundary, Type-3 construction and Type-3-bearing client TLS submission
+independently. Strengthen the existing
+`interop.windows-client-ab-stage-provenance-splice-denials` fixture so each
+stage alone accepts same-attempt client-origin evidence while the other three
+remain `NOT_OBSERVED`, and the same stage supplied as `server-transport`
+fails with a fixed stage-specific denial and redacted `NOT_OBSERVED`.
+No v4 schema, production TLS/NTLM change or extra evidence owner is justified.
+
+The latest owner-reported physical Windows App row remains distinct: TLS 1.3,
+direct Type 2 `0xe08a8235`, zero later server-observed client TLS bytes, no
+Type 3/TLS alert, peer FIN after 8.956 ms. The first missing fact remains
+original same-attempt first-party client receipt/decryption of that Type 2.
+Do not splice the older ~34.7 ms attempt or hosted SSPI. AV IDs/126-byte
+challenge, cipher/SNI/IP target, exact-IP-SAN fingerprint, credential-source
+selection and server SHA may be correlated only when their original source is
+for this same attempt; otherwise leave them uncorrelated. FIN cannot become a
+password rejection.
+
+Historical hosted Microsoft SSPI is reported separately: exact descendant
+`54ea7726bea07b8b3fe0b33004c4df8fac4c5289`, Actions `41351062984`,
+`COMPLETE_PASS` through Type 3/pubKeyAuth/authInfo/CredentialsVerified.
+General CI at that same SHA was independently **FAIL** on unrelated R7/R9/R3
+full-CTest failures; passing sanitizer/documentation lanes do not convert it
+to a general-CI PASS. Connector-local focused/full CTest, sanitizers and
+benchmark for this increment are **NOT RUN**; exact-publication hosted CI is
+**PENDING**.
+
+**Next gate:** after an R9 exact-SHA nomination, obtain explicit owner
+authorization for each physical Windows App/mstsc attempt and separately to
+read already-existing first-party diagnostics. Preserve private source hashes,
+separate attempt/connection IDs and same server/certificate/endpoint/target/
+credential-source facts, then stop at the first actually observed client
+boundary/error. Do not access Keychain, collect secrets, change trust, launch
+clients or enable packet capture under this checklist. Missing first-party
+client evidence remains **BLOCKED / INCONCLUSIVE**.
+
 ## R5 same-build-root test-switch restoration after tests-off proof (2026-11-01)
 
 **Failure source SHA:** `ecf4ddd1bdd9ae1afd4a6a9f8ec4ec3c0bc4ace0`. Exact-SHA structure and documentation-policy gates passed, but Ubuntu protocol Actions `41380857506`, job `125071178503`, failed during the normal Debug reconfigure with `Linux PAM verifier validation requires Linux GSSAPI test mode`. The preceding R5 production dependency proof correctly configured the sole `build/` root with both `BUILD_TESTING=OFF` and `RDP_SERVER_BUILD_TESTING=OFF`; the following protocol configure restored only CMake's switch, leaving the project test switch cached OFF.

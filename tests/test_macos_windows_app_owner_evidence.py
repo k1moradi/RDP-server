@@ -756,6 +756,42 @@ class OwnerEvidenceTests(unittest.TestCase):
         failures = ab_evidence.validate_pair(manifest, pair)["evidence_failures"]
         self.assertIn("WINDOWS_CLIENT_TYPE2_RECEIVED_PROVENANCE_MISSING", failures)
 
+    def test_paired_provenance_each_client_stage_is_independently_source_bound(self):
+        manifest = evidence.build_manifest(self.options)
+
+        for stage in ab_evidence.CLIENT_SECURITY_STAGES:
+            with self.subTest(stage=stage, source="client-origin"):
+                pair = self._paired_record(manifest)
+                pair["windows"]["client_security_stages"][stage] = "PASS"
+                pair["windows"]["client_stage_evidence"][stage] = self._client_event(
+                    pair, "windows")
+                summary = ab_evidence.validate_pair(manifest, pair)
+
+                self.assertEqual(summary["evidence_status"], "PASS")
+                for observed_stage in ab_evidence.CLIENT_SECURITY_STAGES:
+                    self.assertEqual(
+                        summary["windows"]["client_security_stages"][observed_stage],
+                        "PASS" if observed_stage == stage else "NOT_OBSERVED",
+                    )
+
+            with self.subTest(stage=stage, source="server-transport"):
+                pair = self._paired_record(manifest)
+                pair["windows"]["client_security_stages"][stage] = "PASS"
+                server_event = self._client_event(pair, "windows")
+                server_event["source_kind"] = "server-transport"
+                pair["windows"]["client_stage_evidence"][stage] = server_event
+                summary = ab_evidence.validate_pair(manifest, pair)
+
+                self.assertEqual(summary["evidence_status"], "FAIL")
+                self.assertIn(
+                    f"WINDOWS_CLIENT_{stage.upper()}_SOURCE_UNSUPPORTED",
+                    summary["evidence_failures"],
+                )
+                self.assertEqual(
+                    summary["windows"]["client_security_stages"][stage],
+                    "NOT_OBSERVED",
+                )
+
     def test_paired_provenance_type3_source_from_neighboring_attempt_is_denied(self):
         manifest = evidence.build_manifest(self.options)
         pair = self._paired_record(manifest)

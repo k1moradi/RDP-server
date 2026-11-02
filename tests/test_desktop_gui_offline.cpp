@@ -1208,17 +1208,21 @@ int main(int argc, char** argv)
         assert(wifiIndex != 0);
 
         // setCurrentIndex() is a programmatic change notification, not the
-        // user's activated() selection. It must fall back to the fresh R10
-        // recommendation and must not poison a later unrelated preference save.
+        // user's activated() selection. It may change presentation, but must
+        // neither save nor become durable manual-interface intent.
         interfaces->setCurrentIndex(wifiIndex);
         assert(interfaces->currentData(Qt::UserRole + 1).toString() ==
-               QStringLiteral("ethernet-1"));
+               QStringLiteral("wifi-2"));
         assert(fakePreferenceSaves == 0);
 
+        // A later independent preference action saves only its own non-secret
+        // value; the subsequent refresh follows the fresh R10 recommendation.
         port->setValue(3391);
         assert(fakePreferenceSaves == 1);
         assert(fakeStoredPreferences.port == 3391U);
         assert(fakeStoredPreferences.preferredStableLanInterfaceId.empty());
+        assert(interfaces->currentData(Qt::UserRole + 1).toString() ==
+               QStringLiteral("ethernet-1"));
 
         // Loading or saving non-secret preferences cannot configure a
         // credential, request host permission, configure/start R1, or publish

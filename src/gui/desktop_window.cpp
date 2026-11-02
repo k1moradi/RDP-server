@@ -1155,13 +1155,9 @@ DesktopWindow::DesktopWindow(
     });
     connect(exportDiagnostics_, &QPushButton::clicked,
             this, [this] { exportDiagnostics(); });
-    connect(interfaces_, &QComboBox::currentIndexChanged,
-            this, [this](int) {
-                // A change notification alone is not owner intent:
-                // programmatic selection changes must never become a saved
-                // stable-interface preference.
-                refresh();
-            });
+    // Only activated() is owner intent. Do not refresh from
+    // currentIndexChanged: Qt emits it before activated for a changed user
+    // selection, and rebuilding here could discard that choice before save.
     connect(interfaces_, &QComboBox::activated, this,
             [this](int) {
                 // activated() is the owner action even when the already

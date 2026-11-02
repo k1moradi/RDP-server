@@ -2334,7 +2334,15 @@ int main(int argc, char** argv)
         assert(secondWaiting.acceptedClientPreauthDiagnostics.termination ==
                RuntimeAcceptedClientTermination::Open);
         assert(!secondWaiting.acceptedClientPreauthDiagnostics.directNtlmTypeTwoDelivered);
-        assertPreAdmissionNativeIsolation(secondWaiting);
+        // This intentionally pre-Type-1 client has not reached the Type-2
+        // stage required by assertPreAdmissionNativeIsolation().
+        assert(secondWaiting.stage == RuntimeHostStage::ClientAuthenticating);
+        assert(secondWaiting.acceptedClientPreauthDiagnostics.protocolStage ==
+               RuntimeAcceptedClientProtocolStage::PreAdmission);
+        assert(!secondWaiting.acceptedClientPreauthDiagnostics.mcsSessionAdvanced);
+        assert(!secondWaiting.acceptedClientPreauthDiagnostics.shareActivated);
+        assertGraphicsDormant(secondWaiting);
+        assertClipboardDormant(secondWaiting);
         assert(control.disconnectClient(secondId).succeeded());
         const RuntimeHostStatus cancelled = control.status();
         assert(cancelled.lastError == RuntimeHostError::None);

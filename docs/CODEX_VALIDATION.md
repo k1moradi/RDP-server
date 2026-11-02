@@ -1,3 +1,7 @@
+## R10 P0 pre-Type-1 TLS-only cancellation fixture assertion correction (2026-11-02)
+
+Follow-up source review of `a45d5cfeec8f77e9ac15a4eaf30e1b4cc8106418` found that the existing `assertPreAdmissionNativeIsolation` helper requires a **delivered Type 2**, so calling it for the second intentionally pre-Type-1/TLS-only client was an invalid test assertion. This correction keeps the original Type-2-specific helper for first/fresh connections and uses direct typed pre-admission/MCS/Share plus native/Graphics/Clipboard dormancy checks for the TLS-only owner-cancel case. No production, socket/TLS, R2/R3/R4/R7 or Python change. Exact-correction-SHA hosted CTest **PENDING**; local CTest **NOT RUN**.
+
 ## 2026-11-02 — R5 typed geometry observation hosted closure
 
 Publication SHA `0055c715eaaaa65dec6359229c91289d01c98fba` is hosted-qualified for the R5 increment. Structure run `41411712705` PASS. Protocol run `41411712627`: Ubuntu `125166058575` tests-disabled native desktop target PASS, full Debug **1137/1137 PASS**, full Release **1137/1137 PASS**, with `x11.native-geometry-observation-pixel-geometry-mismatch-denial` PASS in both. Sanitizer `125166058636` PASS with unchanged fixed native X11 **45/45**, separate implicit destructor **2/2**, and authority-loss held-input **1/1**. R5 Linux GUI ZIP `125166058422` PASS.

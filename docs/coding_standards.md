@@ -1,3 +1,7 @@
+## R5 typed native-frame observation integrity (2026-11-02)
+
+Treat `X11NativeGeometryObservation` as inert provenance, never as authority or a mutable surface selector. Immediately before the synchronous R5→R4 framebuffer borrow, require exact equality of current native-session generation, unique capture generation and pixel geometry. A mismatch in any one field must deny before the callback and must not manufacture a new XCB/XShm owner or presentation generation. The callback owns only a synchronous borrowed span; terminal authority loss still invalidates the post-callback fence and emits no XTEST cleanup posts.
+
 ## R2 bounded on-disk preference records and recovery (2026-11-01)
 
 Keep the fixed-v1 preferences loader bounded at the storage edge, not merely inside the decoder. POSIX reads at most one byte beyond the maximum record to classify overlong content; Windows rejects a file size outside the fixed bound before `ReadFile`. In either case, malformed/partial/overlong private files are `Invalid`, outputs are safe defaults, and no fallback path is consulted. Saving may replace a corrupt record only after the existing path/object ownership, type, link-count, mode/DACL and non-reparse checks succeed. POSIX keeps descriptor-relative private-temp + `renameat`; Windows uses the qualified existing-target `ReplaceFileW` path and no-replace first-publication `MoveFileExW(MOVEFILE_WRITE_THROUGH)`. Do not add a second store or persist any R2/R10 authority material.

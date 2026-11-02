@@ -1,3 +1,7 @@
+## R5 typed geometry observation regression has no hot-path change (2026-11-02)
+
+The new Xvfb regression pins an existing equality fence and changes no production capture, XShm allocation, stride calculation, callback, input, RandR, scheduler or transport code. No benchmark is applicable or claimed; benchmark NOT RUN. Any future production hot-path change at this boundary still requires measurement under the existing benchmark policy.
+
 ## R2 oversized preference record denial is correctness-only (2026-11-01)
 
 The new regression exercises cold private-file size validation, safe-default reset and existing atomic recovery only. It changes no production code, allocation policy, protocol/frame/input/Clipboard hot path or scheduler. No throughput benchmark is applicable or claimed; benchmark NOT RUN. Preserve bounded fixed-v1 I/O even if a synthetic benchmark would favor a looser parser.

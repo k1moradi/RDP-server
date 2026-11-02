@@ -1043,6 +1043,51 @@ struct NativeGeometryFrameProbe final
     }
 };
 
+
+// A retained native observation is inert provenance, not a mutable surface
+// selection. Even with the exact current capture/session generations, an
+// altered pixel geometry must be denied before any XShm borrow or callback.
+void
+syntheticXvfbNativeGeometryObservationPixelGeometryMismatchDenial()
+{
+    constexpr std::uint64_t nativeSessionGeneration = 434U;
+    constexpr std::uint64_t maximumCapturePixels = 1280U * 720U;
+    const char *display = syntheticDisplay();
+
+    X11DesktopResources resources(display, maximumCapturePixels);
+    requireValidResources(resources, "native geometry field mismatch denial");
+
+    const X11NativeGeometryObservation current =
+        resources.observeNativeGeometry(nativeSessionGeneration);
+    assert(current.valid());
+    assert((current.pixelGeometry == PixelSize{1280, 720}));
+
+    X11NativeGeometryObservation staleGeometry = current;
+    staleGeometry.pixelGeometry.widthPixels -= 1U;
+    assert(staleGeometry.valid());
+    assert(staleGeometry.captureGeneration == current.captureGeneration);
+    assert(staleGeometry.nativeSessionGeneration ==
+           current.nativeSessionGeneration);
+    assert(!resources.nativeGeometryIsCurrent(
+        staleGeometry, nativeSessionGeneration));
+
+    NativeGeometryFrameProbe probe{
+        current.pixelGeometry, current.captureGeneration};
+    assert(!resources.consumeR4Frame(
+        staleGeometry, nativeSessionGeneration, probe.callback()));
+    assert(probe.calls == 0U);
+    assert(resources.valid());
+    assert(resources.captureGeneration() == current.captureGeneration);
+
+    assert(resources.nativeGeometryIsCurrent(
+        current, nativeSessionGeneration));
+    assert(resources.consumeR4Frame(
+        current, nativeSessionGeneration, probe.callback()));
+    assert(probe.calls == 1U);
+
+    resources.retireAfterAuthorizationLoss();
+}
+
 // A new R5 owner can share the same X11 root size and R2-native-session
 // generation with the previous one. Reusing capture epoch 1 would accept a
 // stale observation and even the legacy scalar capture() borrow in this case.
@@ -3007,6 +3052,11 @@ main(int argc, char **argv)
     if (behavior == "native-capture-owner-replacement-aba-denial")
     {
         syntheticXvfbNativeCaptureOwnerReplacementABADenial();
+        return 0;
+    }
+    if (behavior == "native-geometry-observation-pixel-geometry-mismatch-denial")
+    {
+        syntheticXvfbNativeGeometryObservationPixelGeometryMismatchDenial();
         return 0;
     }
     if (behavior == "native-geometry-observation-retirement")

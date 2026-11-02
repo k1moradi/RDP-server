@@ -1,3 +1,11 @@
+## R5 P1 typed native geometry observation field-integrity audit (2026-11-02)
+
+**Authoring parent:** `61cbc755433ebc2904ab078aaad727338071f5d1`. Re-read the mandatory policies and compared current main with qualified R5 `d6c5d90cd3981a0f5931319ef4c4fcec84eeb6ce`. No `src/x11/**` production blob or `tests/test_x11_*/check_x11_*` blob changed. `linux_runtime_host_control.cpp` changed only in the explicit Start credential/session validation path; its GraphicsReady native event drain → current geometry observation → R4 preflight → second geometry-current check → synchronous `consumeR4Frame` sequence is unchanged.
+
+Existing registered Xvfb cases already cover stale RandR/capture generations, same-geometry replacement-owner ABA, replacement native-session generation, full-frame arena exhaustion/stride-length denial, retirement before consumption, and authority retirement from inside the synchronous framebuffer callback. The uncovered distinct caller-integrity boundary was a structurally valid retained observation with current capture/session generations but mismatched pixel geometry. New `x11.native-geometry-observation-pixel-geometry-mismatch-denial` proves the typed fence rejects before callback, preserves the healthy current owner, and then permits the untouched observation. No production correction is needed.
+
+Source/CTest-registry audit PASS. Local build/Xvfb/CTest/ASan/UBSan/benchmark NOT RUN in this connector environment. Exact publication-SHA hosted ordinary Linux CTest and existing R5 sanitizer evidence PENDING; fixed 45-case sanitizer inventory remains unchanged. Offline Xvfb does not prove physical seat0, original R2 authority, client-visible pixels, genuine inbound FRAME_ACK, input/resize or Stop/reconnect.
+
 ## R2 P0 exact-source Windows preference replacement qualification closure (2026-11-02)
 
 **Qualified source SHA:** `dc707faa0214da592ae500ae2c1f99d16a2e96df` (production replacement implementation inherited unchanged from `3c2d88e5a128f896a6a203baff3e8704b0980846`). Exact-source Actions run `41406609874` supplies the executable evidence; structure run `41406609883` also PASSes. No C++/CTest/schema/permission change is needed.

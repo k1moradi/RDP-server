@@ -5239,6 +5239,17 @@ if(TARGET rdp-server-linux-x11-desktop)
             x11.native-capture-owner-replacement-aba-denial
             PROPERTIES LABELS "x11;linux-adapter;native;synthetic-display;graphics;generation;security"
                        TIMEOUT 20)
+        # A retained geometry observation must match every typed field before
+        # the synchronous XShm borrow, even when generation/session are current.
+        add_test(NAME x11.native-geometry-observation-pixel-geometry-mismatch-denial
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_desktop_resources>
+                native-geometry-observation-pixel-geometry-mismatch-denial)
+        set_tests_properties(
+            x11.native-geometry-observation-pixel-geometry-mismatch-denial
+            PROPERTIES LABELS "x11;linux-adapter;native;synthetic-display;graphics;generation;security"
+                       TIMEOUT 20)
         # R5 snapshot/borrow generation fence; no R2 lease, listener or seat0.
         add_test(NAME x11.native-geometry-observation-generation-retirement
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s

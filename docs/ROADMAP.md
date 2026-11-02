@@ -1,3 +1,9 @@
+## R5 in-flight held-input borrow fixture full-surface precondition (2026-11-01)
+
+**Authoring parent:** `3cb182fd9e9cefe0913416d0c937a051505b44e5`. Exact-SHA Ubuntu protocol Actions `41383040205`, job `125078212880`, reached full Debug CTest and failed only `x11.desktop-resource-inflight-held-input-borrow-revocation`: the fixture asserted one callback but production `consumeR4Frame()` correctly rejected before callback. The test constructed its X11 owner with the shared `256 * 1024` pixel arena while `consumeR4Frame()` captures the complete 1280x720 Xvfb surface (921,600 pixels). Neighboring X11 tests passed and the existing full-frame native-geometry tests already provision a full-surface arena.
+
+Fix only the fixture precondition: for the in-flight callback-retirement case, size the XShm arena from the current synthetic screen width and height; keep the smaller arena for the unrelated teardown cases. Production R5 capture, authority retirement, XTEST behavior, R4/R10 ownership and fixed sanitizer selections are unchanged. Source/log diagnosis **PASS**. Connector-local configure/build/focused/full Debug/Release CTest, Xvfb and sanitizers **NOT RUN**; exact corrective-SHA hosted Ubuntu Debug/Release and existing sanitizer lanes are **PENDING**. This automated R5 qualification defect is independent of the unchanged physical R1/R6 Windows App blocker.
+
 ## R7 P0 follow-up — maximum-length stdin CRLF without widening the secret (2026-11-01)
 
 **Authoring parent:** `60b02ba7ae6a9c0233fa6124fa7c05a1987ac9d7`. Rechecked current main R2 preference

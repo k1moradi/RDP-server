@@ -1801,7 +1801,17 @@ syntheticXvfbHeldKeyboardAndButtonTerminalRetirement(
     observedXtestRequests = {};
     observeXtestRequests = true;
     {
-        X11DesktopResources originalOwner(display, kCaptureArenaPixels);
+        // consumeR4Frame() borrows the complete current surface. Only the
+        // in-flight callback case needs a full-surface XShm arena; the other
+        // terminal-retirement cases intentionally keep the smaller fixture.
+        const std::uint64_t maximumCapturePixels =
+            retirement ==
+                    AggregateHeldInputRetirement::
+                        InFlightFrameBorrowAuthorizationLoss
+                ? static_cast<std::uint64_t>(screen->width_in_pixels) *
+                      screen->height_in_pixels
+                : kCaptureArenaPixels;
+        X11DesktopResources originalOwner(display, maximumCapturePixels);
         requireValidResources(originalOwner, "held key/button terminal owner");
         retiredGeometry =
             originalOwner.observeNativeGeometry(nativeSessionGeneration);

@@ -1,3 +1,9 @@
+## R5 in-flight held-input Xvfb fixture arena correction (2026-11-01)
+
+At parent `3cb182fd9e9cefe0913416d0c937a051505b44e5`, Actions `41383040205` / Ubuntu protocol job `125078212880` ran 1124 Debug tests and failed only `x11.desktop-resource-inflight-held-input-borrow-revocation`. The assertion `consumer.callbackCount == 1U` failed because the fixture supplied a 262,144-pixel XShm arena while the production `consumeR4Frame()` path requests the full 1280x720 surface. Production correctly returned before the callback rather than overrunning or weakening bounds.
+
+The correction sizes only that in-flight test case's capture arena to the synthetic screen area and leaves all production code and other retirement cases unchanged. Static source/failure-log review **PASS**; local build/CTest/Xvfb/sanitizers/benchmark **NOT RUN**; exact publication-SHA hosted qualification **PENDING**. No physical client/native-seat evidence is inferred.
+
 ## R7 exact-limit --password-stdin CRLF (2026-11-01)
 
 Reviewed main parent `60b02ba7ae6a9c0233fa6124fa7c05a1987ac9d7`, R2 secure prefs, R7 bounded

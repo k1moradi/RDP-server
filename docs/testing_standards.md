@@ -1,3 +1,7 @@
+## Full-frame X11 borrow fixtures must provision the full synthetic surface (2026-11-01)
+
+A test that calls production `X11DesktopResources::consumeR4Frame()` must provision an XShm capture arena large enough for the complete current synthetic surface because that API borrows the full frame, not the test's damage rectangle. Small-arena fixtures may still be used for teardown/input-only behavior. A callback-count assertion is valid only after satisfying this capture precondition; do not weaken production bounds or change `consumeR4Frame()` to accommodate an undersized fixture.
+
 ## Exact-boundary redirected password line ending (2026-11-01)
 
 Register `gui.offscreen-rapid-stdin-crlf-maximum` in the existing

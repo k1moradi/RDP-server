@@ -359,7 +359,7 @@ def self_test_unscheduled_run_state() -> None:
             raise AssertionError("missing SSPI archive lost workflow lifecycle")
         if report["physical_windows_app_login"] != "NOT_VERIFIED":
             raise AssertionError("run scheduling was promoted to physical acceptance")
-        if expected == "RUN_QUEUED":
+        if expected_lane == "RUN_QUEUED":
             mismatch = evaluate(sha, other_sha, run, missing_jobs, no_artifacts)
             if mismatch["current_head"] != "DIFFERENT_SHA":
                 raise AssertionError("ancestor scheduling was treated as current")

@@ -1,3 +1,7 @@
+## R6 original-provider evidence and malformed pair identity (2026-11-02)
+
+A UI-only first error must not qualify an observed CredSSP failure merely because private JSON includes a matching UTC instant and plausible provider-category text. Both the original source-bound client stage and a valid typed *provider-bearing* first-error source are required at the same instant. Test allowed-but-insufficient UI sources, not only invalid source values. Malformed pair certificate identity must mask otherwise valid older client-stage/error/Type-3/native projections as firmly as a changed certificate; preserve closed source digests, categories, timestamps, strict UTF-8 and public redaction. Reuse existing CTest selectors.
+
 ## R1 returned peer observations are join-scoped (2026-11-02)
 
 The production-backed generation-isolation fixture may use a release/acquire signal to prove that its worker has received and decrypted Type 2 while the original R1 connection remains held. That signal does **not** publish the caller's returned `PeerResult`: `runDirectTypeTwoThenClosePeer` returns only after its release gate, so the caller-side assignment happens after the worker is allowed to finish. Keep current server-side connection/generation assertions before release, then release and join the worker before reading returned client certificate/challenge observations. Do not weaken this sequencing by adding a second socket/TLS reader or by treating server-side `SSL_write_ex` acceptance as physical-client receipt.

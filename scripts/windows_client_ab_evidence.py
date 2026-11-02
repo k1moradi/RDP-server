@@ -452,6 +452,11 @@ def _credssp_failure_first_error_failures(
         return [f"{prefix}_CREDSSP_FAILURE_TYPED_ERROR_MISSING"]
     if not first_error_valid:
         return [f"{prefix}_CREDSSP_FAILURE_TYPED_ERROR_INVALID"]
+    # UI-only error text is not an original CredSSP provider observation,
+    # even when a private record supplies a plausible category and UTC time.
+    if first_error.get("source") not in {
+            "core", "core-and-ui", "owner-approved-diagnostic"}:
+        return [f"{prefix}_CREDSSP_FAILURE_TYPED_ERROR_INVALID"]
 
     provider_category = first_error.get("provider_category_exact")
     error_time = first_error.get("event_time_utc")
@@ -781,6 +786,13 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
     # Cross-generation input may fail its pair check while each row remains
     # internally well formed. Never project those stale original observations.
     pair_generation_invalid = any(code in failures for code in (
+        # Missing/malformed pair identity is as unsafe for publication as a
+        # syntactically valid mismatch: neither row can qualify the pair.
+        "MACOS_R5_EVIDENCE_INVALID", "WINDOWS_CERTIFICATE_INVALID",
+        "WINDOWS_SERVER_SHA_INVALID", "AB_TARGET_OR_ATTEMPT_INVALID",
+        "AB_SERVICE_ENDPOINT_INVALID", "SERVER_PROFILE_INVALID",
+        "WINDOWS_ATTEMPT_CORRELATION_INVALID",
+        "WINDOWS_ATTEMPT_CORRELATION_MISMATCH",
         "AB_CERTIFICATE_FINGERPRINT_MISMATCH", "AB_SERVER_SHA_MISMATCH",
         "AB_DESTINATION_MISMATCH", "AB_SERVICE_ENDPOINT_MISMATCH",
         "AB_SERVER_PROFILE_MISMATCH", "AB_TARGET_IDENTITY_MISMATCH",

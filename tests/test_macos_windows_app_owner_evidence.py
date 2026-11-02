@@ -836,6 +836,34 @@ class OwnerEvidenceTests(unittest.TestCase):
         self.assertNotIn(private_provider, json.dumps(mixed_generation))
         self.assertNotIn("rdp-owner", json.dumps(mixed_generation))
 
+        # Malformed certificate identity also fences an otherwise valid macOS
+        # stage/error: an unknown generation is not a comparable pair.
+        pair = self._paired_record(manifest)
+        for platform, digest in (("macos", "d"), ("windows", "e")):
+            pair[platform]["client_security_stages"]["type2_received"] = "PASS"
+            original_event = self._client_event(pair, platform)
+            original_event["source_record_sha256"] = digest * 64
+            pair[platform]["client_stage_evidence"]["type2_received"] = original_event
+        pair["windows"]["server_certificate_sha256"] = "private-invalid-fingerprint"
+        pair["windows"]["source_binding"]["server_certificate_sha256"] = (
+            "private-invalid-fingerprint")
+        malformed_generation = ab_evidence.validate_pair(manifest, pair)
+        self.assertEqual(malformed_generation["evidence_status"], "FAIL")
+        self.assertIn("WINDOWS_CERTIFICATE_INVALID",
+                      malformed_generation["evidence_failures"])
+        self.assertEqual(malformed_generation["comparison"], "INCONCLUSIVE")
+        for platform in ("macos", "windows"):
+            self.assertEqual(
+                malformed_generation[platform]["first_client_error_category"],
+                "unknown")
+            self.assertTrue(all(
+                state == "NOT_OBSERVED"
+                for state in malformed_generation[platform][
+                    "client_security_stages"].values()))
+        self.assertNotIn("private-invalid-fingerprint",
+                         json.dumps(malformed_generation))
+        self.assertNotIn(private_provider, json.dumps(malformed_generation))
+
         # A neighboring Windows client cannot impersonate Windows App's record.
         pair = self._paired_record(manifest)
         pair["windows"]["client_security_stages"]["type3_generated"] = "PASS"
@@ -1155,6 +1183,24 @@ class OwnerEvidenceTests(unittest.TestCase):
                     "FAIL",
                 )
                 self.assertNotIn(private_provider, json.dumps(valid))
+
+            with self.subTest(platform=platform, case="ui-only-provider-claim-denied"):
+                # UI-only text does not become a typed CredSSP provider event.
+                original_source = first_error["source"]
+                first_error["source"] = (
+                    "ui-error" if platform == "macos" else "windows-ui")
+                ui_only = ab_evidence.validate_pair(manifest, pair)
+                self.assertEqual(ui_only["evidence_status"], "FAIL")
+                self.assertIn(
+                    f"{platform.upper()}_CREDSSP_FAILURE_TYPED_ERROR_INVALID",
+                    ui_only["evidence_failures"])
+                self.assertEqual(
+                    ui_only[platform]["first_client_error_category"], "unknown")
+                self.assertTrue(all(
+                    state == "NOT_OBSERVED"
+                    for state in ui_only[platform]["client_security_stages"].values()))
+                self.assertNotIn(private_provider, json.dumps(ui_only))
+                first_error["source"] = original_source
 
             with self.subTest(platform=platform, case="different-event-denied"):
                 if platform == "macos":

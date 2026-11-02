@@ -1,6 +1,8 @@
-## R5 typed native-frame observation integrity (2026-11-02)
+## R8 CLIPRDR parser failure cannot complete an owned partial write (2026-11-02)
 
-Treat `X11NativeGeometryObservation` as inert provenance, never as authority or a mutable surface selector. Immediately before the synchronous R5→R4 framebuffer borrow, require exact equality of current native-session generation, unique capture generation and pixel geometry. A mismatch in any one field must deny before the callback and must not manufacture a new XCB/XShm owner or presentation generation. The callback owns only a synchronous borrowed span; terminal authority loss still invalidates the post-callback fence and emits no XTEST cleanup posts.
+Treat CLIPRDR parsing and R3/R1 write completion as separate authorities. A complete, length-correct Clipboard PDU can still be structurally invalid inside its typed payload, for example a Capabilities count that exceeds the sets actually present. If such a recognized PDU poisons the current R8 transfer while an outbound response already has a positive partial R3/R1 receipt, retire the route; never reinterpret parser failure as delivery, never advance the pending suffix locally, and never let its one-shot route observation or transfer generation cross a reconnect. R3 remains the sole owner of the exact route/reply/slice receipt and caller teardown closes that transport state.
+
+For `CLIPRDR_GENERAL_CAPABILITY`, keep `version` informational as required by MS-RDPECLIP; capability decisions come only from mutually supported `generalFlags`. Unknown bounded capability sets remain non-authorizing, while malformed count/length, duplicate General sets, invalid PDU flags and malformed Format Lists fail closed. Preserve the single R10 scheduler, single R1 writer and fresh R2 Clipboard permission fence; parser hardening must not create a second queue or native Clipboard issuer.
 
 ## R2 bounded on-disk preference records and recovery (2026-11-01)
 

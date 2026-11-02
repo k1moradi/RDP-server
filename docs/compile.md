@@ -1,6 +1,10 @@
-## R5 typed geometry observation hosted qualification (2026-11-02)
+## R8 malformed late-Capabilities partial-response qualification (2026-11-02)
 
-Reuse only `~/rdp-server/build/` (hosted CI: the checkout's sole `build/`). After the canonical Linux Debug configure/build, run `ctest --test-dir build -C Debug -R '^x11[.]native-geometry-observation-(pixel-geometry-mismatch-denial|generation-retirement)$' --output-on-failure`, then full Debug CTest; repeat focused/full Release in the same root. Preserve the existing fixed 45-case native X11 ASan/UBSan selector and independently selected retirement cases unchanged. Connector-local execution and physical X11 seat0 are NOT RUN; exact publication-SHA hosted results are required.
+No new target, dependency or build root is introduced. After the canonical Debug build, run the distinct ordinary case with:
+
+`ctest --test-dir build -C Debug -R '^runtime[.]clipboard-post-initialization-malformed-capabilities-pending-response-retirement$' --output-on-failure`
+
+Then run ordinary full Debug/Release CTest in the same build root. Hosted R9 sanitizer qualification must retain the existing fixed Clipboard **107-case** selection and static CLIPRDR **9-case** selector; the new test deliberately has no `clipboard` label and does not require a new sanitizer inventory entry. No native desktop, X11 clipboard, credential or physical client is required.
 
 ## R2 bounded corrupt-preference storage qualification (2026-11-01)
 

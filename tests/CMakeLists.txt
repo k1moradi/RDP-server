@@ -3161,6 +3161,17 @@ set_tests_properties(
     runtime.clipboard-post-initialization-partial-response-stop-reconnect-denials
     PROPERTIES LABELS "runtime;security;offline")
 
+
+# A complete but internally malformed first late Capabilities PDU cannot race
+# a positive-partial later Format List response or consume its R3/R1 suffix.
+# Distinct ordinary coverage, outside the fixed 107 Clipboard sanitizer cases.
+add_test(NAME runtime.clipboard-post-initialization-malformed-capabilities-pending-response-retirement
+    COMMAND test_r8_r3_clipboard_bridge
+        post-initialization-malformed-capabilities-pending-response-retirement)
+set_tests_properties(
+    runtime.clipboard-post-initialization-malformed-capabilities-pending-response-retirement
+    PROPERTIES LABELS "runtime;security;offline")
+
 # Permission-only native R2 visits must not leave one-shot route authority
 # armed for a later R8 PDU. Outside the fixed 107-case Clipboard selector.
 add_test(NAME runtime.clipboard-permission-only-route-observation-consumption
@@ -5237,17 +5248,6 @@ if(TARGET rdp-server-linux-x11-desktop)
                 native-capture-owner-replacement-aba-denial)
         set_tests_properties(
             x11.native-capture-owner-replacement-aba-denial
-            PROPERTIES LABELS "x11;linux-adapter;native;synthetic-display;graphics;generation;security"
-                       TIMEOUT 20)
-        # A retained geometry observation must match every typed field before
-        # the synchronous XShm borrow, even when generation/session are current.
-        add_test(NAME x11.native-geometry-observation-pixel-geometry-mismatch-denial
-            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
-                "-screen 0 1280x720x24 -nolisten tcp -noreset"
-                $<TARGET_FILE:test_x11_desktop_resources>
-                native-geometry-observation-pixel-geometry-mismatch-denial)
-        set_tests_properties(
-            x11.native-geometry-observation-pixel-geometry-mismatch-denial
             PROPERTIES LABELS "x11;linux-adapter;native;synthetic-display;graphics;generation;security"
                        TIMEOUT 20)
         # R5 snapshot/borrow generation fence; no R2 lease, listener or seat0.

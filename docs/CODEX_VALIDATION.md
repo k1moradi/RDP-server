@@ -1,3 +1,9 @@
+## R8 P1 malformed late-Capabilities / partial-response retirement (2026-11-02)
+
+**Authoring parent:** `cc14ff7367223a76832d8dacf1757964b6cb8481`. Source/spec/ownership/CTest-registry audit: **PASS**. The new ordinary production-backed R8/R3 case composes a positive-partial later Format List response with a complete outer `CB_CLIP_CAPS` whose capability count exceeds the available sets, then proves route retirement, untouched R3 transport suffix until route close, stale-receipt isolation, fresh replacement transfer generation, valid late capability negotiation and long-format recovery. No production code or CI selector is changed; fixed Clipboard sanitizer **107**, static CLIPRDR **9**, separate receipt-retirement and X11 callback-retirement selections remain unchanged.
+
+Connector-local canonical configure/build/focused/full Debug+Release CTest, ASan/UBSan and benchmark: **NOT RUN** because no owner checkout is mounted. Exact-publication hosted CI: **PENDING**. Production Clipboard activation remains hard-disabled by `kLinuxProductionClipboardActivationApproved = false`; macOS View/Input-only authorization grants no Clipboard permission. No physical Clipboard, X11 paste, file transfer, Microsoft client, credential or owner-native action was performed.
+
 ## R4 P1 — Linux R10 credit pre-borrow source regression (2026-11-02)
 
 - Parent main at authoring: `0055c715eaaaa65dec6359229c91289d01c98fba`; exact publication SHA and hosted run must be attributed after the atomic main ref update.

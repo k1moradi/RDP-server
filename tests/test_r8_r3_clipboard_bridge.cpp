@@ -788,6 +788,138 @@ void postInitializationPartialResponseStopReconnectDenials()
     replacementRoute.close();
 }
 
+
+void postInitializationMalformedCapabilitiesPendingResponseRetirement()
+{
+    using namespace rdp_server::clipboard;
+    using Stage = R3ClipboardTransferBridge::ServerInitializationStage;
+    constexpr std::uint32_t flags = kUseLongFormatNames;
+    constexpr RdpClipboardStaticChannelView originalView{1008U, 414U};
+    constexpr RdpClipboardStaticChannelView replacementView{1008U, 415U};
+
+    R3ClipboardTransferBridge bridge(flags, true);
+    auto visitor = bridge.channelVisitor();
+    auto sink = bridge.completePduSink();
+
+    RdpClipboardStaticChannelRoute originalRoute;
+    assert(originalRoute.start(
+        1005U, originalView.channelId, originalView.generation, 1600U));
+
+    // Capabilities and Temporary Directory are optional. Reach Ready with the
+    // mandatory short-name fallback so a later Capabilities PDU is genuinely
+    // the first one parsed for this route.
+    deliverServerInitializationPrelude(bridge, originalRoute, originalView);
+    assert(visitor.visit(visitor.context, originalView));
+    assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    deliverPendingSinglePacketWithFraming(bridge, originalRoute);
+    assert(bridge.serverInitializationReady());
+    assert(bridge.transfer().negotiatedGeneralFlags() == 0U);
+
+    // A later valid Format List queues its response. Commit exactly one
+    // original R3/R1 byte so the response has an ambiguous live transport
+    // suffix when the malformed client message arrives.
+    assert(visitor.visit(visitor.context, originalView));
+    assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    assert(originalRoute.queue(bridge.pendingApplicationPdu()));
+    const auto partialWrite = originalRoute.pending();
+    assert(partialWrite && bridge.bindQueuedWrite(partialWrite));
+    const std::uint64_t oldRouteGeneration = partialWrite.routeGeneration;
+    const std::uint64_t oldReplySequence = partialWrite.replySequence;
+    const std::uint64_t oldWriteSliceSequence =
+        partialWrite.writeSliceSequence;
+    const std::size_t oldOfferedBytes = partialWrite.wireBytes.size();
+    assert(oldOfferedBytes > 1U);
+    const auto partialOutcome = originalRoute.onAcceptedBytes(
+        oldRouteGeneration, oldReplySequence, oldWriteSliceSequence, 1U);
+    assert(partialOutcome == RdpClipboardWriteOutcome::Pending);
+    assert(bridge.recordAcceptedWriteReceipt(
+        oldRouteGeneration, oldReplySequence, oldWriteSliceSequence,
+        oldOfferedBytes, 1U, partialOutcome));
+    assert(bridge.serverInitializationReady());
+    assert(!bridge.pendingApplicationPdu().empty());
+    const auto pendingSuffix = originalRoute.pending();
+    assert(pendingSuffix);
+    const std::size_t oldRemainingBytes = pendingSuffix.wireBytes.size();
+    const std::uint64_t oldRemainingSliceSequence =
+        pendingSuffix.writeSliceSequence;
+    assert(oldRemainingBytes != 0U &&
+           oldRemainingSliceSequence != oldWriteSliceSequence);
+
+    // The outer CLIPRDR header is complete and length-correct, but the
+    // capability count claims two sets while only one General set is present.
+    // A late first Capabilities PDU is legal in Ready; malformed contents are
+    // not. R8 must retire instead of consuming or completing the pending write.
+    auto malformedCapabilities = capabilitiesPdu(flags);
+    assert(malformedCapabilities.size() == 24U);
+    malformedCapabilities[8U] = 2U;
+    PduView malformed{};
+    assert(decodePdu(malformedCapabilities, malformed));
+    assert(malformed.type == kClipCaps && malformed.flags == 0U &&
+           malformed.payload.size() == 16U);
+    assert(visitor.visit(visitor.context, originalView));
+    assert(!sink.consume(sink.context, malformedCapabilities));
+    assert(!bridge.active());
+    assert(!bridge.serverInitializationReady());
+    assert(bridge.serverInitializationStage() == Stage::Dormant);
+    assert(bridge.pendingApplicationPdu().empty());
+    assert(bridge.transfer().generation() == 0U);
+    assert(bridge.transfer().negotiatedGeneralFlags() == 0U);
+
+    // Bridge retirement does not manufacture a transport receipt. R3 still
+    // owns the same old suffix until the caller closes that failed route.
+    const auto stillPending = originalRoute.pending();
+    assert(stillPending &&
+           stillPending.replySequence == oldReplySequence &&
+           stillPending.writeSliceSequence == oldRemainingSliceSequence &&
+           stillPending.wireBytes.size() == oldRemainingBytes);
+    assert(!bridge.recordAcceptedWriteReceipt(
+        oldRouteGeneration, oldReplySequence, oldWriteSliceSequence,
+        oldOfferedBytes, 1U, partialOutcome));
+    originalRoute.close();
+    const std::uint64_t retiredSourceEpoch = bridge.transfer().sourceEpoch();
+
+    // Numeric channel reuse starts from a fresh protocol generation. The old
+    // partial receipt cannot mutate it, while a valid first late Capabilities
+    // PDU and long Format List work normally on the replacement route.
+    RdpClipboardStaticChannelRoute replacementRoute;
+    assert(replacementRoute.start(
+        1005U, replacementView.channelId,
+        replacementView.generation, 1600U));
+    deliverServerInitializationPrelude(
+        bridge, replacementRoute, replacementView);
+    assert(visitor.visit(visitor.context, replacementView));
+    assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    deliverPendingSinglePacketWithFraming(bridge, replacementRoute);
+    assert(bridge.active() && bridge.serverInitializationReady());
+    assert(bridge.routeGeneration() == replacementView.generation);
+    assert(bridge.transfer().generation() == 1U);
+    assert(bridge.transfer().sourceEpoch() > retiredSourceEpoch);
+    const std::uint64_t replacementSourceEpoch =
+        bridge.transfer().sourceEpoch();
+
+    assert(!bridge.recordAcceptedWriteReceipt(
+        oldRouteGeneration, oldReplySequence, oldWriteSliceSequence,
+        oldOfferedBytes, 1U, partialOutcome));
+    assert(bridge.active() && bridge.serverInitializationReady());
+    assert(bridge.transfer().sourceEpoch() == replacementSourceEpoch);
+
+    assert(visitor.visit(visitor.context, replacementView));
+    assert(sink.consume(sink.context, capabilitiesPdu(flags)));
+    assert(bridge.transfer().negotiatedGeneralFlags() == flags);
+
+    std::vector<std::uint8_t> longPayload;
+    appendLongFormat(longPayload, kFormatUnicodeText, "");
+    assert(visitor.visit(visitor.context, replacementView));
+    assert(sink.consume(sink.context, longFormatListPdu(longPayload)));
+    deliverPendingSinglePacketWithFraming(bridge, replacementRoute);
+    assert(bridge.serverInitializationReady());
+    assert(bridge.pendingApplicationPdu().empty());
+
+    bridge.retireR3ChannelState();
+    replacementRoute.close();
+}
+
+
 void clientOriginatedMonitorReadyRouteRetirement()
 {
     using namespace rdp_server::clipboard;
@@ -1774,6 +1906,9 @@ int main(int argc, char **argv)
         permissionOnlyRouteObservationConsumption();
     else if (behavior == "post-initialization-partial-response-stop-reconnect-denials")
         postInitializationPartialResponseStopReconnectDenials();
+    else if (behavior ==
+             "post-initialization-malformed-capabilities-pending-response-retirement")
+        postInitializationMalformedCapabilitiesPendingResponseRetirement();
     else if (behavior == "client-originated-monitor-ready-route-retirement")
         clientOriginatedMonitorReadyRouteRetirement();
     else if (behavior == "client-initialization-requires-monitor-delivery")

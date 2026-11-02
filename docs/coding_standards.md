@@ -1,3 +1,15 @@
+## R2 POSIX preference ancestry reports unsafe paths distinctly (2026-11-01)
+
+For the no-path per-user preference resolver, `Missing` is reserved for a
+genuinely absent configuration/application-data component. An existing POSIX
+component that fails no-follow open, owner/type validation or the allowed
+ancestor mode policy must report `Invalid` on load rather than being collapsed
+into a first-run miss. Secure creation failures remain `Unavailable`. This
+typed status distinction is capability/security reporting only: every
+non-`Loaded` result still leaves safe defaults, grants no R2 permission,
+configures no credential/listener and never falls back to cwd, the executable
+directory or another store.
+
 ## R10 macOS owner wait must survive the bounded GUI wrapper (2026-11-01)
 
 After original R1/R2 pre-admission service, R10 must return the actual retryable wait whenever no mapped GraphicsReady frame step ran. Native servicing in a non-GraphicsReady stage is not itself TLS progress. The frame path still returns R3/R4's result; retain the sole original socket/TLS reader/writer and the eight-call finite Qt burst.

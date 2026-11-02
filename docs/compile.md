@@ -1,3 +1,15 @@
+## R2 POSIX unsafe-ancestor preference qualification (2026-11-01)
+
+Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build,
+run
+`ctest --test-dir build -C Debug -R '^runtime[.]user-preferences-(owner-private-versioned-roundtrip-denials|unsafe-config-ancestor-reports-invalid)$' --output-on-failure`,
+then ordinary full Debug and Release CTest and the existing applicable
+sanitizer/platform lanes. The new case adds no executable or dependency and is
+POSIX-only. Connector-local configure/build/CTest/sanitizers are **NOT RUN**
+because no canonical checkout is mounted and direct GitHub DNS is unavailable;
+exact-publication hosted CI is the next executable gate. Benchmark is **NOT RUN
+/ not applicable** to this cold-path status-classification correction.
+
 ## R9 independent-producer exact-SHA classifier qualification (2026-11-01)
 
 After the canonical configure/build in only `~/rdp-server/build/`, run `python3 scripts/verify_r9_qualification_matrix.py --self-test` and `ctest --test-dir build -C Debug -R '^project[.]exact-sha-qualification-job-status-denials$' --output-on-failure`, then full Debug/Release CTest and normal hosted structure/security/packaging gates at the same publication SHA. No new CTest, target, build directory, dependency or sanitizer selection. Source inspection PASS; local canonical execution NOT RUN.

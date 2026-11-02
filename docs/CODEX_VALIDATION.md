@@ -1,3 +1,34 @@
+## R2 POSIX unsafe preference-parent status hardening (2026-11-01)
+
+Reviewed refreshed shared `main` parent
+`1885fd56c1db34c1d89ca83335560efaded0169a`, required project policy,
+R2 fixed-schema preferences, bootstrap persistence policy, expert
+`--config` grammar, GUI/R7 consumption and the registered storage/GUI tests.
+The established storage boundary already satisfies the fixed v1 non-secret
+schema, bounded UTF-8/numeric parsing, exact private app/file modes, current-user
+Windows DACL, atomic replacement and the R7 no-path API. R7 consumption is
+already on main; no source-composition blocker remains.
+
+One POSIX reporting defect remained: an absent `.config` /
+`Library/Application Support` component and an existing unsafe second-level
+component were both returned as `Missing`. The resolver now centralizes the
+failure classification so only `ENOENT` is `Missing`; symlink/type/mode
+denials are `Invalid`, while secure create failure remains `Unavailable`.
+New ordinary
+`runtime.user-preferences-unsafe-config-ancestor-reports-invalid` exercises
+the same production resolver from an isolated fake home without touching real
+user settings. Public API, record format, credential owners, Session Password,
+R1/R2/R3/R10 authority and GUI behavior are otherwise unchanged.
+
+Source/registry/dependency review: **PASS**. Canonical local Debug/Release
+build, focused/full CTest, ASan/UBSan and benchmarks: **NOT RUN** (no mounted
+checkout; GitHub DNS unavailable). Exact-publication hosted CI: **PENDING**.
+Physical client/native desktop: **NOT RUN**. Future credential-vault support
+remains design-only and still requires an explicit product-policy change to
+`runtimeBootstrapMayPersist(SessionPassword)==false`, opt-in consent,
+unlock/expiry/revoke/delete UX and platform security review before any secret
+persistence.
+
 ## R9 P0 — expose independent owner-candidate producers in per-SHA matrix (2026-11-01)
 
 Reviewed parent `6e71c3003e747ea6773131d8f0bbf685e0403194` after R2/R7 preferences, R10/R3 native/Share composition and the prior roadmap guard landed. The existing `scripts/verify_r9_qualification_matrix.py` already distinguishes per-SHA Debug/Release, sanitizer and clean-Windows consumer states, but omitted independent R2 complete/missing-systemd security jobs, R7 native lifecycle/session sanitizer jobs, Ubuntu/macOS GUI credential parity, Windows PowerShell-parser policy and the Windows Clang23 staged-portable-ZIP step. A green Clang23 job or GUI bootstrap must never substitute for these omitted producers.

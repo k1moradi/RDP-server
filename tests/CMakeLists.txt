@@ -464,6 +464,13 @@ add_test(NAME runtime.user-preferences-owner-private-versioned-roundtrip-denials
     COMMAND test_runtime_user_preferences)
 set_tests_properties(runtime.user-preferences-owner-private-versioned-roundtrip-denials
     PROPERTIES LABELS "runtime;preferences;security;offline")
+if(NOT WIN32)
+    add_test(NAME runtime.user-preferences-unsafe-config-ancestor-reports-invalid
+        COMMAND test_runtime_user_preferences unsafe-config-ancestor-status)
+    set_tests_properties(
+        runtime.user-preferences-unsafe-config-ancestor-reports-invalid
+        PROPERTIES LABELS "runtime;preferences;security;offline;posix")
+endif()
 
 # R6 portable automatic-bootstrap storage/lifetime policy. This pure
 # cross-platform contract opens no listener and performs no filesystem I/O.

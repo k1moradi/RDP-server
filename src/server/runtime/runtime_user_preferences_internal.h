@@ -9,6 +9,16 @@ namespace rdp_server::server::runtime
 {
 namespace detail
 {
+#if !defined(_WIN32)
+// POSIX-only resolver seam for the focused unsafe-ancestor CTest. It uses the
+// same no-follow ownership/mode checks as production but starts from an
+// isolated owner-private fake home. Production never accepts a caller path.
+[[nodiscard]] RuntimeUserPreferencesStorageStatus
+loadRuntimeUserPreferencesFromHomeDirectoryForTesting(
+    const std::filesystem::path& homeDirectory,
+    RuntimeUserPreferences& preferences) noexcept;
+#endif
+
 // Storage-engine seam for isolated offline tests. The caller must provide an
 // already-created, owner-private app directory; production must use the
 // no-path public entry points above. No R2/R10 control is reachable here.

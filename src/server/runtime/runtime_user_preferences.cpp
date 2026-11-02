@@ -199,42 +199,57 @@ private:
     return FileDescriptor{};
 }
 
-[[nodiscard]] RuntimeUserPreferencesStorageStatus openNativeDirectory(
-    FileDescriptor& directory, bool create) noexcept
+[[nodiscard]] RuntimeUserPreferencesStorageStatus
+directoryOpenFailureStatus(const bool create) noexcept
 {
-    std::array<char, 16384> recordBytes{};
-    passwd account{};
-    passwd* accountResult = nullptr;
-    if (::getpwuid_r(::geteuid(), &account, recordBytes.data(),
-                     recordBytes.size(), &accountResult) != 0 ||
-        accountResult != &account || account.pw_dir == nullptr ||
-        account.pw_dir[0] != '/')
+    if (create)
         return RuntimeUserPreferencesStorageStatus::Unavailable;
+    return errno == ENOENT
+        ? RuntimeUserPreferencesStorageStatus::Missing
+        : RuntimeUserPreferencesStorageStatus::Invalid;
+}
+
+[[nodiscard]] RuntimeUserPreferencesStorageStatus openNativeDirectoryFromHome(
+    FileDescriptor& directory, const bool create,
+    const char* homeDirectory) noexcept
+{
+    if (homeDirectory == nullptr || homeDirectory[0] != '/')
+        return RuntimeUserPreferencesStorageStatus::Unavailable;
+
     FileDescriptor home{
-        ::open(account.pw_dir, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)};
+        ::open(homeDirectory, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)};
     if (!home || !privateObject(home.get(), true, false))
         return RuntimeUserPreferencesStorageStatus::Unavailable;
 
 #if defined(__APPLE__)
     auto first = openDirectoryChild(home.get(), "Library", create, false);
     if (!first)
-        return create ? RuntimeUserPreferencesStorageStatus::Unavailable
-                      : (errno == ENOENT ? RuntimeUserPreferencesStorageStatus::Missing
-                                         : RuntimeUserPreferencesStorageStatus::Invalid);
+        return directoryOpenFailureStatus(create);
     auto second = openDirectoryChild(
         first.get(), "Application Support", create, false);
 #else
     auto second = openDirectoryChild(home.get(), ".config", create, false);
 #endif
     if (!second)
-        return create ? RuntimeUserPreferencesStorageStatus::Unavailable
-                      : RuntimeUserPreferencesStorageStatus::Missing;
+        return directoryOpenFailureStatus(create);
     directory = openDirectoryChild(
         second.get(), "rdp-server", create, true);
     return directory ? RuntimeUserPreferencesStorageStatus::Loaded
-                     : (create ? RuntimeUserPreferencesStorageStatus::Unavailable
-                               : (errno == ENOENT ? RuntimeUserPreferencesStorageStatus::Missing
-                                                  : RuntimeUserPreferencesStorageStatus::Invalid));
+                     : directoryOpenFailureStatus(create);
+}
+
+[[nodiscard]] RuntimeUserPreferencesStorageStatus openNativeDirectory(
+    FileDescriptor& directory, const bool create) noexcept
+{
+    std::array<char, 16384> recordBytes{};
+    passwd account{};
+    passwd* accountResult = nullptr;
+    if (::getpwuid_r(::geteuid(), &account, recordBytes.data(),
+                     recordBytes.size(), &accountResult) != 0 ||
+        accountResult != &account || account.pw_dir == nullptr)
+        return RuntimeUserPreferencesStorageStatus::Unavailable;
+    return openNativeDirectoryFromHome(
+        directory, create, account.pw_dir);
 }
 
 [[nodiscard]] RuntimeUserPreferencesStorageStatus loadFromNativeDirectory(
@@ -693,6 +708,29 @@ bool decodeRuntimeUserPreferences(
 
 namespace detail
 {
+
+#if !defined(_WIN32)
+RuntimeUserPreferencesStorageStatus
+loadRuntimeUserPreferencesFromHomeDirectoryForTesting(
+    const std::filesystem::path& homeDirectory,
+    RuntimeUserPreferences& preferences) noexcept
+{
+    preferences = RuntimeUserPreferences{};
+    try
+    {
+        FileDescriptor directory;
+        const auto status = openNativeDirectoryFromHome(
+            directory, false, homeDirectory.c_str());
+        return status == RuntimeUserPreferencesStorageStatus::Loaded
+            ? loadFromNativeDirectory(directory.get(), preferences) : status;
+    }
+    catch (...)
+    {
+        preferences = RuntimeUserPreferences{};
+        return RuntimeUserPreferencesStorageStatus::Unavailable;
+    }
+}
+#endif
 
 RuntimeUserPreferencesStorageStatus loadRuntimeUserPreferencesFromDirectory(
     const std::filesystem::path& directory,

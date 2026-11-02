@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #if defined(_WIN32)
@@ -76,10 +77,83 @@ void writeEncoded(const std::filesystem::path& path,
     assert(stream.good());
 }
 
+int runUnsafeConfigAncestorStatusTest()
+{
+#if defined(_WIN32)
+    return 77;
+#else
+    const unsigned long processId = static_cast<unsigned long>(::getpid());
+    const auto homeDirectory = std::filesystem::current_path() /
+        ("runtime-user-preferences-home-" + std::to_string(processId));
+    assert(createPrivateDirectory(homeDirectory));
+
+#if defined(__APPLE__)
+    const auto libraryDirectory = homeDirectory / "Library";
+    assert(createPrivateDirectory(libraryDirectory));
+    const auto configDirectory = libraryDirectory / "Application Support";
+#else
+    const auto configDirectory = homeDirectory / ".config";
+#endif
+    const auto appDirectory = configDirectory / "rdp-server";
+    const RuntimeUserPreferences defaults{};
+
+    const auto requireStatus =
+        [&](const RuntimeUserPreferencesStorageStatus expected) {
+            RuntimeUserPreferences loaded;
+            loaded.lastExplicitUsername = "must-reset";
+            loaded.port = 3399U;
+            assert(detail::loadRuntimeUserPreferencesFromHomeDirectoryForTesting(
+                       homeDirectory, loaded) == expected);
+            assert(loaded.lastExplicitUsername.empty());
+            assert(loaded.port == defaults.port);
+            assert(loaded.preferRemoteInput == defaults.preferRemoteInput);
+        };
+
+    // A truly absent configuration parent is a normal first-run condition.
+    requireStatus(RuntimeUserPreferencesStorageStatus::Missing);
+
+    // An existing no-follow path that cannot be accepted as a private
+    // directory is a security/capability failure, not an ordinary miss.
+    assert(::symlink(homeDirectory.c_str(), configDirectory.c_str()) == 0);
+    requireStatus(RuntimeUserPreferencesStorageStatus::Invalid);
+    assert(::unlink(configDirectory.c_str()) == 0);
+
+    assert(createPrivateDirectory(configDirectory));
+    assert(::chmod(configDirectory.c_str(), 0777) == 0);
+    requireStatus(RuntimeUserPreferencesStorageStatus::Invalid);
+    assert(::chmod(configDirectory.c_str(), 0700) == 0);
+
+    // A secure configuration parent with no application directory is still a
+    // normal first-run miss.
+    requireStatus(RuntimeUserPreferencesStorageStatus::Missing);
+
+    // The private application directory itself must also reject path
+    // substitution instead of being reported as absent.
+    assert(::symlink(homeDirectory.c_str(), appDirectory.c_str()) == 0);
+    requireStatus(RuntimeUserPreferencesStorageStatus::Invalid);
+    assert(::unlink(appDirectory.c_str()) == 0);
+
+    assert(createPrivateDirectory(appDirectory));
+    requireStatus(RuntimeUserPreferencesStorageStatus::Missing);
+
+    assert(std::filesystem::remove(appDirectory));
+    assert(std::filesystem::remove(configDirectory));
+#if defined(__APPLE__)
+    assert(std::filesystem::remove(libraryDirectory));
+#endif
+    assert(std::filesystem::remove(homeDirectory));
+    return 0;
+#endif
+}
+
 } // namespace
 
-int main()
+int main(int argc, char** argv)
 {
+    if (argc == 2 &&
+        std::string_view{argv[1]} == "unsafe-config-ancestor-status")
+        return runUnsafeConfigAncestorStatusTest();
+    assert(argc == 1);
     static_assert(!runtimeBootstrapMayPersist(
         RuntimeBootstrapMaterial::SessionPassword));
     static_assert(RuntimeApplicationBootstrapPolicy::automaticListenerStart == false);

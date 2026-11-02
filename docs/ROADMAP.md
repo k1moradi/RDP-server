@@ -1,3 +1,36 @@
+## R2 P0 — unsafe POSIX preference ancestry is not a first-run miss (2026-11-01)
+
+Refreshed from shared-main parent
+`1885fd56c1db34c1d89ca83335560efaded0169a`. The R2 fixed v1 non-secret
+per-user store and R7 public no-path load/save consumer are already present, so
+no second grammar/store or GUI authority owner is added. Review found one
+remaining capability-reporting gap in the POSIX native-directory resolver: an
+unsafe existing `.config` / `Library/Application Support` component was
+collapsed into `Missing`, indistinguishable from a normal first launch.
+
+The resolver now reports `Missing` only for `ENOENT`, `Invalid` for an
+existing component rejected by no-follow/type/owner/mode checks, and
+`Unavailable` for secure creation failure. New ordinary
+`runtime.user-preferences-unsafe-config-ancestor-reports-invalid` reuses the
+existing test executable and production resolver against an isolated fake home,
+covering absent parents, symlink substitution, writable ancestors and a
+symlinked app directory. Defaults remain safe; no Session Password, verifier,
+key, credential generation, consent epoch, listener token, native proof,
+Sharing state, GraphicsReady or Clipboard grant can be restored.
+
+**R7 handoff remains exact:** use only
+`RuntimeUserPreferences { lastExplicitUsername, preferredStableLanInterfaceId,
+port, preferRemoteInput, permissionLifetimeMinutes }` and public
+`loadRuntimeUserPreferences` / `saveRuntimeUserPreferences`, interpret
+`preferredStableLanInterfaceId` only after fresh R10 enumeration, and treat
+every non-`Loaded` status as defaults/no authority. R2/R7/R10 source
+composition is **UNBLOCKED**. Connector-local build/focused/full CTest,
+sanitizers and benchmark are **NOT RUN**; exact-publication hosted CI is
+**PENDING**. The physical Windows App pre-Type-3/native admission work is an
+independent product gate, not a preferences blocker. Native credential-vault
+work remains design-only pending an explicit persistence-policy and consent UX
+change.
+
 ## R9 P0 — expose independent owner-candidate producers in per-SHA matrix (2026-11-01)
 
 Reviewed parent `6e71c3003e747ea6773131d8f0bbf685e0403194` after R2/R7 preferences, R10/R3 native/Share composition and the prior roadmap guard landed. The existing `scripts/verify_r9_qualification_matrix.py` already distinguishes per-SHA Debug/Release, sanitizer and clean-Windows consumer states, but omitted independent R2 complete/missing-systemd security jobs, R7 native lifecycle/session sanitizer jobs, Ubuntu/macOS GUI credential parity, Windows PowerShell-parser policy and the Windows Clang23 staged-portable-ZIP step. A green Clang23 job or GUI bootstrap must never substitute for these omitted producers.

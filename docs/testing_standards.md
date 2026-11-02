@@ -1,3 +1,17 @@
+## R2 unsafe POSIX preference ancestry status regression (2026-11-01)
+
+Ordinary behavior-named
+`runtime.user-preferences-unsafe-config-ancestor-reports-invalid` reuses the
+existing strict `test_runtime_user_preferences` executable on POSIX. It starts
+from an isolated owner-private fake home in the existing CTest build root and
+drives the production ancestry resolver: a missing config/app directory reports
+`Missing`, while a symlinked or group/world-writable config parent and a
+symlinked private app directory report `Invalid`. Every non-loaded path resets
+to safe defaults. The test never changes the real user's home/configuration,
+credentials, permission, listener, GraphicsReady or Clipboard state. Windows
+keeps the existing owner-SID/protected-DACL/reparse coverage; this regression is
+not registered there because the corrected classifier is POSIX-specific.
+
 ## R9 exact-SHA qualification must expose independent prerequisite jobs (2026-11-01)
 
 `project.exact-sha-qualification-job-status-denials` reuses the existing Python qualification classifier and fixture-only self-test. Keep R2 Linux runtime-security complete/missing-systemd, R7 macOS native lifecycle and session sanitizers, per-OS GUI credential parity and the Windows PowerShell parser as separate per-run/SHA lanes. The Clang23 Windows staged GUI ZIP step must be classified independently of full Clang23 Debug/Release and of the separate clean-Windows consumer. A skipped ZIP staging step cannot become PASS because its parent job succeeded; a queued, skipped or canceled independent producer must retain that status. This is metadata classification only and cannot certify standalone SSPI artifact contents, real Windows App login or physical native admission.

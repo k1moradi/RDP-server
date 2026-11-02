@@ -1,3 +1,7 @@
+## R6 paired-evidence fixture repair is not a benchmark (2026-11-01)
+
+The correction changes only offline Python evidence fixtures and assertions. It does not change production TLS, NTLM/CredSSP, parsing, allocation, transport, scheduler, native admission or client-visible behavior, so no performance benchmark is required or claimed.
+
 ## R3 mixed-join / partial licensing Stop is correctness, not throughput (2026-11-01)
 
 The new production-linked R1/R2/R3 offline regression changes no protocol hot path, TLS buffering, native capture, memory allocation, scheduler or algorithm. No benchmark was run and no throughput, timing, real-client or pixel-visibility claim is justified. Original authenticated Microsoft-client and owner-native evidence remain independent.

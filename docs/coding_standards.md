@@ -1,3 +1,7 @@
+## R6 overlapping paired-evidence fixture must satisfy typed CredSSP failure semantics (2026-11-01)
+
+A positive fixture that sets `type2_accepted_by_credssp=FAIL` is not complete with only an original client-stage event. It must also provide the already-required independently valid typed first-error record, including a closed category/source, bounded private provider category and the exact same UTC event instant. Keep the stage event as the sole owner of source-record digest, attempt/connection/client identity and observation-window provenance. Repair stale tests by constructing valid evidence; never weaken `_credssp_failure_first_error_failures`, first-error validation, UTF-8/privacy redaction or cross-attempt/client-server source isolation to make an outdated positive control pass.
+
 ## R3 original mixed joins to partial licensing Stop (2026-11-01)
 
 After the sequential first MCS Join Request and a later client TLS batch, only exact full original R1 accepted-byte receipts may mark R3 channel joins; queued or positive-partial confirmations remain non-authorizing. A valid later Client Info can select PersonalDesktop licensing only through original R2 authenticated/native owner and immutable policy. Server License Request zero/partial R1 writes must retain replySequence/writeSliceSequence, must not begin licensing or Share, and must be retired on owner Stop. Never add a competing R1 reader, R3 state machine, licensing issuer, native permission provider or client ACK tracker to accommodate batching.

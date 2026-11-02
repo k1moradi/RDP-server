@@ -553,6 +553,30 @@ class OwnerEvidenceTests(unittest.TestCase):
             "event_time_utc": binding["attempt_time_utc"],
         }
 
+    @staticmethod
+    def _configure_valid_credssp_failure_first_error(
+            manifest, pair, platform, stage_event, provider_category):
+        if platform == "macos":
+            first_error = manifest["first_client_error"]
+            first_error.update({
+                "normalized_category": "negotiation",
+                "source": "core",
+                "provider_category_exact": provider_category,
+                "provider_code_exact": None,
+                "event_time_local": manifest["attempt_time_local"],
+                "event_time_utc": stage_event["event_time_utc"],
+            })
+        else:
+            first_error = pair["windows"]["first_client_error"]
+            first_error.update({
+                "normalized_category": "negotiation",
+                "source": "owner-approved-diagnostic",
+                "provider_category_exact": provider_category,
+                "provider_code_exact": None,
+                "event_time_utc": stage_event["event_time_utc"],
+            })
+        return first_error
+
     def test_paired_valid_redacts_credentials_and_attempt_ids(self):
         manifest = evidence.build_manifest(self.options)
         summary = ab_evidence.validate_pair(manifest, self._paired_record(manifest))
@@ -836,15 +860,24 @@ class OwnerEvidenceTests(unittest.TestCase):
         # Each macOS stage is independently observable as PASS or FAIL.
         # Neither a server-local record nor a neighboring attempt is a
         # client-origin event, even when the server's Type 2 was committed.
-        manifest = evidence.build_manifest(self.options)
         for stage in ab_evidence.CLIENT_SECURITY_STAGES:
             for observed_state in ("PASS", "FAIL"):
                 with self.subTest(stage=stage, state=observed_state):
+                    manifest = evidence.build_manifest(self.options)
                     pair = self._paired_record(manifest)
                     macos_row = pair["macos"]
                     macos_row["client_security_stages"][stage] = observed_state
                     original_event = self._client_event(pair, "macos")
                     macos_row["client_stage_evidence"][stage] = original_event
+                    if (stage == "type2_accepted_by_credssp"
+                            and observed_state == "FAIL"):
+                        self._configure_valid_credssp_failure_first_error(
+                            manifest,
+                            pair,
+                            "macos",
+                            original_event,
+                            "private-provider-first-error",
+                        )
 
                     valid = ab_evidence.validate_pair(manifest, pair)
                     self.assertEqual(valid["evidence_status"], "PASS")
@@ -906,25 +939,9 @@ class OwnerEvidenceTests(unittest.TestCase):
                 ))
 
             with self.subTest(platform=platform, case="same-event-valid"):
-                if platform == "macos":
-                    first_error = manifest["first_client_error"]
-                    first_error.update({
-                        "normalized_category": "negotiation",
-                        "source": "core",
-                        "provider_category_exact": private_provider,
-                        "provider_code_exact": None,
-                        "event_time_local": "2026-10-27T05:30:00-07:00",
-                        "event_time_utc": stage_event["event_time_utc"],
-                    })
-                else:
-                    first_error = pair["windows"]["first_client_error"]
-                    first_error.update({
-                        "normalized_category": "negotiation",
-                        "source": "owner-approved-diagnostic",
-                        "provider_category_exact": private_provider,
-                        "provider_code_exact": None,
-                        "event_time_utc": stage_event["event_time_utc"],
-                    })
+                first_error = self._configure_valid_credssp_failure_first_error(
+                    manifest, pair, platform, stage_event, private_provider
+                )
 
                 valid = ab_evidence.validate_pair(manifest, pair)
                 self.assertEqual(valid["evidence_status"], "PASS")
@@ -975,6 +992,42 @@ class OwnerEvidenceTests(unittest.TestCase):
                 ))
                 self.assertNotIn("private-invalid-category", json.dumps(invalid))
                 self.assertNotIn(private_provider, json.dumps(invalid))
+
+            with self.subTest(platform=platform, case="invalid-first-error-source-denied"):
+                first_error["normalized_category"] = "negotiation"
+                first_error["source"] = "private-invalid-source"
+
+                invalid_source = ab_evidence.validate_pair(manifest, pair)
+                self.assertEqual(invalid_source["evidence_status"], "FAIL")
+                self.assertIn(
+                    f"{platform.upper()}_CREDSSP_FAILURE_TYPED_ERROR_INVALID",
+                    invalid_source["evidence_failures"],
+                )
+                self.assertTrue(all(
+                    state == "NOT_OBSERVED"
+                    for state in invalid_source[platform]["client_security_stages"].values()
+                ))
+                self.assertNotIn("private-invalid-source", json.dumps(invalid_source))
+                self.assertNotIn(private_provider, json.dumps(invalid_source))
+
+            with self.subTest(platform=platform, case="cross-attempt-stage-denied"):
+                first_error["source"] = (
+                    "core" if platform == "macos" else "owner-approved-diagnostic"
+                )
+                stage_event["attempt_id_exact"] = "previous-attempt"
+
+                cross_attempt = ab_evidence.validate_pair(manifest, pair)
+                self.assertEqual(cross_attempt["evidence_status"], "FAIL")
+                self.assertIn(
+                    f"{platform.upper()}_CLIENT_TYPE2_ACCEPTED_BY_CREDSSP_ATTEMPT_MISMATCH",
+                    cross_attempt["evidence_failures"],
+                )
+                self.assertTrue(all(
+                    state == "NOT_OBSERVED"
+                    for state in cross_attempt[platform]["client_security_stages"].values()
+                ))
+                self.assertNotIn("previous-attempt", json.dumps(cross_attempt))
+                self.assertNotIn(private_provider, json.dumps(cross_attempt))
 
     def test_paired_provenance_type3_source_from_neighboring_attempt_is_denied(self):
         manifest = evidence.build_manifest(self.options)

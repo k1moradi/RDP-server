@@ -30,6 +30,9 @@ Source/dependency/CTest-registry review: **PASS**. Canonical local configure/bui
 
 ## R6 corrective — invalid typed-error records cannot preserve a stage-2 FAIL (2026-11-01)
 
+**Round 1 overlapping offline CTest diagnosis:** Actions run `41390952630` proves the three reported CTest failures are one stale positive fixture, not three validator defects. The shared unittest `test_paired_provenance_macos_four_stages_require_original_client_event` still expected a macOS `type2_accepted_by_credssp=FAIL` stage event alone to PASS after the same-event typed-first-error rule landed. Repair that fixture by supplying the independently valid closed-category/source provider record at the exact same UTC instant; retain all existing provenance/privacy validators. The dedicated same-event test also carries invalid-source and cross-attempt negatives. Connector-local execution is NOT RUN; exact publication-SHA hosted trio/full CTest and Microsoft SSPI remain PENDING. Historical physical evidence is unchanged: original client Type-2 receipt/decryption UNKNOWN, Type 3 unobserved, peer FIN after 8.956 ms.
+
+
 **Authoring parent:** `c4bacd427f37cffbe639106da0f8fe2fe2c4a38b`. Immediate review of the new same-event
 CredSSP failure linkage found one fail-closed projection edge: an invalid
 `first_client_error` category/source/shape could still contain a bounded
@@ -185,7 +188,7 @@ BLOCKED / INCONCLUSIVE.
 
 ## R9 Round 1 follow-up — active workflows are not completed NOT_RUN evidence (2026-11-01)
 
-**R9 P0 REST snapshot audit (2026-11-01; parent cb9d258d1e67e9a70beb600349609c1d3ecf2526):** The exact-SHA verifier accepted truncated GitHub jobs/artifacts pages despite a disagreeing total_count. The R9-only fix returns INCOMPLETE_SNAPSHOT for noninteger or unequal totals, with complete and truncated cases in the existing qualification-job-status offline self-test. No R6/R7 tests were edited: R6 owns the three overlapping macOS paired-provenance Python failures, R7 owns the two GUI interface aborts (R2 preference/R10 fake-host consultation). The owner-local 1,203/five report has no source SHA. Baseline b6328fef structure Actions 41390952693 PASS; protocol Actions 41390952630 not all green. Connector-local full Debug/Release CTest, ASan/UBSan and physical clients NOT RUN; publication-SHA hosted evidence PENDING; M1/M2 blocked.
+**R9 P0 REST snapshot audit (2026-11-01; parent cb9d258d1e67e9a70beb600349609c1d3ecf2526):** The exact-SHA verifier accepted truncated GitHub jobs/artifacts pages despite a disagreeing total_count. The R9-only fix returns INCOMPLETE_SNAPSHOT for noninteger or unequal totals, with complete and truncated cases in the existing qualification-job-status offline self-test. R6 traced the three overlapping macOS paired-provenance Python failures to one stale stage-2 FAIL positive fixture and owns the focused fixture correction; R7 owns the two GUI interface aborts (R2 preference/R10 fake-host consultation). The owner-local 1,203/five report has no source SHA. Baseline b6328fef structure Actions 41390952693 PASS; protocol Actions 41390952630 not all green. Connector-local full Debug/Release CTest, ASan/UBSan and physical clients NOT RUN; publication-SHA hosted evidence PENDING; M1/M2 blocked.
 
 
 **Authoring parent:** `8734b53c44d2e00ed6fe1cb19a0afe4d13c1d0ce`. Rechecked current main, the primary Actions

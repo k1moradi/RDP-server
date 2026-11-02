@@ -505,6 +505,14 @@ private:
     return true;
 }
 
+struct CoTaskMemoryCloser final
+{
+    void operator()(wchar_t* path) const noexcept
+    {
+        ::CoTaskMemFree(path);
+    }
+};
+
 struct LocalMemoryCloser final
 {
     void operator()(void* pointer) const noexcept
@@ -697,12 +705,14 @@ struct LocalMemoryCloser final
     std::filesystem::path& directory, bool create)
 {
     PWSTR rawPath = nullptr;
-    if (FAILED(::SHGetKnownFolderPath(
-            FOLDERID_LocalAppData, KF_FLAG_DEFAULT, nullptr, &rawPath)) ||
-        rawPath == nullptr)
+    const HRESULT folderStatus = ::SHGetKnownFolderPath(
+        FOLDERID_LocalAppData, KF_FLAG_DEFAULT, nullptr, &rawPath);
+    // Own the returned COM allocation even if constructing a path throws or
+    // the native folder API reports a partial failure with a non-null buffer.
+    const std::unique_ptr<wchar_t, CoTaskMemoryCloser> ownedPath{rawPath};
+    if (FAILED(folderStatus) || !ownedPath)
         return RuntimeUserPreferencesStorageStatus::Unavailable;
-    const std::filesystem::path root{rawPath};
-    ::CoTaskMemFree(rawPath);
+    const std::filesystem::path root{ownedPath.get()};
     // The app/file handles themselves reject reparse points, but an
     // intermediate LocalAppData junction could redirect both pathnames.
     // Check the complete OS-provided local root before any application I/O.

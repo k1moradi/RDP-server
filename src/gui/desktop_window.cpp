@@ -1406,6 +1406,8 @@ void DesktopWindow::saveOwnerPreferences()
     // already-stored non-secret record (for example reselecting the same LAN).
     if (sameUserPreferences(candidate, savedPreferences_))
     {
+        if (usernameOwnerEdited_)
+            restoredUsernameActive_ = true;
         usernameOwnerEdited_ = false;
         clearPreferenceActionError();
         refresh();
@@ -1428,6 +1430,10 @@ void DesktopWindow::saveOwnerPreferences()
         DesktopPreferencesAccess::Status::Stored)
     {
         savedPreferences_ = std::move(candidate);
+        // A newly committed manual Username takes the same presentation
+        // precedence as one restored from R2 after a later R10 refresh.
+        if (usernameOwnerEdited_)
+            restoredUsernameActive_ = true;
         usernameOwnerEdited_ = false;
         clearPreferenceActionError();
     }
@@ -1680,6 +1686,7 @@ void DesktopWindow::refresh()
     {
         const bool maySynchronize =
             !startupUsernameOverrideActive_ && !restoredUsernameActive_ &&
+            !usernameOwnerEdited_ &&
             (configuredStandaloneUsername_.isEmpty() ||
             username_->text().isEmpty() ||
             username_->text() == configuredStandaloneUsername_);

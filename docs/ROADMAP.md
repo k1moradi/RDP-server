@@ -1,3 +1,26 @@
+## R7 P0 — preserve manual Username against late R10 status (2026-11-01)
+
+**Authoring parent:** `7662e75d52b5fcc203bcf94103e094e950e530cb`. R2 per-user non-secret storage,
+R7 restart/CLI restore and stable LAN-interface persistence, and R10's
+non-authorizing credential-status projection are already present.
+`DesktopWindow::refresh()` formerly synchronized a newly arrived R10
+configured Username over a pending manual GUI Username, and a saved
+manual Username did not acquire existing R2-restored presentation precedence.
+Guard pending `usernameOwnerEdited_` before synchronization and mark an
+explicitly edited, successfully stored/no-op Username as the GUI preference.
+Untouched OS suggestions and process-only CLI precedence remain unchanged.
+Ordinary memory-only Qt CTest
+`gui.offscreen-rapid-preferences-manual-username-late-runtime-status`
+covers runtime-status-before-save and runtime-status-after-save without
+listener, permission, password, native side effect or R2 admission.
+
+**Next dependency:** R2/R7/R10 source API handoffs are resolved for
+non-secret preferences. Hosted full cross-platform C++23/GUI CTest remains
+the exact-publication-SHA qualification gate; local canonical build,
+sanitizers, benchmarks and physical-client acceptance NOT RUN. Real Windows
+App pre-NTLM-Type-3 and native owner authorization are independent product
+blockers and not evidence of a preferences regression.
+
 ## R9 P0 correction — roadmap serialization guard matches syntax, not backslashes (2026-11-01)
 
 Exact parent `3b32593d3bb1bc9b996bd9fca4f20d8c60a48850` failed its fast hosted structure gate, Actions `41378573254`, job `125064128420`: the new negative self-test correctly injected `[object Object]` before the current first heading, but the authored Python raw regex contained doubled backslashes and therefore matched literal backslash characters rather than whitespace/brackets. The failure was caught before protocol/platform qualification; downstream protocol, sanitizer, packaging, documentation and owner-candidate jobs were skipped or remained non-qualifying. No PASS is claimed for that SHA.

@@ -1,3 +1,16 @@
+## R7 owner Username and late runtime credential status (2026-11-01)
+
+The ordinary offscreen
+`gui.offscreen-rapid-preferences-manual-username-late-runtime-status` CTest
+reuses the existing single QApplication fake R10 HostControl and memory-only
+R2 store. It covers both orderings: first R10 publishes a configured
+standalone Username while a manual GUI edit is pending, then the owner
+finishes saving; separately, the owner saves first and R10 reports its
+configured Username afterward. In either order the explicit GUI value
+survives, only the manually edited non-secret Username persists, and
+no password, permission or listener is created. Do not conflate R10
+credential status with R2 non-authorizing convenience preferences.
+
 ## Roadmap serialization-prefix negative must exercise the actual regex (2026-11-01)
 
 A negative self-test that injects `[object Object]` directly before a Markdown heading must fail the validator itself. In Python raw regex strings use single regex escapes (`\s`, `\[`, `\]`); doubled backslashes instead match literal backslash characters and make the negative case pass unexpectedly. Hosted structure failure on `3b32593d3bb1bc9b996bd9fca4f20d8c60a48850` is a test-authoring failure, not project qualification. Preserve the same ordinary CTest registration and fail closed before downstream evidence.

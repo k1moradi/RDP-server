@@ -124,7 +124,10 @@ private:
 
     bool manualInterfaceOverride_{false};
     bool startupUsernameOverrideActive_{false};
+    // R2-restored or explicitly owner-saved Username is a presentation
+    // override only; it does not configure R10 credentials or grant access.
     bool restoredUsernameActive_{false};
+    // An in-progress edit has precedence until validation/storage completes.
     bool usernameOwnerEdited_{false};
     bool quitRequested_{false};
     QString userFacingError_;

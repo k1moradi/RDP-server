@@ -1,3 +1,16 @@
+## R7 late credential-status Username projection focused qualification (2026-11-01)
+
+Reuse only `~/rdp-server/build/` for Debug, Release and applicable
+sanitizer builds. After the canonical Debug configure/build, run:
+```sh
+ctest --test-dir build -C Debug -R '^gui[.]offscreen-rapid-preferences-(manual-username-late-runtime-status|restart-cli-precedence|failed-save-retry|preserve-unrelated-action-error|write-coalescing|invalid-replaced-interface)$' --output-on-failure
+ctest --test-dir build -C Debug --output-on-failure
+```
+Repeat full Release CTest and the existing applicable GUI/package
+qualification at the exact publication SHA. No new executable, permission,
+native I/O or build root is introduced. Connector-local build/CTest,
+ASan/UBSan and benchmarks NOT RUN; hosted execution PENDING.
+
 ## R4 delayed abort focused qualification (2026-11-01)
 
 Using only `~/rdp-server/build/`, run canonical Debug configure/build, `ctest --test-dir build -C Debug -R '^graphics[.]frame-(abort-after-session-retirement-closed|ack-intake-session-retirement-before-consume|partial-data-retirement-successor-generation|delivery-session-retirement-before-ack)$' --output-on-failure`, full Debug/Release CTest and existing 23 DVC + two independent retirement sanitizer selections unchanged. Local canonical execution NOT RUN, publication-SHA hosted CI pending.

@@ -1044,6 +1044,74 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (mode == "rapid-preferences-manual-username-late-runtime-status")
+    {
+        fakeLoadStatus = RuntimeUserPreferencesStorageStatus::Missing;
+        fakeSaveStatus = RuntimeUserPreferencesStorageStatus::Stored;
+        fakePreferenceSaves = 0;
+        fakeStoredPreferences = {};
+
+        // R10 first reports a configured credential during a manual edit.
+        // A credential-status projection is not permission to replace the
+        // owner's in-progress non-secret Username.
+        FakeRuntimeHost pendingRuntime;
+        prepareReadyHost(pendingRuntime);
+        HostControl pendingHost(pendingRuntime);
+        {
+            DesktopWindow window(pendingHost, nullptr, kFakePreferences);
+            auto* username = window.findChild<QLineEdit*>("standaloneUsername");
+            auto* password = window.findChild<QLineEdit*>("sessionPassword");
+            assert(username && password);
+            username->setText(QStringLiteral("owner-pending"));
+            assert(QMetaObject::invokeMethod(
+                username, "textEdited", Qt::DirectConnection,
+                Q_ARG(QString, QStringLiteral("owner-pending"))));
+            pendingRuntime.snapshot.product.configuredStandaloneUsername =
+                u"runtime-late";
+            window.refresh();
+            assert(username->text() == QStringLiteral("owner-pending"));
+            assert(fakePreferenceSaves == 0);
+            assert(QMetaObject::invokeMethod(
+                username, "editingFinished", Qt::DirectConnection));
+            assert(fakePreferenceSaves == 1);
+            assert(fakeStoredPreferences.lastExplicitUsername == "owner-pending");
+            pendingRuntime.snapshot.product.configuredStandaloneUsername =
+                u"runtime-rotated";
+            window.refresh();
+            assert(username->text() == QStringLiteral("owner-pending"));
+            assert(password->text().isEmpty());
+            assert(pendingRuntime.startCalls == 0);
+            assert(pendingRuntime.permissionSetupCalls == 0);
+        }
+
+        // Also cover the opposite order: a successful explicit save before
+        // R10 makes its first standalone-credential Username observation.
+        FakeRuntimeHost committedRuntime;
+        prepareReadyHost(committedRuntime);
+        HostControl committedHost(committedRuntime);
+        {
+            DesktopWindow window(committedHost, nullptr, kFakePreferences);
+            auto* username = window.findChild<QLineEdit*>("standaloneUsername");
+            assert(username);
+            username->setText(QStringLiteral("owner-committed"));
+            assert(QMetaObject::invokeMethod(
+                username, "textEdited", Qt::DirectConnection,
+                Q_ARG(QString, QStringLiteral("owner-committed"))));
+            assert(QMetaObject::invokeMethod(
+                username, "editingFinished", Qt::DirectConnection));
+            assert(fakePreferenceSaves == 2);
+            assert(fakeStoredPreferences.lastExplicitUsername ==
+                   "owner-committed");
+            committedRuntime.snapshot.product.configuredStandaloneUsername =
+                u"runtime-late";
+            window.refresh();
+            assert(username->text() == QStringLiteral("owner-committed"));
+            assert(committedRuntime.startCalls == 0);
+            assert(committedRuntime.permissionSetupCalls == 0);
+        }
+        return 0;
+    }
+
     if (mode == "rapid-preferences-preserve-unrelated-action-error")
     {
         fakeLoadStatus = RuntimeUserPreferencesStorageStatus::Loaded;

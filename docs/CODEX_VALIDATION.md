@@ -1,3 +1,29 @@
+## R2/R7 restored Username vs late R10 credential projection (2026-11-01)
+
+Audited current-main parent `7662e75d52b5fcc203bcf94103e094e950e530cb`, mandated AGENTS/VISION/ROADMAP and
+coding/testing/build/benchmark standards, R2 versioned owner-private storage,
+R7 restore/save/CLI priority, and existing fake-HostControl offline CTests.
+Other agents repaired the roadmap serialization prefix and added source guards.
+No missing storage API or R10 adapter dependency blocks this offline feature.
+
+Found an event-order regression: `refresh()` did not inspect the pending
+manual-Username edit flag when R10 first reported a configured Username;
+after a successful explicit save the existing R2-restored precedence flag
+remained false. A late R10 credential-status projection could replace the
+owner's non-authorizing GUI Username. The correction guards pending edits and
+after an owner-edited successful or complete no-op save grants the same GUI-only
+presentation precedence as an R2-restored Username. New ordinary offline
+`gui.offscreen-rapid-preferences-manual-username-late-runtime-status`
+covers R10-status-before-save and R10-status-after-save with zero Start,
+permission, password or listener operation. R10 credential authority is
+unchanged and cannot be granted from R2 preferences.
+
+Source/CTest/ownership review PASS. Connector-local canonical C++23
+configure/build, focused/full Debug/Release CTest, ASan/UBSan, benchmarks and
+physical-client stages NOT RUN. Exact-publication-SHA hosted structure and
+full CI/GUI packaging PENDING; next gate is same-SHA cross-platform CTest
+then separately authorized owner-native proof.
+
 ## R9 roadmap guard escaping correction (2026-11-01)
 
 Publication `3b32593d3bb1bc9b996bd9fca4f20d8c60a48850`, Actions `41378573254`, did **not** qualify: `ci-workflow-structure` job `125064128420` failed with `negative case unexpectedly passed: object-serialization-prefix`. Root cause was doubled backslashes in the Python raw regex, so the validator searched for literal backslashes instead of the injected heading prefix. Downstream protocol/security/packaging jobs were skipped and are not PASS evidence. The corrective commit changes only that escaping and canonical documentation; exact corrective-SHA hosted CI remains the gate. Physical Microsoft-client/native acceptance remains NOT RUN.

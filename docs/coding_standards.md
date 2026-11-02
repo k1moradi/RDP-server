@@ -1,3 +1,16 @@
+## R7 owner-edited Username survives late R10 status projection (2026-11-01)
+
+An R10 configured-credential Username is an authoritative credential **status**,
+not permission to replace a pending R7 owner edit or an explicit manually
+saved R2 convenience Username. In `DesktopWindow::refresh()`, suppress
+status-to-editor synchronization while `usernameOwnerEdited_` is true.
+After a successful or complete no-op save of an explicitly edited Username,
+keep its presentation precedence through the existing
+`restoredUsernameActive_` flag. Invalid/failed storage retains the pending
+manual edit without granting credentials, owner permission or Sharing.
+Untouched OS suggestions may still synchronize to R10; process-only CLI
+Username overrides retain their independent precedence.
+
 ## R4 delayed frame abort after explicit session retirement (2026-11-01)
 
 The `Closed` DVC state is absorbing: after R3 session retirement has removed partial/unwritten frame DATA, R4 reservation/ACK state and borrowed output spans, a stale writer's direct `abortFramePublication()` must reject without rewriting `Closed` as `Failed`. A live invalid abort continues to fail closed. No competing frame, ACK or TLS owner. Parent `723d3e5948c6150f6487900a69bc6668a6be65dd`, source/registry review PASS; local build/CTest/ASan/UBSan NOT RUN.

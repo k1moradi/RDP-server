@@ -2534,6 +2534,19 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "protocol;security;transport;tls;mcs;licensing;share;admission;offline"
                 TIMEOUT 60)
 
+        # Later independent client Font List may arrive while Server Granted
+        # Control has an exact positive partial R1 TLS receipt. R3 must hold
+        # the pending server slice, then reach ShareActivated and Graphics map.
+        add_test(
+            NAME security.macos-protected-share-partial-granted-control-buffered-font-list-graphics
+            COMMAND "${test_target}"
+                "macos-protected-share-partial-granted-control-buffered-font-list-graphics")
+        set_tests_properties(
+            security.macos-protected-share-partial-granted-control-buffered-font-list-graphics
+            PROPERTIES
+                LABELS "protocol;security;transport;tls;mcs;licensing;share;graphics;admission;offline"
+                TIMEOUT 60)
+
         # One original R1 TLS application write carries Confirm Active and
         # the entire ordered finalization batch after real licensed Demand Active.
         # R2/R3 still consume only R1-complete TPKTs and exact server receipts.

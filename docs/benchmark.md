@@ -1,3 +1,7 @@
+## R3 buffered late Font List / partial Granted Control is correctness-only (2026-11-02)
+
+This is a single new ordinary offline R1/R2/R3 production-linked regression. It changes no production protocol algorithm, allocation, reader, writer, frame encoder or scheduler. Zero/partial/full TLS receipt order, bounded client TPKT intake and Graphics surface mapping are correctness/ownership checks, not measured throughput or client-visible pixels. Benchmark NOT RUN; physical first-pixel latency and accepted client ACK remain separate authorization/evidence gates.
+
 ## R5 typed XShm arena denial is lifecycle correctness-only (2026-11-02)
 
 One ordinary production-linked Xvfb regression exercises the already-bounded full-frame capture failure and existing XCB/XTEST teardown path. No production hot-path allocation, copy, capture schedule, encoder, TLS writer or ACK window changes. This is not a throughput, latency, FPS, first-visible-pixel or physical-input benchmark; **benchmark NOT RUN**. Future performance/visibility claims still require original owner-admitted native frames, exact R1 accepted-byte receipts and independently received genuine client FRAME_ACK plus client visibility evidence.

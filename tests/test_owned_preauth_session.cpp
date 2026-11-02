@@ -10656,8 +10656,13 @@ void testMacProtectedPersonalDesktopLicensingDenials()
 void runMacProtectedPersonalDesktopShareActivationReceipts(
     bool continueThroughGraphics, bool batchClientFinalization,
     bool coalesceConfirmActiveWithFinalization,
-    bool interleaveFinalizationDuringPartialServerSynchronize)
+    bool interleaveFinalizationDuringPartialServerSynchronize,
+    bool interleaveFontListDuringPartialGrantedControl = false)
 {
+    assert(!interleaveFontListDuringPartialGrantedControl ||
+           (!batchClientFinalization &&
+            !coalesceConfirmActiveWithFinalization &&
+            !interleaveFinalizationDuringPartialServerSynchronize));
     assert(!coalesceConfirmActiveWithFinalization || batchClientFinalization);
     assert(!interleaveFinalizationDuringPartialServerSynchronize ||
            (batchClientFinalization && !coalesceConfirmActiveWithFinalization));
@@ -11101,9 +11106,91 @@ void runMacProtectedPersonalDesktopShareActivationReceipts(
         sendShare(synchronize, ShareIntake::SynchronizeAccepted);
         sendShare(cooperate, ShareIntake::CooperateAccepted);
         sendShare(requestControl, ShareIntake::RequestControlAccepted);
-        flushShare(
-            RdpShareServerWriteKind::GrantedControl, ShareReceipt::Delivered);
-        sendShare(fontList, ShareIntake::FontListAccepted);
+        if (interleaveFontListDuringPartialGrantedControl)
+        {
+            // Client Font List has no dependency on Server Granted Control.
+            // Keep the original Linux R10 Write action authoritative while
+            // a bounded Font List TPKT arrives on the sole R1 TLS stream.
+            const auto prepared =
+                fixture->broker.authorizeR3PersonalDesktopShareActivationWrite(
+                    *fixture->session, policy);
+            assert(prepared && *prepared &&
+                   prepared->kind == RdpShareServerWriteKind::GrantedControl &&
+                   prepared->bytes.size() > 1U);
+            const std::uint64_t replySequence = prepared->replySequence;
+            const std::uint64_t writeSliceSequence =
+                prepared->writeSliceSequence;
+            const std::size_t originalBytes = prepared->bytes.size();
+            const auto originalData = prepared->bytes.data();
+            assert(fixture->broker.completeR3PersonalDesktopShareActivationWrite(
+                       *fixture->session, policy, replySequence,
+                       writeSliceSequence, 0U) == ShareReceipt::Pending);
+
+            const auto zeroRetry =
+                fixture->broker.authorizeR3PersonalDesktopShareActivationWrite(
+                    *fixture->session, policy);
+            assert(zeroRetry && *zeroRetry &&
+                   zeroRetry->replySequence == replySequence &&
+                   zeroRetry->writeSliceSequence == writeSliceSequence &&
+                   zeroRetry->bytes.size() == originalBytes &&
+                   zeroRetry->bytes.data() == originalData);
+            const std::size_t acceptedBytes =
+                writeOneMacProtectedPlaintextByte(*fixture, zeroRetry->bytes);
+            assert(acceptedBytes == 1U);
+            assert(fixture->broker.completeR3PersonalDesktopShareActivationWrite(
+                       *fixture->session, policy, replySequence,
+                       writeSliceSequence, acceptedBytes) ==
+                   ShareReceipt::Pending);
+            const auto suffix =
+                fixture->broker.authorizeR3PersonalDesktopShareActivationWrite(
+                    *fixture->session, policy);
+            assert(suffix && *suffix &&
+                   suffix->kind == RdpShareServerWriteKind::GrantedControl &&
+                   suffix->replySequence == replySequence &&
+                   suffix->writeSliceSequence != writeSliceSequence &&
+                   suffix->bytes.data() == originalData + acceptedBytes &&
+                   suffix->bytes.size() + acceptedBytes == originalBytes);
+            assert(fixture->session->phase() ==
+                   McsSessionPhase::ShareActivation);
+            assert(!fixture->session->firstClientAcceptanceObservability()
+                        .shareActivated);
+
+            const auto fontListPacket = makeMacProtectedClientChannelTpkt(
+                clientUserId, fontList, ioChannelId);
+            assert(!fontListPacket.empty() &&
+                   fontListPacket.size() <= kMaximumInitialMcsTpktBytes);
+            writeNativeTlsClientSingleApplicationWrite(
+                fixture->tls.client.get(), fontListPacket);
+
+            // No R3 client intake is invoked before the original server
+            // suffix is fully committed. Arrival alone grants no stage.
+            const auto stillPending =
+                fixture->broker.authorizeR3PersonalDesktopShareActivationWrite(
+                    *fixture->session, policy);
+            assert(stillPending && *stillPending &&
+                   stillPending->kind == RdpShareServerWriteKind::GrantedControl &&
+                   stillPending->replySequence == suffix->replySequence &&
+                   stillPending->writeSliceSequence == suffix->writeSliceSequence &&
+                   stillPending->bytes.data() == suffix->bytes.data() &&
+                   stillPending->bytes.size() == suffix->bytes.size());
+            assert(fixture->session->phase() ==
+                   McsSessionPhase::ShareActivation);
+            assert(!fixture->session->firstClientAcceptanceObservability()
+                        .shareActivated);
+
+            flushShare(
+                RdpShareServerWriteKind::GrantedControl,
+                ShareReceipt::Delivered);
+            // Drain the already-written client packet through the same
+            // original R1 TLS reader only after Granted Control delivery.
+            receiveSharePacket(fontListPacket, ShareIntake::FontListAccepted);
+        }
+        else
+        {
+            flushShare(
+                RdpShareServerWriteKind::GrantedControl, ShareReceipt::Delivered);
+            sendShare(fontList, ShareIntake::FontListAccepted);
+        }
         flushShare(
             RdpShareServerWriteKind::FontMap, ShareReceipt::Activated);
     }
@@ -11245,6 +11332,14 @@ void testMacProtectedPartialServerSynchronizeBufferedClientFinalization()
 {
     runMacProtectedPersonalDesktopShareActivationReceipts(
         false, true, false, true);
+}
+
+// Positive late-finalization interleave on the same genuine R1 TLS,
+// protected R2/R3 PersonalDesktop licensing and Graphics mapping fixture.
+void testMacProtectedPartialGrantedControlBufferedFontListGraphics()
+{
+    runMacProtectedPersonalDesktopShareActivationReceipts(
+        true, false, false, false, true);
 }
 
 void testMacProtectedPersonalDesktopGraphicsControlReceipts()
@@ -16652,6 +16747,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedShareFinalizationClientBatchTlsReceipts},
     {"macos-protected-share-partial-synchronize-buffered-client-finalization",
      &testMacProtectedPartialServerSynchronizeBufferedClientFinalization},
+    {"macos-protected-share-partial-granted-control-buffered-font-list-graphics",
+     &testMacProtectedPartialGrantedControlBufferedFontListGraphics},
     {"macos-protected-share-confirm-active-finalization-single-tls-write",
      &testMacProtectedConfirmActiveAndFinalizationSingleTlsWrite},
     {"macos-protected-personal-desktop-graphics-control-receipts",

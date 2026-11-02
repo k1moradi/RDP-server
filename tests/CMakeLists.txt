@@ -464,6 +464,11 @@ add_test(NAME runtime.user-preferences-owner-private-versioned-roundtrip-denials
     COMMAND test_runtime_user_preferences)
 set_tests_properties(runtime.user-preferences-owner-private-versioned-roundtrip-denials
     PROPERTIES LABELS "runtime;preferences;security;offline")
+add_test(NAME runtime.user-preferences-oversized-record-bounded-denial
+    COMMAND test_runtime_user_preferences oversized-record-bounded-denial)
+set_tests_properties(runtime.user-preferences-oversized-record-bounded-denial
+    PROPERTIES LABELS "runtime;preferences;security;offline")
+
 if(NOT WIN32)
     add_test(NAME runtime.user-preferences-unsafe-config-ancestor-reports-invalid
         COMMAND test_runtime_user_preferences unsafe-config-ancestor-status)

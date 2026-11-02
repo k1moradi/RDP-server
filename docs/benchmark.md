@@ -1,3 +1,7 @@
+## R2 oversized preference record denial is correctness-only (2026-11-01)
+
+The new regression exercises cold private-file size validation, safe-default reset and existing atomic recovery only. It changes no production code, allocation policy, protocol/frame/input/Clipboard hot path or scheduler. No throughput benchmark is applicable or claimed; benchmark NOT RUN. Preserve bounded fixed-v1 I/O even if a synthetic benchmark would favor a looser parser.
+
 ## R2 Windows replacement primitive is cold-path correctness (2026-11-01)
 
 Switching an existing private preferences publication from `MoveFileExW` replacement to `ReplaceFileW` runs only on explicit non-secret preference save. It changes no RDP packet/frame/input/Clipboard loop, allocation strategy or scheduler hot path. No throughput benchmark is required; correctness is qualified by Windows Debug/Release CTest.

@@ -1,3 +1,9 @@
+## R2 bounded on-disk preference records and recovery (2026-11-01)
+
+Keep the fixed-v1 preferences loader bounded at the storage edge, not merely inside the decoder. POSIX reads at most one byte beyond the maximum record to classify overlong content; Windows rejects a file size outside the fixed bound before `ReadFile`. In either case, malformed/partial/overlong private files are `Invalid`, outputs are safe defaults, and no fallback path is consulted. Saving may replace a corrupt record only after the existing path/object ownership, type, link-count, mode/DACL and non-reparse checks succeed. POSIX keeps descriptor-relative private-temp + `renameat`; Windows uses the qualified existing-target `ReplaceFileW` path and no-replace first-publication `MoveFileExW(MOVEFILE_WRITE_THROUGH)`. Do not add a second store or persist any R2/R10 authority material.
+
+The Windows final-object predicate remains strict: disk regular/non-reparse type, exactly one hard link, current process-user SID owner, protected DACL, explicit allow ACEs only for that SID. The directory/root ancestry checks remain separate. Do not weaken either contract to make recovery succeed.
+
 ## R2 Windows active-reader replacement primitive (2026-11-01)
 
 A validated Windows preferences reader may share READ + DELETE but never WRITE. When a validated target already exists, publish a fully written/flushed same-directory private replacement with `ReplaceFileW` and flags 0; do not use ignore-merge-error flags. When no target existed at preflight, publish with `MoveFileExW(MOVEFILE_WRITE_THROUGH)` without `MOVEFILE_REPLACE_EXISTING`, so a newly raced target fails closed instead of being overwritten without validation. Preserve current-user SID ownership, protected explicit owner-only DACL, regular non-reparse type, one-link identity and bounded fixed-v1 decode. This cold path must not create a second settings owner, lock, credential store or authorization cache.

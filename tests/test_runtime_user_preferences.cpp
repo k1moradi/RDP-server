@@ -514,6 +514,75 @@ int runPosixFifoTargetDenialTest()
 }
 #endif
 
+int runOversizedStoredRecordBoundedDenialTest()
+{
+    using Status = RuntimeUserPreferencesStorageStatus;
+#if defined(_WIN32)
+    const unsigned long processId = ::GetCurrentProcessId();
+#else
+    const unsigned long processId = static_cast<unsigned long>(::getpid());
+#endif
+    const auto directory = std::filesystem::current_path() /
+        ("runtime-user-preferences-oversized-" + std::to_string(processId));
+    assert(createPrivateDirectory(directory));
+    const auto file = directory / "preferences.bin";
+
+    RuntimeUserPreferences original;
+    original.lastExplicitUsername = "bounded-owner";
+    original.preferredStableLanInterfaceId = "{ABC-123}_Ethernet";
+    original.port = 3394U;
+    original.preferRemoteInput = false;
+    original.permissionLifetimeMinutes = 9U;
+    assert(detail::saveRuntimeUserPreferencesToDirectory(
+               directory, original) == Status::Stored);
+
+    std::vector<std::byte> oversizedRecord;
+    assert(encodeRuntimeUserPreferences(original, oversizedRecord));
+    oversizedRecord.resize(
+        oversizedRecord.size() + 1024U, std::byte{0x41U});
+    writeEncoded(file, oversizedRecord);
+    const auto oversizedBytes =
+        static_cast<std::uintmax_t>(oversizedRecord.size());
+    assert(std::filesystem::file_size(file) == oversizedBytes);
+
+    // The storage layer must reject an oversized regular private object before
+    // any unbounded decode or fallback. A denied load resets only non-secret
+    // preferences and leaves the corrupt record untouched for diagnosis.
+    RuntimeUserPreferences loaded = original;
+    const RuntimeUserPreferences defaults{};
+    assert(detail::loadRuntimeUserPreferencesFromDirectory(
+               directory, loaded) == Status::Invalid);
+    assert(loaded.lastExplicitUsername.empty());
+    assert(loaded.preferredStableLanInterfaceId.empty());
+    assert(loaded.port == defaults.port);
+    assert(loaded.preferRemoteInput == defaults.preferRemoteInput);
+    assert(loaded.permissionLifetimeMinutes ==
+           defaults.permissionLifetimeMinutes);
+    assert(std::filesystem::file_size(file) == oversizedBytes);
+
+    // A later explicit preference save may atomically replace the corrupt but
+    // still owner-private object. Recovery must not create a second store or
+    // infer credentials, consent, listener state or native authority.
+    RuntimeUserPreferences replacement = original;
+    replacement.lastExplicitUsername = "recovered-owner";
+    replacement.port = 3395U;
+    assert(detail::saveRuntimeUserPreferencesToDirectory(
+               directory, replacement) == Status::Stored);
+    assert(detail::loadRuntimeUserPreferencesFromDirectory(
+               directory, loaded) == Status::Loaded);
+    assert(loaded.lastExplicitUsername == replacement.lastExplicitUsername);
+    assert(loaded.preferredStableLanInterfaceId ==
+           replacement.preferredStableLanInterfaceId);
+    assert(loaded.port == replacement.port);
+    assert(loaded.preferRemoteInput == replacement.preferRemoteInput);
+    assert(loaded.permissionLifetimeMinutes ==
+           replacement.permissionLifetimeMinutes);
+
+    assert(std::filesystem::remove(file));
+    assert(std::filesystem::remove(directory));
+    return 0;
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -540,6 +609,9 @@ int main(int argc, char** argv)
         std::string_view{argv[1]} == "posix-fifo-target-denial")
         return runPosixFifoTargetDenialTest();
 #endif
+    if (argc == 2 &&
+        std::string_view{argv[1]} == "oversized-record-bounded-denial")
+        return runOversizedStoredRecordBoundedDenialTest();
     if (argc == 2 &&
         std::string_view{argv[1]} == "unsafe-config-ancestor-status")
         return runUnsafeConfigAncestorStatusTest();

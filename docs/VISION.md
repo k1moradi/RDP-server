@@ -1,3 +1,9 @@
+## R2 fixed-v1 preference storage stays bounded and non-authorizing (2026-11-01)
+
+A private preferences file is convenience state, never authority. The storage boundary must reject an overlong fixed-v1 record as `Invalid` before any unbounded decode, reset the caller to safe non-secret defaults, leave the rejected object untouched, and permit a later explicit save to recover only by the existing same-directory atomic replacement. No alternate current-directory, executable, ZIP or shared fallback is allowed. The record continues to represent only explicit Username, stable-LAN-interface hint, Port, remote-input request default and permission-lifetime request default; it cannot represent a Session Password, NTLM verifier, credential generation, owner-consent epoch, listener token/generation, native-desktop proof, Graphics state or Clipboard permission.
+
+A restored stable interface ID remains only a hint. R7 must match it against a fresh R10-approved enumeration, and only a genuine owner `QComboBox::activated` choice may make a new stable ID durable. Programmatic selection and preference loading cannot request R2 consent, configure credentials, open R1, create Share or authorize native/Clipboard operations.
+
 ## Windows non-secret preference files have unique object identity (2026-11-01)
 
 A private current-user DACL is necessary but not sufficient for the final Windows preferences file. Accept only a regular non-reparse file owned by the current SID, with the existing protected owner-only explicit DACL and exactly one hard link. A second NTFS link makes the pathname an alias and must fail closed on load/save. This file-identity rule does not persist or restore credentials, permission, listener/native proof, Sharing, GraphicsReady or Clipboard authority.

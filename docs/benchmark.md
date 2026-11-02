@@ -1,3 +1,7 @@
+## R2 Windows replacement primitive is cold-path correctness (2026-11-01)
+
+Switching an existing private preferences publication from `MoveFileExW` replacement to `ReplaceFileW` runs only on explicit non-secret preference save. It changes no RDP packet/frame/input/Clipboard loop, allocation strategy or scheduler hot path. No throughput benchmark is required; correctness is qualified by Windows Debug/Release CTest.
+
 ## R2 Windows private preferences reader sharing (2026-11-01)
 
 Adding Windows delete sharing to a cold-path private file read changes no RDP hot loop, allocation, socket, native frame/input or Clipboard operation. No throughput benchmark run or needed for this correctness increment. Validate through Windows Debug/Release CTest.

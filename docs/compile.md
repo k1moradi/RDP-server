@@ -1,3 +1,7 @@
+## R2 Windows active-reader replacement focused qualification (2026-11-01)
+
+Reuse only `~/rdp-server/build/` (hosted jobs: the checkout's single `build/`). Run Debug and Release focused CTest with `ctest --test-dir build -C <config> -R '^runtime[.]user-preferences-windows-(active-reader-(atomic-replacement|replacement-identity)|hard-link-substitution-denial|localappdata-ancestor-denial|inaccessible-directory-not-missing)$' --output-on-failure`, followed by full CTest in each configuration. Require exact-SHA MSVC and CLANG64 results. Connector-local build/CTest is **NOT RUN**; hosted qualification is **PENDING**.
+
 ## R10 Linux Start transaction source-guard follow-up (2026-11-01)
 
 Reuse only `~/rdp-server/build/`. After the canonical Debug configure/build run `ctest --test-dir build -C Debug -R '^runtime[.]linux-host-control-(provisioned-listener-transaction|original-owner-changed-after-configure-denial|start-lock-retires-standalone-credential|retained-credential-lock-session-loss|fresh-native-authorization-every-start)$' --output-on-failure`, then the complete ordinary Debug CTest and Release equivalent within the same root. Hosted CI must qualify the exact correction SHA across Linux, macOS, Windows and security sanitizers before M1. Source preflight PASS; connector-local CMake/CTest/benchmarks NOT RUN, physical client NOT RUN.

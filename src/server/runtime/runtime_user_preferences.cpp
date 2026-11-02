@@ -662,7 +662,8 @@ struct LocalMemoryCloser final
     NativeHandle existing{::CreateFileW(
         target.c_str(), READ_CONTROL | FILE_READ_ATTRIBUTES, FILE_SHARE_READ,
         nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, nullptr)};
-    if (existing)
+    const bool targetExists = static_cast<bool>(existing);
+    if (targetExists)
     {
         if (!isPrivateWindowsObject(existing.get(), sid, false))
             return RuntimeUserPreferencesStorageStatus::Invalid;
@@ -703,10 +704,25 @@ struct LocalMemoryCloser final
             written == encoded.size() &&
             ::FlushFileBuffers(temporary.get()) != 0;
         temporary = NativeHandle{};
-        if (!complete || failBeforeAtomicReplace ||
-            !::MoveFileExW(
-                temporaryPath.c_str(), target.c_str(),
-                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+
+        // Replacing an existing pathname is not an in-place write. ReplaceFileW
+        // opens the validated target for DELETE with full sharing, so a reader
+        // that explicitly shared DELETE stays pinned to the old immutable file
+        // object while the replacement assumes the pathname. For first save,
+        // publish without REPLACE_EXISTING so a race-created target is never
+        // overwritten without first passing the private-object validation.
+        bool published = false;
+        if (complete && !failBeforeAtomicReplace)
+        {
+            published = targetExists
+                ? ::ReplaceFileW(
+                      target.c_str(), temporaryPath.c_str(), nullptr,
+                      0U, nullptr, nullptr) != 0
+                : ::MoveFileExW(
+                      temporaryPath.c_str(), target.c_str(),
+                      MOVEFILE_WRITE_THROUGH) != 0;
+        }
+        if (!published)
         {
             (void)::DeleteFileW(temporaryPath.c_str());
             return RuntimeUserPreferencesStorageStatus::Unavailable;

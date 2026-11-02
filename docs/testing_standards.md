@@ -1,3 +1,7 @@
+## R2 Windows active-reader replacement identity regressions (2026-11-01)
+
+Keep both Windows-only ordinary CTests in the existing preferences executable. `runtime.user-preferences-windows-active-reader-atomic-replacement` pins the old READ/DELETE-shared object and requires production save plus intact old bytes and fresh replacement load. Distinct `runtime.user-preferences-windows-active-reader-replacement-identity` additionally opens the fresh pathname after save and requires a different Windows volume/file identity and exactly one hard link before validating the new record. Use one RAII handle helper; do not touch real LocalAppData, persist credentials, request permission or start Sharing. The existing hard-link, reparse ancestry and inaccessible-directory cases remain unchanged.
+
 ## R10 Start-denial probe and admitting R2 source contract (2026-11-01)
 
 For `runtime.linux-host-control-provisioned-listener-transaction`, the new fail-closed native-desktop denial can visit `(void)ownerSharingAuthority_.authorizes(View)` **before** credential preflight only to revoke a stale original grant. The real Start authorization remains the distinct conditional `if (!ownerSharingAuthority_.authorizes(View))` **after** `!credentialsConfigured_` and before exact current interface, TLS identity and R1 bind. Pin both orders separately rather than matching the first bare method name; never remove denial-side revocation to satisfy a source string test. Run existing source guard and both production-backed user-switch/lock-at-Start cases under ordinary CTest.

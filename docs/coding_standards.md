@@ -1,3 +1,7 @@
+## R2 Windows active-reader replacement primitive (2026-11-01)
+
+A validated Windows preferences reader may share READ + DELETE but never WRITE. When a validated target already exists, publish a fully written/flushed same-directory private replacement with `ReplaceFileW` and flags 0; do not use ignore-merge-error flags. When no target existed at preflight, publish with `MoveFileExW(MOVEFILE_WRITE_THROUGH)` without `MOVEFILE_REPLACE_EXISTING`, so a newly raced target fails closed instead of being overwritten without validation. Preserve current-user SID ownership, protected explicit owner-only DACL, regular non-reparse type, one-link identity and bounded fixed-v1 decode. This cold path must not create a second settings owner, lock, credential store or authorization cache.
+
 ## R2 Windows read/delete sharing and atomic private preferences replacement (2026-11-01)
 
 The validated Windows fixed-v1 preferences read handle may share `FILE_SHARE_DELETE` in addition to `FILE_SHARE_READ`, but never `FILE_SHARE_WRITE`. This lets a separate saver atomically replace the pathname while the reader finishes on its original immutable file object. Keep strict user SID, protected owner-only DACL, unique-link, regular non-reparse type and bounded decode validation. No new locks, settings schema, credential storage or R2 consent/Clipboard/listener authority.

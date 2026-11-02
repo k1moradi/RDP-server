@@ -29,6 +29,42 @@ namespace
 {
 
 #if defined(_WIN32)
+struct WindowsHandleCloser final
+{
+    void operator()(void* handle) const noexcept
+    {
+        if (handle != nullptr && handle != INVALID_HANDLE_VALUE)
+            (void)::CloseHandle(handle);
+    }
+};
+
+using WindowsHandle = std::unique_ptr<void, WindowsHandleCloser>;
+
+[[nodiscard]] WindowsHandle openSharedPreferenceReader(
+    const std::filesystem::path& path) noexcept
+{
+    const HANDLE handle = ::CreateFileW(
+        path.c_str(), GENERIC_READ | READ_CONTROL,
+        FILE_SHARE_READ | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+        FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+    return handle == INVALID_HANDLE_VALUE
+        ? WindowsHandle{} : WindowsHandle{handle};
+}
+
+[[nodiscard]] bool sameWindowsFileIdentity(
+    HANDLE first, HANDLE second) noexcept
+{
+    BY_HANDLE_FILE_INFORMATION firstInformation{};
+    BY_HANDLE_FILE_INFORMATION secondInformation{};
+    if (!::GetFileInformationByHandle(first, &firstInformation) ||
+        !::GetFileInformationByHandle(second, &secondInformation))
+        return false;
+    return firstInformation.dwVolumeSerialNumber ==
+               secondInformation.dwVolumeSerialNumber &&
+           firstInformation.nFileIndexHigh == secondInformation.nFileIndexHigh &&
+           firstInformation.nFileIndexLow == secondInformation.nFileIndexLow;
+}
+
 [[nodiscard]] bool createPrivateDirectory(const std::filesystem::path& path)
 {
     HANDLE token = nullptr;
@@ -183,21 +219,9 @@ int runWindowsActiveReaderAtomicReplacementTest()
 
     // The old object remains readable with DELETE sharing, but no writer
     // may change it in place while the new pathname is atomically published.
-    struct WindowsHandleCloser final
     {
-        void operator()(HANDLE handle) const noexcept
-        {
-            (void)::CloseHandle(handle);
-        }
-    };
-    {
-        const HANDLE originalHandle = ::CreateFileW(
-            file.c_str(), GENERIC_READ | READ_CONTROL,
-            FILE_SHARE_READ | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
-            FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
-        assert(originalHandle != INVALID_HANDLE_VALUE);
-        const std::unique_ptr<void, WindowsHandleCloser> pinnedReader{
-            originalHandle};
+        const WindowsHandle pinnedReader = openSharedPreferenceReader(file);
+        assert(pinnedReader);
 
         RuntimeUserPreferences replacement = original;
         replacement.lastExplicitUsername = "replacement-owner";
@@ -232,6 +256,56 @@ int runWindowsActiveReaderAtomicReplacementTest()
         assert(loaded.preferredStableLanInterfaceId ==
                replacement.preferredStableLanInterfaceId);
     }
+    assert(std::filesystem::remove(file));
+    assert(std::filesystem::remove(directory));
+    return 0;
+}
+
+int runWindowsActiveReaderReplacementIdentityTest()
+{
+    using Status = RuntimeUserPreferencesStorageStatus;
+    const auto directory = std::filesystem::current_path() /
+        ("runtime-user-preferences-windows-reader-identity-" +
+         std::to_string(::GetCurrentProcessId()));
+    assert(createPrivateDirectory(directory));
+
+    RuntimeUserPreferences original;
+    original.lastExplicitUsername = "identity-original";
+    original.preferredStableLanInterfaceId = "{ABC-123}_Ethernet";
+    original.port = 3396U;
+    original.preferRemoteInput = false;
+    assert(detail::saveRuntimeUserPreferencesToDirectory(
+               directory, original) == Status::Stored);
+    const auto file = directory / L"preferences.bin";
+
+    {
+        const WindowsHandle previousReader = openSharedPreferenceReader(file);
+        assert(previousReader);
+
+        RuntimeUserPreferences replacement = original;
+        replacement.lastExplicitUsername = "identity-replacement";
+        replacement.port = 3397U;
+        assert(detail::saveRuntimeUserPreferencesToDirectory(
+                   directory, replacement) == Status::Stored);
+
+        const WindowsHandle currentReader = openSharedPreferenceReader(file);
+        assert(currentReader);
+        assert(!sameWindowsFileIdentity(
+            previousReader.get(), currentReader.get()));
+
+        BY_HANDLE_FILE_INFORMATION currentInformation{};
+        assert(::GetFileInformationByHandle(
+                   currentReader.get(), &currentInformation) != 0);
+        assert(currentInformation.nNumberOfLinks == 1U);
+
+        RuntimeUserPreferences loaded;
+        assert(detail::loadRuntimeUserPreferencesFromDirectory(
+                   directory, loaded) == Status::Loaded);
+        assert(loaded.lastExplicitUsername ==
+               replacement.lastExplicitUsername);
+        assert(loaded.port == replacement.port);
+    }
+
     assert(std::filesystem::remove(file));
     assert(std::filesystem::remove(directory));
     return 0;
@@ -457,6 +531,9 @@ int main(int argc, char** argv)
     if (argc == 2 &&
         std::string_view{argv[1]} == "windows-active-reader-atomic-replacement")
         return runWindowsActiveReaderAtomicReplacementTest();
+    if (argc == 2 &&
+        std::string_view{argv[1]} == "windows-active-reader-replacement-identity")
+        return runWindowsActiveReaderReplacementIdentityTest();
 #endif
 #if !defined(_WIN32)
     if (argc == 2 &&

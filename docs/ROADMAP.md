@@ -1,3 +1,51 @@
+## R9 Round 1 — queued workflow-run states are not executed job evidence (2026-11-01)
+
+**Source reviewed:** current shared `main` at authoring, compared with starting
+ancestor `e222dbdc07374d6824c5a8f50061aa2c989c5141`. The existing
+metadata-only qualification verifier already distinguishes each platform,
+Debug/Release, Windows Clang23, native/sanitizer and GUI prerequisite lane,
+skipped/canceled **jobs**, and an SSPI ZIP that remains uninspected until
+its contents are independently verified. A newly queued push can expose
+`jobs: []` before GitHub schedules any job; reporting every absent lane
+as `NOT_RUN` then conflates workflow-level scheduling with a completed run
+that did not execute that lane. Classify absent lanes as `RUN_QUEUED`
+for a queued workflow, `RUN_PENDING` for pending/requested/waiting,
+`RUN_CANCELED` or `RUN_SKIPPED` for those completed run conclusions.
+A completed successful/failed run with no matching job remains `NOT_RUN`;
+a present job retains its own authoritative queued/skipped/canceled/step
+status. Never promote run metadata or an artifact name to a test PASS.
+
+An additional ordinary full CTest
+`project.exact-sha-qualification-unscheduled-run-state-denials`
+uses the same existing Python verifier in offline self-test mode.
+The existing `--self-test` also executes the new denials, so the
+fast CI structure guard retains coverage without changing manual dispatch.
+Local canonical Debug/Release CTest, native platforms, ASan/UBSan and
+benchmarks: **NOT RUN** (no GitHub-reachable checkout/Qt toolchain in this
+execution environment). Hosted exact-publication CI: **PENDING**. This
+classification correction has no server behavior, native listener,
+credentials or client-visible-pixel implications.
+
+**Future owner-only macOS Windows App vs mstsc A/B checklist (NOT RUN;
+separate authorization required):** for each independently reproduced
+attempt record (1) exact source/build SHA and build OS/architecture,
+(2) actual client product and version/build, (3) target LAN endpoint
+and stable interface selection, (4) server certificate SHA-256
+fingerprint and client-side trust/certificate observation, (5) exact
+Username match and independent Session Password *matching status only*
+(no secret), (6) first-party evidence whether this same client received
+and decrypted the exact server Type 2, (7) earliest original client
+provider error with stage/time and redacted source provenance,
+(8) whether this same attempt emitted Type 3, whether the server received
+it, and first boundary afterward. Keep client/server attempt identifiers
+and source-record hashes paired without publishing source text, tokens,
+passwords, keys, private paths or packet captures. Compare A/B only on
+the same pinned SHA/endpoint/certificate and equivalent user-supplied
+credential-matching statuses. A local Type-2 server-send receipt is
+**not** client receipt; a standalone Microsoft SSPI Type-3 test is
+**not** Windows App Type 3. No M1/physical acceptance without independently
+verified same-SHA owner evidence and real-client authentication.
+
 ## R1 pre-TLS byte-accounting nonblocking handshake fairness (2026-11-01)
 
 **Authoring parent:** `d6c5d90cd3981a0f5931319ef4c4fcec84eeb6ce`. Exact hosted macOS protocol job `125072152551` on descendant `4728faea8f20` passed Debug and the R10 native-observation/segmented-TLS/ACK plus revocation tests in both Debug and Release, but the unrelated Release `transport.tcp-owned-pre-tls-transport-byte-accounting` failed at `clientEstablished`. Its two nonblocking SSL endpoints were spun for only 256 immediate iterations (~0.06 s total) with no readiness wait or scheduling yield; this does not imply R1 transport failure. Replace the spin with an existing-style monotonic five-second fixture deadline and one-millisecond sleep only while either peer is unfinished. Retain every original accepted-byte counter assertion, WANT-only outcomes and the single production R1 socket/BIO owner; leave production TLS/CredSSP/NTLM/certificates/credentials untouched.

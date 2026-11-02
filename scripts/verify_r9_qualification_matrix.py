@@ -76,6 +76,22 @@ def classify_job(job: object) -> str:
     }.get(conclusion, "INVALID")
 
 
+
+def classify_unscheduled_lane(run: dict[str, object]) -> str:
+    """Run-level lifecycle is not evidence that an individual job executed."""
+    status = run.get("status")
+    if status == "queued":
+        return "RUN_QUEUED"
+    if status in {"pending", "requested", "waiting"}:
+        return "RUN_PENDING"
+    if status == "completed":
+        if run.get("conclusion") == "cancelled":
+            return "RUN_CANCELED"
+        if run.get("conclusion") == "skipped":
+            return "RUN_SKIPPED"
+    return "NOT_RUN"
+
+
 def evaluate(expected_sha: str, current_sha: str,
              run: object, jobs_payload: object,
              artifacts_payload: object) -> dict[str, object]:
@@ -107,7 +123,7 @@ def evaluate(expected_sha: str, current_sha: str,
         elif len(matching) > 1:
             lanes[lane] = "AMBIGUOUS"
         elif not matching:
-            lanes[lane] = "NOT_RUN"
+            lanes[lane] = classify_unscheduled_lane(run)
         elif matching[0].get("run_id") != run_id:
             lanes[lane] = "RUN_MISMATCH"
         else:
@@ -291,6 +307,7 @@ def self_test() -> None:
         raise AssertionError("R9 self-test denial failed")
     if not (classify_job({"status": "in_progress", "conclusion": None}) == "IN_PROGRESS"):
         raise AssertionError("R9 self-test denial failed")
+    self_test_unscheduled_run_state()
     for bad in ({"jobs": "invalid"}, [], None):
         try:
             evaluate(sha, sha, run, bad, artifacts)
@@ -298,6 +315,58 @@ def self_test() -> None:
             pass
         else:
             raise AssertionError("malformed evidence accepted")
+
+
+
+def self_test_unscheduled_run_state() -> None:
+    sha = "c" * 40
+    other_sha = "d" * 40
+    run_id = 41318750637
+    base_run = {"id": run_id, "head_sha": sha}
+    missing_jobs = {"jobs": []}
+    no_artifacts = {"artifacts": []}
+
+    for status, conclusion, expected in (
+        ("queued", None, "RUN_QUEUED"),
+        ("pending", None, "RUN_PENDING"),
+        ("requested", None, "RUN_PENDING"),
+        ("waiting", None, "RUN_PENDING"),
+        ("completed", "cancelled", "RUN_CANCELED"),
+        ("completed", "skipped", "RUN_SKIPPED"),
+        ("completed", "success", "NOT_RUN"),
+        ("completed", "failure", "NOT_RUN"),
+        ("in_progress", None, "NOT_RUN"),
+    ):
+        run = {**base_run, "status": status, "conclusion": conclusion}
+        report = evaluate(sha, sha, run, missing_jobs, no_artifacts)
+        if not all(value == expected for value in report["lanes"].values()):
+            raise AssertionError("unscheduled workflow was promoted to job evidence")
+        if report["sspi_artifact"] != "NOT_PRESENT":
+            raise AssertionError("missing SSPI archive was promoted")
+        if report["physical_windows_app_login"] != "NOT_VERIFIED":
+            raise AssertionError("run scheduling was promoted to physical acceptance")
+        if expected == "RUN_QUEUED":
+            mismatch = evaluate(sha, other_sha, run, missing_jobs, no_artifacts)
+            if mismatch["current_head"] != "DIFFERENT_SHA":
+                raise AssertionError("ancestor scheduling was treated as current")
+            wrong_source = evaluate(
+                sha, sha, {**run, "head_sha": other_sha},
+                missing_jobs, no_artifacts)
+            if any(value != "SHA_MISMATCH"
+                   for value in wrong_source["lanes"].values()):
+                raise AssertionError("foreign workflow scheduling was accepted")
+
+    # A present job is authoritative over the run-level fallback.
+    run = {**base_run, "status": "queued", "conclusion": None}
+    present_job = {"jobs": [{
+        "run_id": run_id, "name": "r9-clean-windows-portable-gui",
+        "status": "completed", "conclusion": "skipped",
+    }]}
+    report = evaluate(sha, sha, run, present_job, no_artifacts)
+    if report["lanes"]["windows_clean_portable_gui"] != "SKIPPED":
+        raise AssertionError("present job status replaced by run fallback")
+    if report["lanes"]["linux_debug"] != "RUN_QUEUED":
+        raise AssertionError("missing job status lost queued-run origin")
 
 
 def read_json(path: Path) -> object:
@@ -310,6 +379,7 @@ def read_json(path: Path) -> object:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("--self-test-run-state", action="store_true")
     parser.add_argument("--sha")
     parser.add_argument("--current-sha")
     parser.add_argument("--run", type=Path)
@@ -319,6 +389,9 @@ def main() -> int:
     try:
         if args.self_test:
             self_test()
+            return 0
+        if args.self_test_run_state:
+            self_test_unscheduled_run_state()
             return 0
         if any(value is None for value in
                (args.sha, args.current_sha, args.run, args.jobs, args.artifacts)):

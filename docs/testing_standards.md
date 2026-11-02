@@ -1,3 +1,17 @@
+## Distinguish queued workflow runs from missing executed jobs (2026-11-01)
+
+The R9 `project.exact-sha-qualification-unscheduled-run-state-denials`
+CTest reuses the standard-library-only existing verifier. A GitHub
+workflow queued before its job records are available must classify
+missing lanes as `RUN_QUEUED`, not a completed-run `NOT_RUN` case.
+Pending/requested/waiting, run-level canceled and skipped must be
+separately typed; an unsuccessful or successful completed run with no
+matching job remains `NOT_RUN`, not inferred success/failure. Existing
+job entries retain exact run-ID/SHA and per-step success checks.
+The established `--self-test` incorporates all these cases and remains
+part of the automatic workflow-structure guard. Never interpret a
+run-scheduling status as a CTest, packaging, SSPI or physical-client PASS.
+
 ## R1 pre-TLS byte-accounting nonblocking handshake fairness (2026-11-01)
 
 Keep `transport.tcp-owned-pre-tls-transport-byte-accounting` as the existing production-backed R1 socket/TLS receipt fixture. A nonblocking `SSL_do_handshake` / `onTlsIoReady` WANT outcome cannot be treated as failure from a tight iteration count: use a bounded monotonic deadline with a scheduler yield between incomplete peer steps, without changing TLS transport counters, byte assertions, production reader/writer or the CTest taxonomy. The hosted macOS Release 256-spin failure at `clientEstablished` on `4728faea8f20` is a fixture scheduling issue, not independently evidenced server TLS closure. Ordinary full Debug and Release CTest and the existing transport sanitizer selector must qualify the publication SHA; physical client acceptance remains a separate gate.

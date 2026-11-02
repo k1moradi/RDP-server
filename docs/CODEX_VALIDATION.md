@@ -1,3 +1,28 @@
+## R9 run-scheduling matrix classification correction (2026-11-01)
+
+Reviewed shared `main`, mandatory AGENTS/VISION/ROADMAP and coding/testing/
+compile/benchmark standards, the shipped GUI CLI, R2 secure preferences
+and their ordinary full CTests, exact-run matrix verifier, and hosted
+workflow/SSPI prerequisites. Found that `evaluate()` returned `NOT_RUN`
+for absent job entries even when GitHub declared the entire workflow
+`queued`. This is not a CTest result. Unscheduled lanes now retain a
+distinct run-scoped scheduling/cancellation/skipped status; present jobs
+still use exact run-ID, SHA and step binding; completed runs with no
+matching job remain `NOT_RUN`. The dedicated ordinary full CTest
+`project.exact-sha-qualification-unscheduled-run-state-denials` and
+existing fast-structure self-test cover these distinctions, including a
+different current SHA and foreign run SHA.
+
+Source/ownership/registration review: PASS. Canonical local build,
+Debug/Release full CTest, sanitizers and benchmark: NOT RUN (this
+connector environment has no project checkout and cannot resolve
+GitHub for a clone). Exact-publication hosted jobs: PENDING.
+Roadmap preserved as the complete existing Git blob, not a partial
+file-reader response. No owner/manual candidate dispatched and no
+physical Windows App/mstsc attempt authorized. Type-2 client receipt,
+first original provider failure, Type-3 client emit/server receive and
+same-SHA physical acceptance remain NOT VERIFIED.
+
 ## R1 pre-TLS byte-accounting nonblocking handshake fairness (2026-11-01)
 
 **Authoring parent:** `d6c5d90cd3981a0f5931319ef4c4fcec84eeb6ce`. Exact hosted macOS protocol job `125072152551` on descendant `4728faea8f20` passed Debug and the R10 native-observation/segmented-TLS/ACK plus revocation tests in both Debug and Release, but the unrelated Release `transport.tcp-owned-pre-tls-transport-byte-accounting` failed at `clientEstablished`. Its two nonblocking SSL endpoints were spun for only 256 immediate iterations (~0.06 s total) with no readiness wait or scheduling yield; this does not imply R1 transport failure. Replace the spin with an existing-style monotonic five-second fixture deadline and one-millisecond sleep only while either peer is unfinished. Retain every original accepted-byte counter assertion, WANT-only outcomes and the single production R1 socket/BIO owner; leave production TLS/CredSSP/NTLM/certificates/credentials untouched.

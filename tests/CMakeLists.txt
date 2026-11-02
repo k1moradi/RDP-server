@@ -1906,6 +1906,14 @@ add_test(NAME project.exact-sha-qualification-job-status-denials
 set_tests_properties(project.exact-sha-qualification-job-status-denials
     PROPERTIES LABELS "project-policy;assurance;security;offline")
 
+# Separate ordinary full-CTest gate for queued-run vs missing-job provenance.
+add_test(NAME project.exact-sha-qualification-unscheduled-run-state-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/scripts/verify_r9_qualification_matrix.py"
+        --self-test-run-state)
+set_tests_properties(project.exact-sha-qualification-unscheduled-run-state-denials
+    PROPERTIES LABELS "project-policy;assurance;security;offline")
+
 add_test(NAME project.canonical-roadmap-integrity-and-truncation-denials
     COMMAND "${Python3_EXECUTABLE}"
         "${PROJECT_SOURCE_DIR}/scripts/verify_canonical_roadmap.py"

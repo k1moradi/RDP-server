@@ -6,6 +6,9 @@
 
 #include <QWidget>
 
+#include <optional>
+#include <utility>
+
 class QAction;
 class QCheckBox;
 class QCloseEvent;
@@ -123,6 +126,9 @@ private:
     QAction* trayQuit_;
 
     bool manualInterfaceOverride_{false};
+    // A restored interface is a hint, not a fresh owner activation. Keep
+    // only the exact pending activated pair until R2 confirms persistence.
+    std::optional<std::pair<QString, QString>> pendingOwnerInterfacePreference_;
     bool startupUsernameOverrideActive_{false};
     // R2-restored or explicitly owner-saved Username is a presentation
     // override only; it does not configure R10 credentials or grant access.

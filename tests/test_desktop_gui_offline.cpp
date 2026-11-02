@@ -1271,6 +1271,108 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (mode == "rapid-preferences-restored-interface-programmatic-denial")
+    {
+        fakeLoadStatus = RuntimeUserPreferencesStorageStatus::Loaded;
+        fakeSaveStatus = RuntimeUserPreferencesStorageStatus::Stored;
+        fakePreferenceSaves = 0;
+        fakeStoredPreferences = {
+            "stored-owner", "ethernet-1", 3390U, false, 22U};
+
+        FakeRuntimeHost candidate;
+        candidate.deriveProductStatusFromLegacy = false;
+        candidate.snapshot.lastError = RuntimeHostError::None;
+        candidate.snapshot.product.state = RuntimeProductHostState::Stopped;
+        candidate.snapshot.product.controlAvailable = true;
+        candidate.snapshot.product.eligibleLanInterfaces = {
+            RuntimeHostInterface{
+                "ethernet-1", "Private Ethernet",
+                {"192.168.0.10"}, false, true},
+            RuntimeHostInterface{
+                "wifi-2", "Private Wi-Fi",
+                {"192.168.0.20"}, false, true}};
+        candidate.snapshot.product.recommendedEndpoint = {
+            "ethernet-1", "192.168.0.10", 3389U,
+            RuntimeHostAddressFamily::Ipv4, true, true, 10U, false,
+            RuntimeHostRecommendationSource::PreferredRoute};
+
+        HostControl candidateHost(candidate);
+        {
+            DesktopWindow window(candidateHost, nullptr, kFakePreferences);
+            auto* interfaces = window.findChild<QComboBox*>("lanInterface");
+            auto* port = window.findChild<QSpinBox*>("sharingPort");
+            assert(interfaces && port && port->value() == 3390);
+            const int ethernetIndex = interfaces->currentIndex();
+            assert(ethernetIndex > 0);
+            assert(interfaces->currentData(Qt::UserRole + 1).toString() ==
+                   QStringLiteral("ethernet-1"));
+            int wifiIndex = 0;
+            for (int index = 1; index < interfaces->count(); ++index)
+            {
+                if (interfaces->itemData(
+                        index, Qt::UserRole + 1).toString() ==
+                    QStringLiteral("wifi-2"))
+                {
+                    wifiIndex = index;
+                    break;
+                }
+            }
+            assert(wifiIndex > 0 && fakePreferenceSaves == 0);
+
+            // A restored hint must not turn a later programmatic Wi-Fi index
+            // into durable owner intent when Port is edited independently.
+            interfaces->setCurrentIndex(wifiIndex);
+            assert(fakePreferenceSaves == 0);
+            port->setValue(3391);
+            assert(fakePreferenceSaves == 1);
+            assert(fakeStoredPreferences.port == 3391U);
+            assert(fakeStoredPreferences.preferredStableLanInterfaceId ==
+                   "ethernet-1");
+
+            // The genuine activation is the only new stable-ID publisher.
+            assert(QMetaObject::invokeMethod(
+                interfaces, "activated", Qt::DirectConnection,
+                Q_ARG(int, interfaces->currentIndex())));
+            assert(fakePreferenceSaves == 2);
+            assert(fakeStoredPreferences.preferredStableLanInterfaceId ==
+                   "wifi-2");
+
+            // Failed persistence retains the *activated* pair, not a later
+            // programmatic selection when a separate Port edit retries R2.
+            fakeSaveStatus = RuntimeUserPreferencesStorageStatus::Unavailable;
+            interfaces->setCurrentIndex(ethernetIndex);
+            assert(QMetaObject::invokeMethod(
+                interfaces, "activated", Qt::DirectConnection,
+                Q_ARG(int, interfaces->currentIndex())));
+            assert(fakePreferenceSaves == 3);
+            assert(fakeStoredPreferences.preferredStableLanInterfaceId ==
+                   "wifi-2");
+            interfaces->setCurrentIndex(wifiIndex);
+            fakeSaveStatus = RuntimeUserPreferencesStorageStatus::Stored;
+            port->setValue(3392);
+            assert(fakePreferenceSaves == 4);
+            assert(fakeStoredPreferences.port == 3392U);
+            assert(fakeStoredPreferences.preferredStableLanInterfaceId ==
+                   "ethernet-1");
+            assert(candidate.credentialSetupCalls == 0);
+            assert(candidate.standaloneCredentialCalls == 0);
+            assert(candidate.permissionSetupCalls == 0);
+            assert(candidate.configureCalls == 0);
+            assert(candidate.startCalls == 0);
+            assert(!candidate.snapshot.listenerAvailable);
+            assert(!candidate.snapshot.graphicsReady);
+        }
+        DesktopWindow restarted(candidateHost, nullptr, kFakePreferences);
+        auto* password = restarted.findChild<QLineEdit*>("sessionPassword");
+        auto* interfaces = restarted.findChild<QComboBox*>("lanInterface");
+        assert(password && interfaces && password->text().isEmpty());
+        assert(interfaces->currentData(Qt::UserRole + 1).toString() ==
+               QStringLiteral("ethernet-1"));
+        assert(!sharingToggle(restarted)->isChecked());
+        assert(candidate.startCalls == 0);
+        return 0;
+    }
+
     if (mode == "rapid-preferences-manual-username-late-runtime-status")
     {
         fakeLoadStatus = RuntimeUserPreferencesStorageStatus::Missing;

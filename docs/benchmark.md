@@ -1,3 +1,7 @@
+## R7 restored-interface intent isolation is correctness-only (2026-11-02)
+
+The pending exact owner-activated interface pair exists only during cold GUI preference saves/retries and adds no per-packet/frame/input/Clipboard work, socket polling, capture or protocol changes. The dedicated offscreen CTest verifies durable non-secret selection provenance and lack of authority side effects. Benchmark NOT RUN; no throughput, physical LAN or real-desktop acceptance claim is justified.
+
 ## R8 malformed Format List Response interleave is correctness-only (2026-11-02)
 
 The new ordinary offline regression changes no production parser, queue, allocation, TLS writer, permission check, native adapter, X11 callback, file-transfer path or R10 schedule. There is no meaningful throughput benchmark for a typed-invalid nine-byte CLIPRDR reply; performance measurement and native Clipboard latency/paste/INCR are **NOT RUN** and need separately authorized live evidence. Retain existing contiguous buffers and zero-copy borrows.

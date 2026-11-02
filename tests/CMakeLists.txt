@@ -6244,6 +6244,13 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         gui.offscreen-preference-interface-requires-explicit-activation
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;preferences;security;offline" TIMEOUT 20)
+    add_test(NAME gui.offscreen-restored-interface-programmatic-change-denial
+        COMMAND test_desktop_gui_offline
+            rapid-preferences-restored-interface-programmatic-denial)
+    set_tests_properties(
+        gui.offscreen-restored-interface-programmatic-change-denial
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;preferences;security;offline" TIMEOUT 20)
     add_test(NAME gui.offscreen-rapid-preferences-preserve-unrelated-action-error
         COMMAND test_desktop_gui_offline
             rapid-preferences-preserve-unrelated-action-error)

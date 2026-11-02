@@ -1163,13 +1163,21 @@ DesktopWindow::DesktopWindow(
                 // activated() is the owner action even when the already
                 // selected automatic recommendation is chosen again.
                 manualInterfaceOverride_ = true;
-                // A secure preferences backend is optional. Manual owner
-                // activation must still refresh Start eligibility when there
-                // is no persistence callback to perform the refresh.
+                // The restored selection and later programmatic index changes
+                // are not permission to replace the stored stable interface.
+                // Pin the exact activated pair across a failed save/retry.
                 if (preferencesAccess_.save != nullptr)
+                {
+                    pendingOwnerInterfacePreference_.emplace(
+                        interfaces_->currentData(Qt::UserRole + 1).toString(),
+                        interfaces_->currentData().toString());
                     saveOwnerPreferences();
+                }
                 else
+                {
+                    // With no store, activation still updates Start eligibility.
                     refresh();
+                }
             });
     connect(port_, &QSpinBox::valueChanged, this, [this](int) {
         saveOwnerPreferences();
@@ -1393,13 +1401,14 @@ void DesktopWindow::saveOwnerPreferences()
     candidate.permissionLifetimeMinutes =
         static_cast<std::uint8_t>(permissionLifetimeMinutes_->value());
 
-    if (manualInterfaceOverride_)
+    if (pendingOwnerInterfacePreference_)
     {
-        // Keep only the stable ID of an exact currently approved R10
-        // choice, never a saved address or any permission/listener state.
-        const QString interfaceId =
-            interfaces_->currentData(Qt::UserRole + 1).toString();
-        const QString address = interfaces_->currentData().toString();
+        // Only QComboBox::activated can replace a durable stable ID.
+        // A restored hint or later setCurrentIndex cannot contribute intent.
+        const auto& [interfaceId, address] =
+            *pendingOwnerInterfacePreference_;
+        // Keep only an exact currently R10-approved choice, never an address
+        // or any permission/listener state in the R2 preference record.
         const HostStatus current = host_.status();
         const bool approved = std::ranges::any_of(
             current.approvedLanInterfaces,
@@ -1418,6 +1427,7 @@ void DesktopWindow::saveOwnerPreferences()
         if (usernameOwnerEdited_)
             restoredUsernameActive_ = true;
         usernameOwnerEdited_ = false;
+        pendingOwnerInterfacePreference_.reset();
         clearPreferenceActionError();
         refresh();
         return;
@@ -1444,6 +1454,7 @@ void DesktopWindow::saveOwnerPreferences()
         if (usernameOwnerEdited_)
             restoredUsernameActive_ = true;
         usernameOwnerEdited_ = false;
+        pendingOwnerInterfacePreference_.reset();
         clearPreferenceActionError();
     }
     else
